@@ -75,8 +75,7 @@
   var CFG_KEY   = 'myday_cfg';
   var QUEUE_KEY = 'myday_queue';
 
-  var pending = [];      // in the cloud, waiting for Claude
-  var working = [];      // recorded, still being transcribed
+  var pending = [];      // in the cloud, waiting for Claude to file it
   var cfg     = null;
 
   // ---------------------------------------------------------------- config
@@ -153,8 +152,15 @@
 
   function render() {
     var rows = [];
-    working.forEach(function (n) { rows.push({ ts:n.ts, text:n.text, cls:'working' }); });
-    load(QUEUE_KEY).forEach(function (n) { rows.push({ ts:n.ts, text:n.text, cls:'unsent' }); });
+    // Queued items: the one being uploaded right now shows as greyed-out and
+    // working; the rest are genuinely still only on the phone.
+    load(QUEUE_KEY).forEach(function (n, i) {
+      rows.push({
+        ts: n.ts,
+        text: n.spoken || 'recorded',
+        cls: (i === 0 && sending) ? 'working' : 'unsent'
+      });
+    });
     pending.forEach(function (n) { rows.push({ ts:n.client_ts || n.server_ts, text:n.text, cls:'' }); });
 
     if (!rows.length) {
@@ -193,52 +199,80 @@
   }
 
   /**
-   * OpenAI first, always. `spoken` is what the phone's own speech engine heard
-   * during the same hold; it is only used if OpenAI could not be reached, e.g.
-   * while the Apps Script external-request scope is still ungranted.
+   * SAVE FIRST, THEN SEND. This ordering is the whole point.
+   *
+   * Every note is written to localStorage the moment the button is released and
+   * is only removed once the server confirms it. Losing signal, closing the app,
+   * or iOS killing the tab mid-request can no longer cost a note. The earlier
+   * version only saved *after* a send had already failed, which is why an
+   * offline note disappeared on 2026-08-11.
+   *
+   * Queue item: {qid, ts, spoken, audio, mime}
+   *   audio present → transcribe via OpenAI (best quality)
+   *   audio dropped → send `spoken`, what the phone's own engine heard
    */
-  function sendAudio(b64, mime, ts, spoken) {
-    var slot = { ts: ts, text: spoken || 'transcribing' };
-    working.push(slot);
-    render();
 
-    function done() { working.splice(working.indexOf(slot), 1); render(); }
+  var MAX_AUDIO_QUEUED = 4;   // keeps localStorage inside Safari's quota
+  var sending = false;
+  var queueSeq = 0;           // makes qids unique within the same minute
 
-    function fallback(why) {
-      if (spoken) {
-        post({ action:'add', token:cfg.token, text:spoken, client_ts:ts })
-          .then(function (d) { if (d && d.ok) pending = d.pending || pending; done(); })
-          .catch(function () { queue(spoken, ts); done(); });
-      } else {
-        queue('[could not transcribe] ' + why, ts);
-        done();
-      }
-    }
-
-    post({ action:'transcribe', token:cfg.token, audio:b64, mime:mime, client_ts:ts })
-      .then(function (d) {
-        if (d && d.ok) { pending = d.pending || pending; done(); }
-        else { fallback((d && d.error) || 'unknown'); }
-      })
-      .catch(function () { fallback('offline'); });
-  }
-
-  function queue(text, ts) {
+  function enqueue(item) {
     var q = load(QUEUE_KEY);
-    q.push({ ts: ts, text: text });
+    // Only the newest few clips keep their audio; older ones keep their words.
+    var withAudio = q.filter(function (x) { return x.audio; }).length;
+    if (withAudio >= MAX_AUDIO_QUEUED && item.spoken) { item.audio = null; item.mime = null; }
+    q.push(item);
     save(QUEUE_KEY, q);
     render();
   }
 
+  function dequeue(qid) {
+    save(QUEUE_KEY, load(QUEUE_KEY).filter(function (x) { return x.qid !== qid; }));
+    render();
+  }
+
+  function patch(qid, changes) {
+    var q = load(QUEUE_KEY);
+    q.forEach(function (x) { if (x.qid === qid) { for (var k in changes) x[k] = changes[k]; } });
+    save(QUEUE_KEY, q);
+    render();
+  }
+
+  function bodyFor(item) {
+    return item.audio
+      ? { action:'transcribe', token:cfg.token, audio:item.audio, mime:item.mime, client_ts:item.ts }
+      : { action:'add', token:cfg.token, text:item.spoken, client_ts:item.ts };
+  }
+
+  /** Oldest first, one at a time, stopping at the first failure. */
   function flush() {
+    if (sending) return;
     var q = load(QUEUE_KEY);
     if (!q.length) return;
-    save(QUEUE_KEY, []);
-    q.forEach(function (item) {
-      post({ action:'add', token:cfg.token, text:item.text, client_ts:item.ts })
-        .then(function (d) { if (d && d.ok) { pending = d.pending || pending; render(); } })
-        .catch(function () { queue(item.text, item.ts); });
-    });
+
+    sending = true;
+    var item = q[0];
+
+    post(bodyFor(item))
+      .then(function (d) {
+        if (d && d.ok) {
+          pending = d.pending || pending;
+          dequeue(item.qid);
+        } else if (item.audio && item.spoken) {
+          // OpenAI couldn't use the clip: keep the words, drop the audio, retry.
+          patch(item.qid, { audio: null, mime: null });
+        } else if (item.audio) {
+          // Nothing usable at all. Say so rather than lose it silently.
+          patch(item.qid, { audio: null, mime: null, spoken: '[could not transcribe]' });
+        } else {
+          throw new Error('rejected');
+        }
+        sending = false;
+        flush();
+      })
+      .catch(function () {
+        sending = false;      // stays queued; retried on the next tick
+      });
   }
 
   // ---------------------------------------------------------------- recording
@@ -308,11 +342,25 @@
       mr.onstop = function () {
         var type = (mr && mr.mimeType) || 'audio/mp4';
         var blob = new Blob(chunks, { type: type });
-        if (blob.size < 1200) return;             // a tap, not speech
         var spoken = said.trim();
+        if (blob.size < 1200 && !spoken) return;   // a tap, not speech
+        var ts = stamp();
+        var qid = ts + '-' + (queueSeq++);
         var fr = new FileReader();
         fr.onloadend = function () {
-          sendAudio(String(fr.result).split(',')[1], type + ';name=note.' + extFor(type), stamp(), spoken);
+          enqueue({
+            qid: qid,
+            ts: ts,
+            spoken: spoken,
+            audio: String(fr.result).split(',')[1],
+            mime: type + ';name=note.' + extFor(type)
+          });
+          flush();
+        };
+        // If the clip itself is unreadable, the words still get saved.
+        fr.onerror = function () {
+          enqueue({ qid: qid, ts: ts, spoken: spoken, audio: null, mime: null });
+          flush();
         };
         fr.readAsDataURL(blob);
       };
@@ -322,7 +370,10 @@
       reset();
       rec.disabled = true;
       rec.textContent = 'MIC BLOCKED';
-      queue('[microphone refused: ' + (err && err.name) + ']', stamp());
+      var ts = stamp();
+      enqueue({ qid: ts + '-' + (queueSeq++), ts: ts,
+                spoken: '[microphone refused: ' + (err && err.name) + ']', audio: null, mime: null });
+      flush();
     });
   }
 
@@ -366,10 +417,14 @@
       'tab to make it stick.</div>';
   }
 
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(true); });
+  document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) { flush(); refresh(true); }
+  });
   window.addEventListener('online', flush);
-  setInterval(function () { refresh(false); }, 20000);
+  setInterval(function () { flush(); refresh(false); }, 20000);
+
   render();
+  flush();          // anything stranded by a previous session goes out first
   refresh(true);
 })();
 </script>
