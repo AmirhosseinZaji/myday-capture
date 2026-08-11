@@ -422,11 +422,12 @@
       if (holding) rec.textContent = 'LISTENING  ' + Math.round((Date.now() - startedAt) / 1000) + 's';
     }, 500);
 
-    var go = stream ? Promise.resolve(stream)
-                    : navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { stream = s; return s; });
+    // Acquired fresh every press, and handed straight back afterwards.
+    var go = navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (s) { stream = s; return s; });
 
     go.then(function (s) {
-      if (!holding) return;                       // released before permission came back
+      if (!holding) { releaseMic(); return; }     // released before permission came back
       var mime = pickMime();
       chunks = [];
       mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s);
@@ -455,6 +456,7 @@
           flush();
         };
         fr.readAsDataURL(blob);
+        releaseMic();
       };
       mr.start();
     }).catch(function (err) {
@@ -467,6 +469,19 @@
                 spoken: '[microphone refused: ' + (err && err.name) + ']', audio: null, mime: null });
       flush();
     });
+  }
+
+  /**
+   * Hands the microphone back to iOS.
+   *
+   * Keeping the stream alive between presses made the next press marginally
+   * faster and left the amber recording indicator lit permanently, surviving
+   * the app being closed. Never hold the mic open when not recording.
+   */
+  function releaseMic() {
+    if (!stream) return;
+    try { stream.getTracks().forEach(function (t) { t.stop(); }); } catch (e) {}
+    stream = null;
   }
 
   function reset() {
@@ -487,8 +502,14 @@
     var tooShort = (Date.now() - startedAt) < 1000;
     reset();
     if (mr && mr.state === 'recording') {
-      if (tooShort) { try { mr.ondataavailable = null; mr.onstop = null; mr.stop(); } catch (e) {} }
-      else { try { mr.stop(); } catch (e) {} }
+      if (tooShort) {
+        try { mr.ondataavailable = null; mr.onstop = null; mr.stop(); } catch (e) {}
+        releaseMic();
+      } else {
+        try { mr.stop(); } catch (e) {}   // onstop releases the mic
+      }
+    } else {
+      releaseMic();                        // never started, e.g. released too fast
     }
   }
 
@@ -510,7 +531,8 @@
   }
 
   document.addEventListener('visibilitychange', function () {
-    if (!document.hidden) { flush(); refresh(true); }
+    if (document.hidden) { holding = false; reset(); releaseMic(); }
+    else { flush(); refresh(true); }
   });
   window.addEventListener('online', flush);
   setInterval(function () { flush(); refresh(false); }, 20000);
