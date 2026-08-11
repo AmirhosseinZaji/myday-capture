@@ -153,10 +153,11 @@
   function load(k) { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } }
   function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
 
+  // Seconds matter: several notes inside one minute were sorting arbitrarily.
   function stamp() {
     var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
     return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
-           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
   }
 
   function shortTime(ts) {
@@ -169,27 +170,40 @@
       : m[2] + '/' + m[3] + '  ' + m[4] + ':' + m[5];
   }
 
+  /**
+   * Oldest at the top, newest at the bottom, like a chat. Scrolling down goes
+   * to the most recent note; scrolling up reaches the oldest thing still
+   * waiting. Queued notes keep their insertion order rather than being sorted,
+   * because they are always the newest and their order is already correct.
+   */
   function render() {
+    var atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 80;
     var rows = [];
-    // Queued items: the one being uploaded right now shows as greyed-out and
-    // working; the rest are genuinely still only on the phone.
+
+    // Already in the cloud: sorted oldest first.
+    pending.slice()
+      .sort(function (a, b) {
+        return String(a.client_ts || a.server_ts).localeCompare(String(b.client_ts || b.server_ts));
+      })
+      .forEach(function (n) {
+        rows.push({ id:n.id, ts:n.client_ts || n.server_ts, text:n.text, cls:'' });
+      });
+
+    // Still on the phone: newest, in the order they were spoken. The one being
+    // uploaded right now is greyed out; the rest are genuinely not sent yet.
     load(QUEUE_KEY).forEach(function (n, i) {
       rows.push({
         qid: n.qid,
         ts: n.ts,
-        text: n.spoken || 'recorded',
+        text: n.spoken || 'voice note, uploading',
         cls: (i === 0 && sending) ? 'working' : 'unsent'
       });
-    });
-    pending.forEach(function (n) {
-      rows.push({ id:n.id, ts:n.client_ts || n.server_ts, text:n.text, cls:'' });
     });
 
     if (!rows.length) {
       listEl.innerHTML = '<div id="empty">Nothing waiting.<br><b>Everything is in the system.</b></div>';
       return;
     }
-    rows.sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); });
     listEl.innerHTML = rows.map(function (n) {
       var key = n.qid ? ' data-qid="' + esc(n.qid) + '"' : ' data-id="' + n.id + '"';
       return '<div class="row"' + key + '>' +
@@ -200,6 +214,9 @@
                '</div>' +
              '</div>';
     }).join('');
+
+    // Follow the newest note, but never yank the view while he is reading up.
+    if (atBottom) listEl.scrollTop = listEl.scrollHeight;
   }
 
   // ---------------------------------------------------------------- server
@@ -240,7 +257,8 @@
 
   var MAX_AUDIO_QUEUED = 4;   // keeps localStorage inside Safari's quota
   var sending = false;
-  var queueSeq = 0;           // makes qids unique within the same minute
+  var sendingSince = 0;
+  var queueSeq = 0;           // makes qids unique within the same second
 
   function enqueue(item) {
     var q = load(QUEUE_KEY);
@@ -264,19 +282,29 @@
     render();
   }
 
+  /**
+   * `qid` makes the send idempotent. A request can succeed on the server and
+   * still fail on the way back (dropped signal, app suspended), and the retry
+   * would then store the note a second time. That is exactly what produced
+   * three identical notes at 12:40 on 2026-08-11. The server now ignores a qid
+   * it has already stored.
+   */
   function bodyFor(item) {
     return item.audio
-      ? { action:'transcribe', token:cfg.token, audio:item.audio, mime:item.mime, client_ts:item.ts }
-      : { action:'add', token:cfg.token, text:item.spoken, client_ts:item.ts };
+      ? { action:'transcribe', token:cfg.token, qid:item.qid, audio:item.audio, mime:item.mime, client_ts:item.ts }
+      : { action:'add', token:cfg.token, qid:item.qid, text:item.spoken, client_ts:item.ts };
   }
 
   /** Oldest first, one at a time, stopping at the first failure. */
   function flush() {
+    // A request that never settles would otherwise wedge the queue forever.
+    if (sending && Date.now() - sendingSince > 90000) sending = false;
     if (sending) return;
     var q = load(QUEUE_KEY);
     if (!q.length) return;
 
     sending = true;
+    sendingSince = Date.now();
     var item = q[0];
 
     post(bodyFor(item))
