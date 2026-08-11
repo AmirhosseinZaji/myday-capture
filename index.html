@@ -6,6 +6,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <title>myday</title>
+<!-- Home Screen icon. iOS reads this only when the icon is ADDED, so changing
+     it means deleting the icon and adding it again. -->
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <style>
   :root { --fg:#000; --dim:#8a8a8e; --line:#e4e4e7; --rec:#e02020; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -83,7 +87,7 @@
 
 <div id="list"></div>
 <div id="live"></div>
-<div id="ver">v8</div>
+<div id="ver">v9</div>
 <div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
 
 <script>
@@ -255,16 +259,23 @@
    *   audio dropped → send `spoken`, what the phone's own engine heard
    */
 
-  var MAX_AUDIO_QUEUED = 4;   // keeps localStorage inside Safari's quota
+  // The recording itself is held on the phone until the server confirms the
+  // transcript, then deleted with the queue entry. Capped by total size rather
+  // than by count, so short notes are all kept and only a genuine backlog of
+  // long ones starts shedding audio (those fall back to the on-device text).
+  var MAX_AUDIO_BYTES = 3000000;   // ~3 MB, well inside Safari's quota
   var sending = false;
   var sendingSince = 0;
   var queueSeq = 0;           // makes qids unique within the same second
 
   function enqueue(item) {
     var q = load(QUEUE_KEY);
-    // Only the newest few clips keep their audio; older ones keep their words.
-    var withAudio = q.filter(function (x) { return x.audio; }).length;
-    if (withAudio >= MAX_AUDIO_QUEUED && item.spoken) { item.audio = null; item.mime = null; }
+    var held = q.reduce(function (n, x) { return n + (x.audio ? x.audio.length : 0); }, 0);
+    // Over budget: drop audio from the OLDEST entries that still have words to
+    // fall back on, so the newest recording always keeps its audio.
+    for (var i = 0; i < q.length && held + (item.audio ? item.audio.length : 0) > MAX_AUDIO_BYTES; i++) {
+      if (q[i].audio && q[i].spoken) { held -= q[i].audio.length; q[i].audio = null; q[i].mime = null; }
+    }
     q.push(item);
     save(QUEUE_KEY, q);
     render();
@@ -462,7 +473,13 @@
       if (!holding) { releaseMic(); return; }     // released before permission came back
       var mime = pickMime();
       chunks = [];
-      mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s);
+      // Speech needs very little bandwidth. Dropping to 24 kbps cuts the upload
+      // several-fold with no loss the transcriber notices, and the upload is
+      // the one part of the round trip we control.
+      var opts = mime ? { mimeType: mime, audioBitsPerSecond: 24000 }
+                      : { audioBitsPerSecond: 24000 };
+      try { mr = new MediaRecorder(s, opts); }
+      catch (e) { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
       mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
       mr.onstop = function () {
         var type = (mr && mr.mimeType) || 'audio/mp4';
