@@ -21,7 +21,22 @@
     flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
     padding:max(18px, env(safe-area-inset-top)) 20px 8px;
   }
-  .note { padding:18px 0; border-bottom:1px solid var(--line); }
+  /* Each row is a swipe track: the note slides left to reveal Delete. */
+  .row { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
+  .row .del {
+    position:absolute; top:0; right:0; height:100%; width:120px;
+    border:none; background:var(--rec); color:#fff;
+    font:800 20px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing:.03em;
+  }
+  .row .note {
+    position:relative; background:#fff;
+    transform:translateX(0); transition:transform .18s ease;
+    touch-action:pan-y;                 /* let vertical scrolling through */
+  }
+  .row.open .note { transform:translateX(-120px); }
+  .row.swiping .note { transition:none; }
+
+  .note { padding:18px 0; }
   .note .when {
     font-size:16px; font-weight:700; color:var(--dim);
     letter-spacing:.05em; margin-bottom:6px;
@@ -156,12 +171,15 @@
     // working; the rest are genuinely still only on the phone.
     load(QUEUE_KEY).forEach(function (n, i) {
       rows.push({
+        qid: n.qid,
         ts: n.ts,
         text: n.spoken || 'recorded',
         cls: (i === 0 && sending) ? 'working' : 'unsent'
       });
     });
-    pending.forEach(function (n) { rows.push({ ts:n.client_ts || n.server_ts, text:n.text, cls:'' }); });
+    pending.forEach(function (n) {
+      rows.push({ id:n.id, ts:n.client_ts || n.server_ts, text:n.text, cls:'' });
+    });
 
     if (!rows.length) {
       listEl.innerHTML = '<div id="empty">Nothing waiting.<br><b>Everything is in the system.</b></div>';
@@ -169,9 +187,13 @@
     }
     rows.sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); });
     listEl.innerHTML = rows.map(function (n) {
-      return '<div class="note ' + n.cls + '">' +
-               '<div class="when">' + esc(shortTime(n.ts)) + '</div>' +
-               '<div class="body">' + esc(n.text) + '</div>' +
+      var key = n.qid ? ' data-qid="' + esc(n.qid) + '"' : ' data-id="' + n.id + '"';
+      return '<div class="row"' + key + '>' +
+               '<button class="del">Delete</button>' +
+               '<div class="note ' + n.cls + '">' +
+                 '<div class="when">' + esc(shortTime(n.ts)) + '</div>' +
+                 '<div class="body">' + esc(n.text) + '</div>' +
+               '</div>' +
              '</div>';
     }).join('');
   }
@@ -274,6 +296,76 @@
         sending = false;      // stays queued; retried on the next tick
       });
   }
+
+  // ---------------------------------------------------------- swipe to delete
+
+  /**
+   * Swipe a row left to reveal Delete. A queued note is dropped locally; one
+   * already in the cloud is marked "discarded" server-side so it stops being
+   * pulled. Nothing is ever really deleted from the sheet.
+   */
+  (function () {
+    var startX = 0, startY = 0, row = null, decided = false, horizontal = false;
+
+    function closeAll(except) {
+      [].forEach.call(listEl.querySelectorAll('.row.open'), function (r) {
+        if (r !== except) r.classList.remove('open');
+      });
+    }
+
+    listEl.addEventListener('touchstart', function (e) {
+      var t = e.target.closest ? e.target.closest('.row') : null;
+      if (!t || e.target.classList.contains('del')) return;
+      row = t; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
+      decided = false; horizontal = false;
+    }, { passive: true });
+
+    listEl.addEventListener('touchmove', function (e) {
+      if (!row) return;
+      var dx = e.touches[0].clientX - startX;
+      var dy = e.touches[0].clientY - startY;
+
+      if (!decided) {
+        if (Math.abs(dx) < 8 && Math.abs(dy) < 8) return;
+        decided = true;
+        horizontal = Math.abs(dx) > Math.abs(dy);
+        if (horizontal) { closeAll(row); row.classList.add('swiping'); }
+      }
+      if (!horizontal) return;
+
+      var offset = Math.max(-120, Math.min(0, dx - (row.classList.contains('open') ? 120 : 0)));
+      row.querySelector('.note').style.transform = 'translateX(' + offset + 'px)';
+    }, { passive: true });
+
+    listEl.addEventListener('touchend', function () {
+      if (!row) return;
+      var note = row.querySelector('.note');
+      if (horizontal) {
+        var current = parseFloat((note.style.transform.match(/-?\d+(\.\d+)?/) || [0])[0]) || 0;
+        row.classList.remove('swiping');
+        note.style.transform = '';
+        row.classList.toggle('open', current < -60);
+      }
+      row = null;
+    });
+
+    listEl.addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('.del') : null;
+      if (!btn) { closeAll(null); return; }
+
+      var r = btn.closest('.row');
+      var qid = r.getAttribute('data-qid');
+      var id  = r.getAttribute('data-id');
+
+      if (qid) { dequeue(qid); return; }          // never left the phone
+
+      pending = pending.filter(function (x) { return String(x.id) !== String(id); });
+      render();
+      post({ action:'discard', token:cfg.token, id:Number(id) })
+        .then(function (d) { if (d && d.ok) { pending = d.pending || pending; render(); } })
+        .catch(function () { refresh(true); });   // put it back if the call failed
+    });
+  })();
 
   // ---------------------------------------------------------------- recording
 
