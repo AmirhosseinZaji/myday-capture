@@ -152,8 +152,10 @@
 
   // ---------------------------------------------------------------- server
 
-  function refresh() {
-    if (document.hidden) return;
+  // force = the user just opened or returned to the page. The plain 20s poll
+  // skips while hidden so a backgrounded phone isn't calling out every 20s.
+  function refresh(force) {
+    if (document.hidden && !force) return;
     fetch(cfg.url + '?action=fetch&token=' + encodeURIComponent(cfg.token))
       .then(function (r) { return r.json(); })
       .then(function (d) { if (d && d.ok) { pending = d.entries || []; render(); flush(); } })
@@ -332,11 +334,11 @@
   cfg = readConfig();
   if (!cfg) { needsSetup(); return; }
 
-  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(true); });
   window.addEventListener('online', flush);
-  setInterval(refresh, 20000);
+  setInterval(function () { refresh(false); }, 20000);
   render();
-  refresh();
+  refresh(true);
 })();
 </script>
 </body>
