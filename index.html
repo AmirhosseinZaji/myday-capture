@@ -80,6 +80,8 @@
   //   .../index.html#e=<exec url>&k=<token>
   // After the first open they live in localStorage and the fragment is dropped.
 
+  var storageBlocked = false;
+
   function readConfig() {
     var h = location.hash.replace(/^#/, '');
     if (h) {
@@ -88,9 +90,19 @@
         var i = kv.indexOf('=');
         if (i > 0) p[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
       });
-      if (p.e && p.k) {
-        localStorage.setItem(CFG_KEY, JSON.stringify({ url: p.e, token: p.k }));
-        history.replaceState(null, '', location.pathname);
+      // d = just the deployment id, which keeps the link short enough to survive
+      // being copied around. e = a full endpoint URL, still accepted.
+      var url = p.e || (p.d ? 'https://script.google.com/macros/s/' + p.d + '/exec' : '');
+      if (url && p.k) {
+        var cfg = { url: url, token: p.k };
+        try {
+          localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
+          if (!localStorage.getItem(CFG_KEY)) throw new Error('not persisted');
+          history.replaceState(null, '', location.pathname);
+        } catch (e) {
+          storageBlocked = true;
+        }
+        return cfg;   // works this session even if saving failed
       }
     }
     try { return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch (e) { return null; }
@@ -99,9 +111,9 @@
   function needsSetup() {
     document.getElementById('bar').style.display = 'none';
     listEl.innerHTML =
-      '<div id="setup"><b>Not linked yet.</b><br><br>Open this page once using the full link ' +
-      'Claude gave you, the one ending in <code>#e=...&amp;k=...</code>. It only has to happen once ' +
-      'on this phone.</div>';
+      '<div id="setup"><b>Not linked yet.</b><br><br>Scan the QR code Claude sent, or open the ' +
+      'full link ending in <code>#d=...&amp;k=...</code>. If you just did and still see this, ' +
+      'you are in a <b>Private</b> tab, which cannot save anything. Open it in a normal tab.</div>';
   }
 
   // ---------------------------------------------------------------- helpers
@@ -333,6 +345,12 @@
 
   cfg = readConfig();
   if (!cfg) { needsSetup(); return; }
+  if (storageBlocked) {
+    // Recording still works, but the link will have to be reopened next time.
+    listEl.innerHTML = '<div id="setup"><b>Working, but not saved.</b><br><br>This tab is Private, ' +
+      'so the link could not be stored. Recording works now; reopen the full link in a normal ' +
+      'tab to make it stick.</div>';
+  }
 
   document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(true); });
   window.addEventListener('online', flush);
