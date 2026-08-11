@@ -95,10 +95,13 @@
       var url = p.e || (p.d ? 'https://script.google.com/macros/s/' + p.d + '/exec' : '');
       if (url && p.k) {
         var cfg = { url: url, token: p.k };
+        // The fragment deliberately stays in the address bar. iOS gives a
+        // Home Screen web app its OWN storage, separate from Safari's, so the
+        // saved bookmark must still carry the config or the app opens blank.
+        // A #fragment is never sent to any server, so nothing leaks by keeping it.
         try {
           localStorage.setItem(CFG_KEY, JSON.stringify(cfg));
           if (!localStorage.getItem(CFG_KEY)) throw new Error('not persisted');
-          history.replaceState(null, '', location.pathname);
         } catch (e) {
           storageBlocked = true;
         }
