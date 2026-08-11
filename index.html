@@ -334,8 +334,14 @@
     if (ev) ev.preventDefault();
     if (!holding) return;
     holding = false;
+    // A brush against the bar is not a note. Below this it is thrown away
+    // rather than becoming a "[could not transcribe]" line in the inbox.
+    var tooShort = (Date.now() - startedAt) < 500;
     reset();
-    if (mr && mr.state === 'recording') { try { mr.stop(); } catch (e) {} }
+    if (mr && mr.state === 'recording') {
+      if (tooShort) { try { mr.ondataavailable = null; mr.onstop = null; mr.stop(); } catch (e) {} }
+      else { try { mr.stop(); } catch (e) {} }
+    }
   }
 
   rec.addEventListener('touchstart', down, { passive:false });
