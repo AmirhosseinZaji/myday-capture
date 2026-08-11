@@ -334,9 +334,9 @@
     if (ev) ev.preventDefault();
     if (!holding) return;
     holding = false;
-    // A brush against the bar is not a note. Below this it is thrown away
-    // rather than becoming a "[could not transcribe]" line in the inbox.
-    var tooShort = (Date.now() - startedAt) < 500;
+    // A tap is not a note. Under a second the clip is dropped on the phone:
+    // nothing is uploaded, nothing is transcribed, nothing reaches the inbox.
+    var tooShort = (Date.now() - startedAt) < 1000;
     reset();
     if (mr && mr.state === 'recording') {
       if (tooShort) { try { mr.ondataavailable = null; mr.onstop = null; mr.stop(); } catch (e) {} }
