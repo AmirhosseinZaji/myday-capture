@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<title>myday</title>
+<style>
+  :root { --fg:#000; --dim:#8a8a8e; --line:#e4e4e7; --rec:#e02020; }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body {
+    margin:0; padding:0; height:100%;
+    background:#fff; color:var(--fg);
+    font:23px/1.42 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    overscroll-behavior:none;
+  }
+  body { display:flex; flex-direction:column; }
+
+  #list {
+    flex:1 1 auto; overflow-y:auto; -webkit-overflow-scrolling:touch;
+    padding:max(18px, env(safe-area-inset-top)) 20px 8px;
+  }
+  .note { padding:18px 0; border-bottom:1px solid var(--line); }
+  .note .when {
+    font-size:16px; font-weight:700; color:var(--dim);
+    letter-spacing:.05em; margin-bottom:6px;
+  }
+  .note .body { font-size:24px; }
+  .note.unsent .when::after { content:" · ON PHONE ONLY"; color:var(--rec); }
+  .note.working { opacity:.45; }
+  .note.working .body::after { content:" …"; }
+
+  #empty { padding:38px 4px; color:var(--dim); font-size:23px; }
+  #empty b { color:var(--fg); font-weight:600; }
+
+  #bar { flex:0 0 auto; padding:12px 16px max(14px, env(safe-area-inset-bottom)); }
+  #rec {
+    width:100%; height:180px; border:none; border-radius:26px;
+    background:#000; color:#fff;
+    font:800 30px/1 -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing:.05em;
+    user-select:none; -webkit-user-select:none; touch-action:none;
+    transition:background .12s ease, transform .09s ease;
+  }
+  #rec.live { background:var(--rec); transform:scale(.985); }
+  #rec:disabled { background:#c7c7cc; }
+
+  #setup { padding:40px 24px; font-size:20px; line-height:1.5; }
+  #setup code { font-size:16px; word-break:break-all; background:#f2f2f5; padding:2px 5px; border-radius:5px; }
+</style>
+</head>
+<body>
+
+<div id="list"></div>
+<div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
+
+<script>
+(function () {
+  var listEl = document.getElementById('list');
+  var rec    = document.getElementById('rec');
+
+  var CFG_KEY   = 'myday_cfg';
+  var QUEUE_KEY = 'myday_queue';
+
+  var pending = [];      // in the cloud, waiting for Claude
+  var working = [];      // recorded, still being transcribed
+  var cfg     = null;
+
+  // ---------------------------------------------------------------- config
+  // The endpoint and token arrive once in the URL fragment, which is never sent
+  // to any server and never stored in the repo:
+  //   .../index.html#e=<exec url>&k=<token>
+  // After the first open they live in localStorage and the fragment is dropped.
+
+  function readConfig() {
+    var h = location.hash.replace(/^#/, '');
+    if (h) {
+      var p = {};
+      h.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i > 0) p[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+      });
+      if (p.e && p.k) {
+        localStorage.setItem(CFG_KEY, JSON.stringify({ url: p.e, token: p.k }));
+        history.replaceState(null, '', location.pathname);
+      }
+    }
+    try { return JSON.parse(localStorage.getItem(CFG_KEY) || 'null'); } catch (e) { return null; }
+  }
+
+  function needsSetup() {
+    document.getElementById('bar').style.display = 'none';
+    listEl.innerHTML =
+      '<div id="setup"><b>Not linked yet.</b><br><br>Open this page once using the full link ' +
+      'Claude gave you, the one ending in <code>#e=...&amp;k=...</code>. It only has to happen once ' +
+      'on this phone.</div>';
+  }
+
+  // ---------------------------------------------------------------- helpers
+
+  function esc(t) {
+    return String(t).replace(/[&<>]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;' }[c];
+    });
+  }
+
+  function load(k) { try { return JSON.parse(localStorage.getItem(k) || '[]'); } catch (e) { return []; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+
+  function stamp() {
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) +
+           ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function shortTime(ts) {
+    var m = String(ts || '').match(/^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})/);
+    if (!m) return String(ts || '');
+    var d = new Date(), p = function (n) { return (n < 10 ? '0' : '') + n; };
+    var today = d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+    return (m[1] + '-' + m[2] + '-' + m[3] === today)
+      ? m[4] + ':' + m[5]
+      : m[2] + '/' + m[3] + '  ' + m[4] + ':' + m[5];
+  }
+
+  function render() {
+    var rows = [];
+    working.forEach(function (n) { rows.push({ ts:n.ts, text:n.text, cls:'working' }); });
+    load(QUEUE_KEY).forEach(function (n) { rows.push({ ts:n.ts, text:n.text, cls:'unsent' }); });
+    pending.forEach(function (n) { rows.push({ ts:n.client_ts || n.server_ts, text:n.text, cls:'' }); });
+
+    if (!rows.length) {
+      listEl.innerHTML = '<div id="empty">Nothing waiting.<br><b>Everything is in the system.</b></div>';
+      return;
+    }
+    rows.sort(function (a, b) { return String(b.ts).localeCompare(String(a.ts)); });
+    listEl.innerHTML = rows.map(function (n) {
+      return '<div class="note ' + n.cls + '">' +
+               '<div class="when">' + esc(shortTime(n.ts)) + '</div>' +
+               '<div class="body">' + esc(n.text) + '</div>' +
+             '</div>';
+    }).join('');
+  }
+
+  // ---------------------------------------------------------------- server
+
+  function refresh() {
+    if (document.hidden) return;
+    fetch(cfg.url + '?action=fetch&token=' + encodeURIComponent(cfg.token))
+      .then(function (r) { return r.json(); })
+      .then(function (d) { if (d && d.ok) { pending = d.entries || []; render(); flush(); } })
+      .catch(function () {});
+  }
+
+  /** text/plain keeps this a "simple" request, so no CORS preflight. */
+  function post(body) {
+    return fetch(cfg.url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify(body),
+      redirect: 'follow'
+    }).then(function (r) { return r.json(); });
+  }
+
+  function sendAudio(b64, mime, ts) {
+    var slot = { ts: ts, text: 'transcribing' };
+    working.push(slot);
+    render();
+
+    post({ action:'transcribe', token:cfg.token, audio:b64, mime:mime, client_ts:ts })
+      .then(function (d) {
+        working.splice(working.indexOf(slot), 1);
+        if (d && d.ok) { pending = d.pending || pending; }
+        else { queue('[could not transcribe] ' + ((d && d.error) || ''), ts); }
+        render();
+      })
+      .catch(function () {
+        working.splice(working.indexOf(slot), 1);
+        // Audio is too big to sit in localStorage, so keep the fact, not the file.
+        queue('[note lost: no signal while sending audio]', ts);
+        render();
+      });
+  }
+
+  function queue(text, ts) {
+    var q = load(QUEUE_KEY);
+    q.push({ ts: ts, text: text });
+    save(QUEUE_KEY, q);
+    render();
+  }
+
+  function flush() {
+    var q = load(QUEUE_KEY);
+    if (!q.length) return;
+    save(QUEUE_KEY, []);
+    q.forEach(function (item) {
+      post({ action:'add', token:cfg.token, text:item.text, client_ts:item.ts })
+        .then(function (d) { if (d && d.ok) { pending = d.pending || pending; render(); } })
+        .catch(function () { queue(item.text, item.ts); });
+    });
+  }
+
+  // ---------------------------------------------------------------- recording
+
+  var stream = null, mr = null, chunks = [], holding = false, startedAt = 0, ticker = null;
+
+  function pickMime() {
+    var want = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
+    for (var i = 0; i < want.length; i++) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(want[i])) return want[i];
+    }
+    return '';
+  }
+
+  function extFor(mime) { return mime.indexOf('mp4') > -1 ? 'm4a' : 'webm'; }
+
+  function down(ev) {
+    ev.preventDefault();
+    if (holding) return;
+    holding = true;
+    rec.classList.add('live');
+    rec.textContent = 'LISTENING';
+    startedAt = Date.now();
+    ticker = setInterval(function () {
+      if (holding) rec.textContent = 'LISTENING  ' + Math.round((Date.now() - startedAt) / 1000) + 's';
+    }, 500);
+
+    var go = stream ? Promise.resolve(stream)
+                    : navigator.mediaDevices.getUserMedia({ audio: true }).then(function (s) { stream = s; return s; });
+
+    go.then(function (s) {
+      if (!holding) return;                       // released before permission came back
+      var mime = pickMime();
+      chunks = [];
+      mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s);
+      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = function () {
+        var type = (mr && mr.mimeType) || 'audio/mp4';
+        var blob = new Blob(chunks, { type: type });
+        if (blob.size < 1200) return;             // a tap, not speech
+        var fr = new FileReader();
+        fr.onloadend = function () {
+          sendAudio(String(fr.result).split(',')[1], type + ';name=note.' + extFor(type), stamp());
+        };
+        fr.readAsDataURL(blob);
+      };
+      mr.start();
+    }).catch(function (err) {
+      holding = false;
+      reset();
+      rec.disabled = true;
+      rec.textContent = 'MIC BLOCKED';
+      queue('[microphone refused: ' + (err && err.name) + ']', stamp());
+    });
+  }
+
+  function reset() {
+    clearInterval(ticker);
+    rec.classList.remove('live');
+    if (!rec.disabled) rec.textContent = 'HOLD & TALK';
+  }
+
+  function up(ev) {
+    if (ev) ev.preventDefault();
+    if (!holding) return;
+    holding = false;
+    reset();
+    if (mr && mr.state === 'recording') { try { mr.stop(); } catch (e) {} }
+  }
+
+  rec.addEventListener('touchstart', down, { passive:false });
+  rec.addEventListener('touchend', up, { passive:false });
+  rec.addEventListener('touchcancel', up, { passive:false });
+  rec.addEventListener('mousedown', down);
+  window.addEventListener('mouseup', up);
+
+  // ---------------------------------------------------------------- boot
+
+  cfg = readConfig();
+  if (!cfg) { needsSetup(); return; }
+
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) refresh(); });
+  window.addEventListener('online', flush);
+  setInterval(refresh, 20000);
+  render();
+  refresh();
+})();
+</script>
+</body>
+</html>
