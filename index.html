@@ -71,6 +71,7 @@
     user-select:none; -webkit-user-select:none; touch-action:none;
     transition:background .12s ease, transform .09s ease;
   }
+  #rec.arming { background:#9aa0a6; }   /* mic opening: not capturing yet */
   #rec.live { background:var(--rec); transform:scale(.985); }
   #rec:disabled { background:#c7c7cc; }
 
@@ -89,7 +90,7 @@
 
 <div id="list"></div>
 <div id="live"></div>
-<div id="ver">v11</div>
+<div id="ver">v12</div>
 <div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
 
 <script>
@@ -415,6 +416,7 @@
   // ---------------------------------------------------------------- recording
 
   var stream = null, mr = null, chunks = [], holding = false, startedAt = 0, ticker = null;
+  var armed = false;   // true only once MediaRecorder has actually started
   var liveEl = document.getElementById('live');
 
   /**
@@ -446,73 +448,101 @@
 
   function extFor(mime) { return mime.indexOf('mp4') > -1 ? 'm4a' : 'webm'; }
 
+  /**
+   * Three states, because the microphone takes a second or two to open and the
+   * button used to go red immediately. Anything said in that gap was never
+   * recorded, and there was nothing on screen to say so.
+   *
+   *   idle    green   HOLD & TALK
+   *   arming  grey    GETTING READY      the mic is opening; nothing is captured yet
+   *   live    red     LISTENING 0:04     the recorder has actually started
+   *
+   * The switch to red is driven by MediaRecorder's own `onstart`, which is the
+   * real moment capture begins, not by the press.
+   */
   function down(ev) {
     ev.preventDefault();
     if (holding) return;
     holding = true;
-    rec.classList.add('live');
-    rec.textContent = 'LISTENING';
+    armed = false;
     said = '';
-    liveEl.textContent = 'Recording…';
+
+    rec.classList.remove('live');
+    rec.classList.add('arming');
+    rec.textContent = 'GETTING READY';
+    liveEl.textContent = 'Opening the microphone…';
     liveEl.classList.add('on');
-    startedAt = Date.now();
-    ticker = setInterval(function () {
-      if (holding) rec.textContent = 'LISTENING  ' + Math.round((Date.now() - startedAt) / 1000) + 's';
-    }, 500);
 
-    // Acquired fresh every press, and handed straight back afterwards.
-    var go = navigator.mediaDevices.getUserMedia({ audio: true })
-      .then(function (s) { stream = s; return s; });
+    navigator.mediaDevices.getUserMedia({ audio: true })
+      .then(function (s) {
+        stream = s;
+        if (!holding) { releaseMic(); return; }   // released while it was opening
+        var mime = pickMime();
+        chunks = [];
+        // Speech needs very little bandwidth. 24 kbps cuts the upload several-fold
+        // with no loss the transcriber notices, and the upload is the one leg we own.
+        var opts = mime ? { mimeType: mime, audioBitsPerSecond: 24000 }
+                        : { audioBitsPerSecond: 24000 };
+        try { mr = new MediaRecorder(s, opts); }
+        catch (e) { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
 
-    go.then(function (s) {
-      if (!holding) { releaseMic(); return; }     // released before permission came back
-      var mime = pickMime();
-      chunks = [];
-      // Speech needs very little bandwidth. Dropping to 24 kbps cuts the upload
-      // several-fold with no loss the transcriber notices, and the upload is
-      // the one part of the round trip we control.
-      var opts = mime ? { mimeType: mime, audioBitsPerSecond: 24000 }
-                      : { audioBitsPerSecond: 24000 };
-      try { mr = new MediaRecorder(s, opts); }
-      catch (e) { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
-      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      mr.onstop = function () {
-        var type = (mr && mr.mimeType) || 'audio/mp4';
-        var blob = new Blob(chunks, { type: type });
-        var spoken = said.trim();
-        if (blob.size < 1200 && !spoken) return;   // a tap, not speech
+        mr.onstart = function () {
+          if (!holding) { releaseMic(); return; } // let go before capture began
+          armed = true;
+          startedAt = Date.now();                // the timer counts recorded time
+          rec.classList.remove('arming');
+          rec.classList.add('live');
+          rec.textContent = 'LISTENING';
+          liveEl.textContent = 'Recording…';
+          clearInterval(ticker);
+          ticker = setInterval(function () {
+            if (holding && armed) {
+              rec.textContent = 'LISTENING  ' + Math.round((Date.now() - startedAt) / 1000) + 's';
+            }
+          }, 500);
+        };
+
+        mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+
+        mr.onstop = function () {
+          var type = (mr && mr.mimeType) || 'audio/mp4';
+          var blob = new Blob(chunks, { type: type });
+          var spoken = said.trim();
+          if (blob.size < 1200 && !spoken) { releaseMic(); return; }   // a tap, not speech
+          var ts = stamp();
+          var qid = ts + '-' + (queueSeq++);
+          var fr = new FileReader();
+          fr.onloadend = function () {
+            enqueue({
+              qid: qid,
+              ts: ts,
+              spoken: spoken,
+              audio: String(fr.result).split(',')[1],
+              mime: type + ';name=note.' + extFor(type)
+            });
+            flush();
+          };
+          // If the clip itself is unreadable, the words still get saved.
+          fr.onerror = function () {
+            enqueue({ qid: qid, ts: ts, spoken: spoken, audio: null, mime: null });
+            flush();
+          };
+          fr.readAsDataURL(blob);
+          releaseMic();
+        };
+
+        mr.start();
+      })
+      .catch(function (err) {
+        holding = false;
+        reset();
+        rec.disabled = true;
+        rec.textContent = 'MIC BLOCKED';
         var ts = stamp();
-        var qid = ts + '-' + (queueSeq++);
-        var fr = new FileReader();
-        fr.onloadend = function () {
-          enqueue({
-            qid: qid,
-            ts: ts,
-            spoken: spoken,
-            audio: String(fr.result).split(',')[1],
-            mime: type + ';name=note.' + extFor(type)
-          });
-          flush();
-        };
-        // If the clip itself is unreadable, the words still get saved.
-        fr.onerror = function () {
-          enqueue({ qid: qid, ts: ts, spoken: spoken, audio: null, mime: null });
-          flush();
-        };
-        fr.readAsDataURL(blob);
-        releaseMic();
-      };
-      mr.start();
-    }).catch(function (err) {
-      holding = false;
-      reset();
-      rec.disabled = true;
-      rec.textContent = 'MIC BLOCKED';
-      var ts = stamp();
-      enqueue({ qid: ts + '-' + (queueSeq++), ts: ts,
-                spoken: '[microphone refused: ' + (err && err.name) + ']', audio: null, mime: null });
-      flush();
-    });
+        enqueue({ qid: ts + '-' + (queueSeq++), ts: ts,
+                  spoken: '[microphone refused: ' + (err && err.name) + ']', audio: null, mime: null });
+        flush();
+      });
   }
 
   /**
@@ -535,7 +565,9 @@
 
   function reset() {
     clearInterval(ticker);
+    armed = false;
     rec.classList.remove('live');
+    rec.classList.remove('arming');
     liveEl.classList.remove('on');
     liveEl.textContent = '';
     if (!rec.disabled) rec.textContent = 'HOLD & TALK';
@@ -545,9 +577,9 @@
     if (ev) ev.preventDefault();
     if (!holding) return;
     holding = false;
-    // A tap is not a note. Under a second the clip is dropped on the phone:
-    // nothing is uploaded, nothing is transcribed, nothing reaches the inbox.
-    var tooShort = (Date.now() - startedAt) < 1000;
+    // Released before the recorder ever started: nothing was captured, so there
+    // is nothing to keep. Measured from the real start, not from the press.
+    var tooShort = !armed || (Date.now() - startedAt) < 1000;
     reset();
     if (mr && mr.state === 'recording') {
       if (tooShort) {
