@@ -90,7 +90,7 @@
 
 <div id="list"></div>
 <div id="live"></div>
-<div id="ver">v12</div>
+<div id="ver">v13</div>
 <div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
 
 <script>
@@ -266,7 +266,7 @@
   // transcript, then deleted with the queue entry. Capped by total size rather
   // than by count, so short notes are all kept and only a genuine backlog of
   // long ones starts shedding audio (those fall back to the on-device text).
-  var MAX_AUDIO_BYTES = 3000000;   // ~3 MB, well inside Safari's quota
+  var MAX_AUDIO_BYTES = 4500000;   // ~4.5 MB: room for a 10-minute note
   var sending = false;
   var sendingSince = 0;
   var queueSeq = 0;           // makes qids unique within the same second
@@ -531,7 +531,9 @@
           releaseMic();
         };
 
-        mr.start();
+        // Chunked, so a long note accumulates on disk as it goes. Buffering ten
+        // minutes in one lump is exactly how the tail of a note gets lost.
+        mr.start(1000);
       })
       .catch(function (err) {
         holding = false;
@@ -593,11 +595,24 @@
     }
   }
 
-  rec.addEventListener('touchstart', down, { passive:false });
-  rec.addEventListener('touchend', up, { passive:false });
-  rec.addEventListener('touchcancel', up, { passive:false });
-  rec.addEventListener('mousedown', down);
-  window.addEventListener('mouseup', up);
+  /**
+   * Pointer events ONLY.
+   *
+   * Binding touch* and mouse* together was a real bug: iOS fires synthetic
+   * mouse events after every touch, so the second press ran down() twice, the
+   * button state came apart, and a recording still in progress could be torn
+   * down by the stray handler. Pointer events unify both, and capturing the
+   * pointer means the release always lands on the button even if the finger
+   * slides or the gesture is reinterpreted mid-hold.
+   *
+   * Never add touch* or mouse* listeners here again.
+   */
+  rec.addEventListener('pointerdown', function (e) {
+    try { rec.setPointerCapture(e.pointerId); } catch (err) {}
+    down(e);
+  });
+  rec.addEventListener('pointerup', up);
+  rec.addEventListener('pointercancel', up);
 
   // ---------------------------------------------------------------- boot
 
