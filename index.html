@@ -29,17 +29,28 @@
   }
   /* Each row is a swipe track: the note slides left to reveal Delete. */
   .row { position:relative; overflow:hidden; border-bottom:1px solid var(--line); }
-  .row .del {
-    position:absolute; top:0; right:0; height:100%; width:120px;
-    border:none; background:var(--rec); color:#fff;
+  .row .actions {
+    position:absolute; top:0; right:0; height:100%; display:flex;
+  }
+  .row .actions button {
+    width:110px; border:none; color:#fff;
     font:800 20px -apple-system, BlinkMacSystemFont, sans-serif; letter-spacing:.03em;
   }
+  .row .edit { background:#3a6df0; }
+  .row .del  { background:var(--rec); }
   .row .note {
     position:relative; background:#fff;
     transform:translateX(0); transition:transform .18s ease;
     touch-action:pan-y;                 /* let vertical scrolling through */
   }
-  .row.open .note { transform:translateX(-120px); }
+  .row.open .note { transform:translateX(-220px); }
+  .row.one.open .note { transform:translateX(-110px); }   /* queued: delete only */
+
+  /* Editing a note in place. */
+  .note .body[contenteditable="true"] {
+    outline:2px solid #3a6df0; outline-offset:4px; border-radius:6px;
+    background:#f7f9ff; min-height:1.4em;
+  }
   .row.swiping .note { transition:none; }
 
   .note { padding:18px 0; }
@@ -90,7 +101,7 @@
 
 <div id="list"></div>
 <div id="live"></div>
-<div id="ver">v13</div>
+<div id="ver">v14</div>
 <div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
 
 <script>
@@ -184,6 +195,8 @@
    * because they are always the newest and their order is already correct.
    */
   function render() {
+    // Never redraw over an edit in progress; that would discard his typing.
+    if (listEl.querySelector('[contenteditable="true"]')) return;
     var atBottom = listEl.scrollHeight - listEl.scrollTop - listEl.clientHeight < 80;
     var rows = [];
 
@@ -212,9 +225,15 @@
       return;
     }
     listEl.innerHTML = rows.map(function (n) {
+      // Only a note the server already has can be edited. A queued one may
+      // still be waiting to be transcribed, so its text is not final yet.
+      var editable = !n.qid;
       var key = n.qid ? ' data-qid="' + esc(n.qid) + '"' : ' data-id="' + n.id + '"';
-      return '<div class="row"' + key + '>' +
-               '<button class="del">Delete</button>' +
+      return '<div class="row' + (editable ? '' : ' one') + '"' + key + '>' +
+               '<div class="actions">' +
+                 (editable ? '<button class="edit">Edit</button>' : '') +
+                 '<button class="del">Delete</button>' +
+               '</div>' +
                '<div class="note ' + n.cls + '">' +
                  '<div class="when">' + esc(shortTime(n.ts)) + '</div>' +
                  '<div class="body">' + esc(n.text) + '</div>' +
@@ -361,7 +380,7 @@
 
     listEl.addEventListener('touchstart', function (e) {
       var t = e.target.closest ? e.target.closest('.row') : null;
-      if (!t || e.target.classList.contains('del')) return;
+      if (!t || e.target.closest('.actions') || t.querySelector('[contenteditable="true"]')) return;
       row = t; startX = e.touches[0].clientX; startY = e.touches[0].clientY;
       decided = false; horizontal = false;
     }, { passive: true });
@@ -379,7 +398,8 @@
       }
       if (!horizontal) return;
 
-      var offset = Math.max(-120, Math.min(0, dx - (row.classList.contains('open') ? 120 : 0)));
+      var width = row.classList.contains('one') ? 110 : 220;
+      var offset = Math.max(-width, Math.min(0, dx - (row.classList.contains('open') ? width : 0)));
       row.querySelector('.note').style.transform = 'translateX(' + offset + 'px)';
     }, { passive: true });
 
@@ -390,24 +410,64 @@
         var current = parseFloat((note.style.transform.match(/-?\d+(\.\d+)?/) || [0])[0]) || 0;
         row.classList.remove('swiping');
         note.style.transform = '';
-        row.classList.toggle('open', current < -60);
+        var width = row.classList.contains('one') ? 110 : 220;
+        row.classList.toggle('open', current < -width / 2);
       }
       row = null;
     });
 
     listEl.addEventListener('click', function (e) {
-      var btn = e.target.closest ? e.target.closest('.del') : null;
+      if (!e.target.closest) return;
+
+      // --- Edit: make the text editable in place, save when he taps away ---
+      var edit = e.target.closest('.edit');
+      if (edit) {
+        var er = edit.closest('.row');
+        var body = er.querySelector('.body');
+        var id = er.getAttribute('data-id');
+        var before = body.textContent;
+
+        er.classList.remove('open');
+        body.setAttribute('contenteditable', 'true');
+        body.focus();
+
+        // Put the caret at the end rather than selecting everything, so a
+        // single wrong word can be fixed without retyping the note.
+        var range = document.createRange();
+        range.selectNodeContents(body);
+        range.collapse(false);
+        var sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(range);
+
+        body.addEventListener('blur', function onBlur() {
+          body.removeEventListener('blur', onBlur);
+          body.removeAttribute('contenteditable');
+          var after = body.textContent.trim();
+          if (!after || after === before) { render(); return; }
+
+          pending.forEach(function (x) { if (String(x.id) === String(id)) x.text = after; });
+          render();
+          post({ action:'edit', token:cfg.token, id:Number(id), text:after })
+            .then(function (d) { if (d && d.ok) { pending = d.pending || pending; render(); } })
+            .catch(function () { refresh(true); });
+        });
+        return;
+      }
+
+      // --- Delete ---
+      var btn = e.target.closest('.del');
       if (!btn) { closeAll(null); return; }
 
       var r = btn.closest('.row');
       var qid = r.getAttribute('data-qid');
-      var id  = r.getAttribute('data-id');
+      var did = r.getAttribute('data-id');
 
       if (qid) { dequeue(qid); return; }          // never left the phone
 
-      pending = pending.filter(function (x) { return String(x.id) !== String(id); });
+      pending = pending.filter(function (x) { return String(x.id) !== String(did); });
       render();
-      post({ action:'discard', token:cfg.token, id:Number(id) })
+      post({ action:'discard', token:cfg.token, id:Number(did) })
         .then(function (d) { if (d && d.ok) { pending = d.pending || pending; render(); } })
         .catch(function () { refresh(true); });   // put it back if the call failed
     });
