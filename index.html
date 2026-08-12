@@ -79,7 +79,7 @@
     border-top:1px solid var(--line);
   }
   #live.on { display:block; }
-  #live:empty::before { content:"Listening…"; color:var(--dim); }
+  #live { color:var(--dim); }
 
   #setup { padding:40px 24px; font-size:20px; line-height:1.5; }
   #setup code { font-size:16px; word-break:break-all; background:#f2f2f5; padding:2px 5px; border-radius:5px; }
@@ -89,7 +89,7 @@
 
 <div id="list"></div>
 <div id="live"></div>
-<div id="ver">v10</div>
+<div id="ver">v11</div>
 <div id="bar"><button id="rec">HOLD &amp; TALK</button></div>
 
 <script>
@@ -417,30 +417,24 @@
   var stream = null, mr = null, chunks = [], holding = false, startedAt = 0, ticker = null;
   var liveEl = document.getElementById('live');
 
-  // The phone's own engine runs alongside the recorder purely as a safety net,
-  // and so Amir can watch the words appear while he talks.
-  var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-  var recog = null, said = '';
-
-  function startRecog() {
-    if (!SR || recog) return;
-    recog = new SR();
-    recog.lang = 'en-US';
-    recog.continuous = true;
-    recog.interimResults = true;
-    recog.onresult = function (ev) {
-      var add = '', interim = '';
-      for (var i = ev.resultIndex; i < ev.results.length; i++) {
-        var t = ev.results[i][0].transcript;
-        if (ev.results[i].isFinal) add += t; else interim += t;
-      }
-      if (add) said = (said + ' ' + add).trim();
-      liveEl.textContent = (said + ' ' + interim).trim();
-    };
-    recog.onerror = function () {};
-    recog.onend = function () { recog = null; if (holding) startRecog(); };
-    try { recog.start(); } catch (e) { recog = null; }
-  }
+  /**
+   * THE RECORDER IS THE ONLY THING ALLOWED TO TOUCH THE MICROPHONE.
+   *
+   * Until v11 the phone's own SpeechRecognition ran alongside MediaRecorder so
+   * the words could be watched live. iOS ends a recognition segment at the first
+   * natural pause, and restarting it re-takes the audio session, which ends the
+   * recorder's track. The recording was therefore cut at the first pause and
+   * only the opening sentence ever reached OpenAI. Amir lost the back half of
+   * note 44 on 2026-08-11 that way.
+   *
+   * Losing the live text costs nothing real: the audio is queued on the phone
+   * and retried until the server confirms it, so even an offline note is
+   * eventually transcribed by OpenAI. That is strictly better than the
+   * on-device guess it replaced.
+   *
+   * Do not reintroduce a second microphone consumer.
+   */
+  var said = '';   // kept only so error notes have somewhere to put their text
 
   function pickMime() {
     var want = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm'];
@@ -459,9 +453,8 @@
     rec.classList.add('live');
     rec.textContent = 'LISTENING';
     said = '';
-    liveEl.textContent = '';
+    liveEl.textContent = 'Recording…';
     liveEl.classList.add('on');
-    startRecog();
     startedAt = Date.now();
     ticker = setInterval(function () {
       if (holding) rec.textContent = 'LISTENING  ' + Math.round((Date.now() - startedAt) / 1000) + 's';
@@ -530,12 +523,6 @@
    * the app being closed. Never hold the mic open when not recording.
    */
   function releaseMic() {
-    // Speech recognition holds its own audio session; it has to go too, and its
-    // onend handler must be cleared first or it restarts itself.
-    if (recog) {
-      try { recog.onend = null; recog.onresult = null; recog.abort(); } catch (e) {}
-      recog = null;
-    }
     if (mr) {
       try { if (mr.state === 'recording') mr.stop(); } catch (e) {}
       mr = null;
@@ -551,7 +538,6 @@
     rec.classList.remove('live');
     liveEl.classList.remove('on');
     liveEl.textContent = '';
-    if (recog) { try { recog.stop(); } catch (e) {} }
     if (!rec.disabled) rec.textContent = 'HOLD & TALK';
   }
 
