@@ -1,0 +1,645 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>myday</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="myday">
+<link rel="apple-touch-icon" href="../apple-touch-icon.png">
+
+<!--
+  myday console — the visual half of a_myday.
+
+  READS a state blob that Claude publishes from the Mac (tasks, today's sessions,
+  focus balance). WRITES only events: "I started ucw", "I stopped", "I ticked X".
+  It never edits tasks/ or days/ — that is Claude's job at the Mac, and keeping
+  that boundary is what makes the markdown trustworthy.
+
+  Everything renders from localStorage first and refreshes in the background, so
+  opening the app is instant even on bad signal, and it works with none.
+  Events are saved to localStorage BEFORE any network call and only removed once
+  the server confirms — the same save-before-send ordering the capture app had to
+  learn the hard way on 2026-08-11.
+-->
+
+<style>
+  :root {
+    --bg:#fff; --fg:#000; --dim:#8a8a8e; --line:#e4e4e7; --card:#f7f7f8;
+    --go:#16a34a; --stop:#e02020; --warn:#d97706; --accent:#2563eb;
+    --acad:#7c3aed; --dog:#ea580c; --ai:#0891b2;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#000; --fg:#fff; --dim:#8e8e93; --line:#2c2c2e; --card:#1c1c1e;
+      --go:#30d158; --stop:#ff453a; --warn:#ff9f0a; --accent:#0a84ff;
+      --acad:#bf5af2; --dog:#ff9f0a; --ai:#64d2ff;
+    }
+  }
+  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body { margin:0; padding:0; height:100%; }
+  body {
+    background:var(--bg); color:var(--fg);
+    font:16px/1.4 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    padding-top:env(safe-area-inset-top);
+    -webkit-user-select:none; user-select:none;
+  }
+
+  /* ------------------------------------------------------------ chrome */
+  header {
+    display:flex; align-items:baseline; gap:8px;
+    padding:10px 16px 8px; border-bottom:1px solid var(--line);
+    position:sticky; top:0; background:var(--bg); z-index:5;
+  }
+  header h1 { font-size:19px; font-weight:700; margin:0; letter-spacing:-.02em; }
+  header .day { color:var(--dim); font-size:13px; }
+  header .sync { margin-left:auto; font-size:11px; color:var(--dim); }
+  header .sync.stale { color:var(--warn); }
+
+  main { padding:0 16px 120px; }
+  section { display:none; }
+  section.on { display:block; }
+
+  nav {
+    position:fixed; left:0; right:0; bottom:0; z-index:10;
+    display:flex; background:var(--bg); border-top:1px solid var(--line);
+    padding-bottom:env(safe-area-inset-bottom);
+  }
+  nav button {
+    flex:1; border:0; background:none; color:var(--dim);
+    font:600 12px/1 -apple-system,system-ui,sans-serif;
+    padding:11px 0 9px; display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  nav button .ic { font-size:19px; line-height:1; }
+  nav button.on { color:var(--accent); }
+
+  /* ------------------------------------------------------------ today */
+  .hero { text-align:center; padding:22px 0 6px; }
+  .hero .big { font-size:52px; font-weight:700; letter-spacing:-.035em; font-variant-numeric:tabular-nums; }
+  .hero .sub { color:var(--dim); font-size:13px; margin-top:2px; }
+  .hero .big.live { color:var(--go); }
+
+  .runbar {
+    display:flex; align-items:center; gap:10px; background:var(--card);
+    border-radius:14px; padding:12px 14px; margin:12px 0;
+  }
+  .runbar .dot { width:10px; height:10px; border-radius:50%; background:var(--go); flex:none;
+                 animation:pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.25} }
+  .runbar .what { flex:1; min-width:0; }
+  .runbar .what b { display:block; font-size:15px; }
+  .runbar .what span { color:var(--dim); font-size:12.5px; }
+
+  button.big {
+    width:100%; border:0; border-radius:14px; padding:16px;
+    font:700 17px -apple-system,system-ui,sans-serif; color:#fff;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+  }
+  button.big:active { opacity:.75; }
+  button.stop { background:var(--stop); }
+  button.go   { background:var(--go); }
+
+  .areas { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-top:10px; }
+  .areas button {
+    border:1px solid var(--line); background:var(--card); color:var(--fg);
+    border-radius:12px; padding:12px 6px; font:600 13px -apple-system,system-ui,sans-serif;
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+  }
+  .areas button:active { background:var(--line); }
+  .areas button .ic { font-size:20px; }
+
+  h2 { font-size:12px; font-weight:700; text-transform:uppercase; letter-spacing:.06em;
+       color:var(--dim); margin:26px 0 9px; }
+
+  .bal { display:flex; flex-direction:column; gap:11px; }
+  .bal .row { display:grid; grid-template-columns:74px 1fr 52px; align-items:center; gap:9px; }
+  .bal .name { font-size:13.5px; font-weight:600; }
+  .bal .track { height:9px; background:var(--card); border-radius:5px; overflow:hidden; position:relative; }
+  .bal .fill { height:100%; border-radius:5px; }
+  .bal .even { position:absolute; top:-3px; bottom:-3px; width:2px; background:var(--dim); opacity:.55; }
+  .bal .val { text-align:right; font-size:13px; font-variant-numeric:tabular-nums; color:var(--dim); }
+
+  /* ------------------------------------------------------------ tasks */
+  .filters { display:flex; gap:7px; margin:14px 0 4px; overflow-x:auto; padding-bottom:3px; }
+  .filters::-webkit-scrollbar { display:none; }
+  .filters button {
+    border:1px solid var(--line); background:none; color:var(--dim); white-space:nowrap;
+    border-radius:999px; padding:6px 13px; font:600 13px -apple-system,system-ui,sans-serif;
+  }
+  .filters button.on { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+
+  .grp { margin-top:20px; }
+  .grp .hd { font-size:13px; font-weight:700; margin-bottom:7px; display:flex; gap:7px; align-items:baseline; }
+  .grp .hd .n { color:var(--dim); font-weight:500; font-size:12px; }
+
+  .task {
+    display:flex; gap:11px; align-items:flex-start; padding:12px 13px;
+    background:var(--card); border-radius:12px; margin-bottom:7px;
+  }
+  .task:active { opacity:.6; }
+  .task .box {
+    width:21px; height:21px; border:2px solid var(--dim); border-radius:6px; flex:none; margin-top:1px;
+    display:flex; align-items:center; justify-content:center; font-size:13px; color:#fff;
+  }
+  .task.ticked .box { background:var(--go); border-color:var(--go); }
+  .task.ticked .title { text-decoration:line-through; color:var(--dim); }
+  .task .title { font-size:15px; line-height:1.32; }
+  .task .meta { font-size:12px; color:var(--dim); margin-top:3px; display:flex; gap:8px; flex-wrap:wrap; }
+  .task .meta .od { color:var(--stop); font-weight:600; }
+  .task .meta .hi { color:var(--stop); }
+
+  .empty, .setup { color:var(--dim); text-align:center; padding:48px 20px; font-size:14.5px; line-height:1.6; }
+  .setup b { color:var(--fg); }
+  code { font:12px ui-monospace,Menlo,monospace; background:var(--card); padding:1px 5px; border-radius:4px; }
+
+  .pill { font-size:11px; padding:2px 7px; border-radius:999px; background:var(--line); color:var(--dim); }
+  .queued { color:var(--warn); font-size:11.5px; text-align:center; padding:8px 0; }
+  .build { text-align:center; color:var(--dim); font-size:10.5px; padding:14px 0 4px; }
+  a.plain { color:var(--accent); text-decoration:none; }
+</style>
+</head>
+
+<body>
+
+<header>
+  <h1>myday</h1>
+  <span class="day" id="hdrDay"></span>
+  <span class="sync" id="hdrSync"></span>
+</header>
+
+<main>
+  <section id="s-today" class="on"></section>
+  <section id="s-tasks"></section>
+</main>
+
+<nav>
+  <button data-go="today" class="on"><span class="ic">◉</span>Today</button>
+  <button data-go="tasks"><span class="ic">☰</span>Tasks</button>
+  <button data-go="talk"><span class="ic">🎙</span>Talk</button>
+</nav>
+
+<script>
+(function () {
+  'use strict';
+
+  var BUILD = 'c1 · 2026-08-14';
+
+  // Shared with the capture app on purpose: same origin, same endpoint, same
+  // token. Linking one in Safari links the other.
+  var CFG_KEY   = 'myday_cfg';
+  var STATE_KEY = 'myday_state';
+  var QUEUE_KEY = 'myday_evq';    // events saved before sending, never after
+  var LOCAL_KEY = 'myday_local';  // optimistic session, until a publish confirms
+
+  var POLL_MS = 20000;
+
+  var AREAS = [
+    { slug:'ucw',      label:'UCW',      ic:'🎓' },
+    { slug:'ai',       label:'AI',       ic:'🤖' },
+    { slug:'dog',      label:'Dog',      ic:'🐕' },
+    { slug:'research', label:'Research', ic:'🔬' },
+    { slug:'personal', label:'Personal', ic:'🏠' },
+    { slug:'overhead', label:'Overhead', ic:'🚚' }
+  ];
+  var AREA_IC = {}; AREAS.forEach(function (a) { AREA_IC[a.slug] = a.ic; });
+
+  var cfg = null, state = null, local = null, queue = [], tab = 'today', filter = 'all';
+  var storageBlocked = false;
+
+  // ------------------------------------------------------------- storage
+  function load(k, dflt) {
+    try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : dflt; }
+    catch (e) { return dflt; }
+  }
+  function save(k, v) {
+    try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { storageBlocked = true; }
+  }
+
+  // The endpoint and token arrive once in the URL fragment, which is never sent
+  // to any server. Keep the fragment in the address bar: iOS gives a Home Screen
+  // web app its own storage, so the saved bookmark must still carry the config.
+  function readConfig() {
+    var h = location.hash.replace(/^#/, '');
+    if (h) {
+      var p = {};
+      h.split('&').forEach(function (kv) {
+        var i = kv.indexOf('=');
+        if (i > 0) p[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+      });
+      var url = p.e || (p.d ? 'https://script.google.com/macros/s/' + p.d + '/exec' : '');
+      if (url && p.k) { var c = { url:url, token:p.k }; save(CFG_KEY, c); return c; }
+    }
+    return load(CFG_KEY, null);
+  }
+
+  // ------------------------------------------------------------- helpers
+  function esc(t) {
+    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
+      return { '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;' }[c];
+    });
+  }
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function stamp() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate()) + ' ' +
+           pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
+  }
+  function hm(mins) {
+    if (mins == null) return '—';
+    mins = Math.max(0, Math.round(mins));
+    return Math.floor(mins/60) + 'h' + pad(mins%60) + 'm';
+  }
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate());
+  }
+  /** Minutes from an "HH:MM" earlier today until now. */
+  function sinceToday(hhmm) {
+    var m = /^(\d{2}):(\d{2})$/.exec(hhmm || '');
+    if (!m) return 0;
+    var now = new Date();
+    var then = new Date(now); then.setHours(+m[1], +m[2], 0, 0);
+    // A session that began before 05:00 belongs to the previous day (CLAUDE.md),
+    // so a start that looks like the future is really yesterday's.
+    if (then > now) then.setDate(then.getDate() - 1);
+    return Math.floor((now - then) / 60000);
+  }
+
+  // ------------------------------------------------------------- network
+  function get(action, params) {
+    var q = 'action=' + action + '&token=' + encodeURIComponent(cfg.token);
+    for (var k in params) q += '&' + k + '=' + encodeURIComponent(params[k]);
+    return fetch(cfg.url + '?' + q, { method:'GET' }).then(function (r) { return r.json(); });
+  }
+  function post(body) {
+    return fetch(cfg.url, {
+      method: 'POST',
+      // text/plain keeps this a "simple" request, so the browser skips the CORS
+      // preflight that Apps Script cannot answer.
+      headers: { 'Content-Type': 'text/plain' },
+      body: JSON.stringify(Object.assign({ token: cfg.token }, body))
+    }).then(function (r) { return r.json(); });
+  }
+
+  // ------------------------------------------------------------- events
+  // Save first, then send. A queued event survives a dead network, a reload and
+  // a force-quit; it leaves the queue only when the server has confirmed it.
+
+  function emit(kind, payload) {
+    var ev = {
+      qid: 'e' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+      kind: kind, payload: payload || {}, client_ts: stamp()
+    };
+    queue.push(ev);
+    save(QUEUE_KEY, queue);
+    applyLocally(ev);
+    render();
+    flush();
+  }
+
+  var flushing = false;
+  function flush() {
+    if (flushing || !queue.length || !cfg) return;
+    flushing = true;
+    var ev = queue[0];
+    post({ action:'event', kind:ev.kind, payload:ev.payload, client_ts:ev.client_ts, qid:ev.qid })
+      .then(function (r) {
+        if (r && r.ok) { queue.shift(); save(QUEUE_KEY, queue); }
+      })
+      .catch(function () { /* stays queued; the next tick retries */ })
+      .then(function () {
+        flushing = false;
+        render();
+        if (queue.length) setTimeout(flush, 1200);
+      });
+  }
+
+  /**
+   * Optimistic local view. The phone cannot edit the markdown, so until Claude
+   * publishes again this is what makes a tap feel like it did something.
+   * Reset whenever a newer publish arrives that already reflects it.
+   */
+  function applyLocally(ev) {
+    if (ev.kind === 'session_start') {
+      local.open = { start: ev.client_ts.slice(11, 16), area: ev.payload.area };
+      local.stopped = null;
+    } else if (ev.kind === 'session_stop') {
+      var o = openSession();
+      if (o) {
+        var mins = sinceToday(o.start);
+        local.closed = (local.closed || 0) + mins;
+        // Keep the area too, or the minutes land in the total but vanish from the
+        // focus balance, which would read as five hours worked and zero in every
+        // bucket.
+        local.closedBy = local.closedBy || {};
+        local.closedBy[o.area] = (local.closedBy[o.area] || 0) + mins;
+        // How much the published file already counted, so the moment Claude files
+        // this session we can drop the local copy instead of counting it twice.
+        local.baseClosed = (state && state.today && state.today.closed_minutes) || 0;
+        if (o.local) {
+          local.open = null;
+        } else {
+          // The session came from the file, so it cannot be removed from there.
+          // Remember that Amir stopped it and hide it until Claude catches up,
+          // otherwise the button does nothing and the timer keeps climbing.
+          local.stopped = o.start;
+        }
+      }
+    } else if (ev.kind === 'task_tick') {
+      local.ticked = local.ticked || {};
+      local.ticked[ev.payload.id] = true;
+    }
+    local.date = todayISO();
+    save(LOCAL_KEY, local);
+  }
+
+  // ------------------------------------------------------------- sync
+  function refresh() {
+    if (!cfg) return;
+    get('state').then(function (r) {
+      if (!r || !r.ok || !r.state) return;
+      var s;
+      try { s = JSON.parse(r.state); } catch (e) { return; }
+      s._updated = r.updated || '';
+      state = s;
+      save(STATE_KEY, s);
+
+      // A publish that already knows about a tick makes the optimistic copy of
+      // it redundant; drop those so the two can never disagree.
+      if (local && local.ticked && s.tasks) {
+        var live = {}; s.tasks.forEach(function (t) { live[t.id] = true; });
+        Object.keys(local.ticked).forEach(function (id) {
+          if (!live[id]) delete local.ticked[id];
+        });
+      }
+      // The optimistic session overlay exists only until the file catches up.
+      // Each piece is dropped the moment the publish actually contradicts it,
+      // never on a timer — a guess about when Claude filed something is how the
+      // same hour ends up counted twice.
+      if (local && s.today) {
+        var pubOpen = s.today.open_session;
+        // Started here, and the file now shows a session open: Claude filed it.
+        if (local.open && pubOpen) { local.open = null; local.closed = 0; local.closedBy = {}; }
+        // Stopped here, and the file no longer shows it open: Claude closed it.
+        if (local.stopped && !pubOpen) { local.stopped = null; local.closed = 0; local.closedBy = {}; }
+        // Any local minutes now present in the file's own total are not ours to add.
+        if (local.closed && local.baseClosed != null &&
+            (s.today.closed_minutes || 0) > local.baseClosed) {
+          local.closed = 0; local.closedBy = {}; local.baseClosed = null;
+        }
+      }
+      if (local && local.date !== todayISO()) local = freshLocal();
+      save(LOCAL_KEY, local);
+      render();
+    }).catch(function () { /* offline: the cached state stays on screen */ });
+  }
+
+  function freshLocal() {
+    return { date: todayISO(), open: null, stopped: null, closed: 0, closedBy: {},
+             baseClosed: null, ticked: {} };
+  }
+
+  // ------------------------------------------------------------- render
+  function openSession() {
+    if (local && local.open) return { start: local.open.start, area: local.open.area, local: true };
+    var s = state && state.today && state.today.open_session;
+    if (!s) return null;
+    if (local && local.stopped === s.start) return null;   // stopped here, not filed yet
+    return { start: s.start, area: s.area, task: s.task, local: false };
+  }
+
+  function workedMinutes() {
+    var base = (state && state.today && state.today.closed_minutes) || 0;
+    base += (local && local.closed) || 0;
+    var o = openSession();
+    if (o) base += sinceToday(o.start);
+    return base;
+  }
+
+  function renderToday() {
+    var el = document.getElementById('s-today');
+    if (!state) { el.innerHTML = '<div class="empty">Waiting for the first publish from the Mac…</div>'; return; }
+
+    var t = state.today || {};
+    var o = openSession();
+    var mins = workedMinutes();
+
+    var h = '';
+    h += '<div class="hero">';
+    h += '<div class="big' + (o ? ' live' : '') + '">' + hm(mins) + '</div>';
+    h += '<div class="sub">' + (t.target && t.target !== 'not set yet'
+          ? 'of ' + esc(t.target) : 'no target set') + '</div>';
+    h += '</div>';
+
+    if (o) {
+      h += '<div class="runbar"><span class="dot"></span><div class="what">' +
+           '<b>' + (AREA_IC[o.area] || '•') + ' ' + esc((state.areas && state.areas[o.area]) || o.area) + '</b>' +
+           '<span>since ' + esc(o.start) + ' · ' + hm(sinceToday(o.start)) +
+           (o.local ? ' · not filed yet' : '') + '</span></div></div>';
+      h += '<button class="big stop" data-act="stop">◼ Stop work</button>';
+    } else {
+      h += '<div class="areas">';
+      AREAS.forEach(function (a) {
+        h += '<button data-start="' + a.slug + '"><span class="ic">' + a.ic + '</span>' + a.label + '</button>';
+      });
+      h += '</div>';
+    }
+
+    // Focus balance. `personal` and `overhead` are deliberately outside the
+    // three-way split (CLAUDE.md); overhead is shown separately as work.
+    var b = t.buckets || { academia:0, dog:0, ai:0 };
+    var bl = [
+      { k:'academia', n:'Academia', c:'var(--acad)' },
+      { k:'dog',      n:'Dog',      c:'var(--dog)'  },
+      { k:'ai',       n:'AI',       c:'var(--ai)'   }
+    ];
+    var BUCKET = { ucw:'academia', research:'academia', dog:'dog', ai:'ai' };
+    var live = {}; bl.forEach(function (x) { live[x.k] = b[x.k] || 0; });
+    // Sessions Amir closed on the phone but Claude has not filed yet.
+    var cb = (local && local.closedBy) || {};
+    for (var a in cb) { if (BUCKET[a]) live[BUCKET[a]] += cb[a]; }
+    if (o && BUCKET[o.area]) live[BUCKET[o.area]] += sinceToday(o.start);
+    var total = live.academia + live.dog + live.ai;
+    var even  = total / 3;
+    var max   = Math.max(live.academia, live.dog, live.ai, 1);
+
+    h += '<h2>Focus balance</h2><div class="bal">';
+    bl.forEach(function (x) {
+      var v = live[x.k];
+      h += '<div class="row"><div class="name">' + x.n + '</div>' +
+           '<div class="track"><div class="fill" style="width:' + (v/max*100) + '%;background:' + x.c + '"></div>' +
+           (total > 0 ? '<div class="even" style="left:' + (even/max*100) + '%"></div>' : '') +
+           '</div><div class="val">' + hm(v) + '</div></div>';
+    });
+    h += '</div>';
+    if (t.overhead_minutes) {
+      h += '<div class="sub" style="color:var(--dim);font-size:12px;margin-top:8px">' +
+           '🚚 Overhead ' + hm(t.overhead_minutes) + ' — counts as work, not in the split</div>';
+    }
+
+    // Sessions so far, newest first.
+    var ss = (t.sessions || []).slice().reverse();
+    if (ss.length) {
+      h += '<h2>Sessions</h2>';
+      ss.forEach(function (s) {
+        h += '<div class="task"><div style="flex:1">' +
+             '<div class="title">' + (AREA_IC[s.area] || '•') + ' ' + esc(s.task || s.area) + '</div>' +
+             '<div class="meta"><span>' + esc(s.start) + ' → ' + (s.end ? esc(s.end) : 'open') + '</span>' +
+             '<span>' + (s.minutes != null ? hm(s.minutes) : hm(sinceToday(s.start))) + '</span></div>' +
+             '</div></div>';
+      });
+    }
+
+    h += '<div class="build">' + BUILD + ' · published ' + esc(state._updated || '?') + '</div>';
+    el.innerHTML = h;
+  }
+
+  function renderTasks() {
+    var el = document.getElementById('s-tasks');
+    if (!state) { el.innerHTML = '<div class="empty">Waiting for the first publish…</div>'; return; }
+
+    var ticked = (local && local.ticked) || {};
+    var all = (state.tasks || []).slice();
+
+    // Amir asked never to be shown tomorrow's work as if it were today's, so
+    // future-dated tasks are behind their own filter rather than in the default.
+    var view = all.filter(function (t) {
+      if (filter === 'all')     return t.when !== 'future';
+      if (filter === 'overdue') return t.when === 'overdue';
+      if (filter === 'today')   return t.when === 'today';
+      if (filter === 'nodate')  return !t.due;
+      if (filter === 'later')   return t.when === 'future';
+      return t.area === filter;
+    });
+
+    var h = '<div class="filters">';
+    [['all','All'],['overdue','Overdue'],['today','Today'],['nodate','No date'],['later','Later']]
+      .concat(AREAS.filter(function (a) { return a.slug !== 'overhead'; })
+                   .map(function (a) { return [a.slug, a.ic + ' ' + a.label]; }))
+      .forEach(function (f) {
+        h += '<button data-f="' + f[0] + '"' + (filter === f[0] ? ' class="on"' : '') + '>' + f[1] + '</button>';
+      });
+    h += '</div>';
+
+    if (!view.length) {
+      h += '<div class="empty">Nothing here.</div>';
+      el.innerHTML = h; return;
+    }
+
+    // One group per area, and UCW split further by list — it runs too many
+    // concurrent lists to read as one block.
+    var groups = {}, order = [];
+    view.forEach(function (t) {
+      var key = t.area === 'ucw' ? 'ucw · ' + t.section : t.area;
+      if (!groups[key]) { groups[key] = []; order.push(key); }
+      groups[key].push(t);
+    });
+
+    order.forEach(function (key) {
+      var list = groups[key].slice().sort(function (a, b) {
+        if (!a.due && !b.due) return 0;
+        if (!a.due) return 1;
+        if (!b.due) return -1;
+        return a.due < b.due ? -1 : 1;
+      });
+      var first = list[0];
+      var name = key.indexOf('ucw · ') === 0
+        ? '🎓 ' + key.slice(6)
+        : (AREA_IC[first.area] || '•') + ' ' + ((state.areas && state.areas[first.area]) || first.area);
+
+      h += '<div class="grp"><div class="hd">' + esc(name) + '<span class="n">' + list.length + '</span></div>';
+      list.forEach(function (t) {
+        var on = !!ticked[t.id];
+        h += '<div class="task' + (on ? ' ticked' : '') + '" data-tick="' + t.id + '">' +
+             '<div class="box">' + (on ? '✓' : '') + '</div><div style="flex:1;min-width:0">' +
+             '<div class="title">' + esc(t.title) + '</div><div class="meta">';
+        if (t.when === 'overdue') h += '<span class="od">⚠️ ' + t.overdue_days + 'd overdue</span>';
+        else if (t.due)           h += '<span>📅 ' + esc(t.due) + '</span>';
+        else                      h += '<span>no date</span>';
+        if (t.priority === 'high') h += '<span class="hi">🔴 HIGH</span>';
+        if (t.repeat)              h += '<span>🔁 ' + esc(t.repeat) + '</span>';
+        h += '</div></div></div>';
+      });
+      h += '</div>';
+    });
+
+    el.innerHTML = h;
+  }
+
+  function render() {
+    document.getElementById('hdrDay').textContent =
+      state && state.today ? state.today.weekday + ' ' + state.today.date.slice(5) : '';
+
+    var sync = document.getElementById('hdrSync');
+    if (queue.length) { sync.textContent = queue.length + ' queued'; sync.className = 'sync stale'; }
+    else if (state && state._updated) { sync.textContent = 'synced ' + state._updated.slice(11); sync.className = 'sync'; }
+    else { sync.textContent = ''; }
+
+    if (tab === 'today') renderToday(); else renderTasks();
+  }
+
+  // ------------------------------------------------------------- events in
+  document.addEventListener('click', function (e) {
+    var n = e.target.closest('[data-go]');
+    if (n) {
+      var go = n.getAttribute('data-go');
+      if (go === 'talk') { location.href = '../'; return; }   // the capture app
+      tab = go;
+      [].forEach.call(document.querySelectorAll('nav button'), function (b) {
+        b.classList.toggle('on', b.getAttribute('data-go') === tab);
+      });
+      document.getElementById('s-today').classList.toggle('on', tab === 'today');
+      document.getElementById('s-tasks').classList.toggle('on', tab === 'tasks');
+      render();
+      return;
+    }
+
+    var st = e.target.closest('[data-start]');
+    if (st) { emit('session_start', { area: st.getAttribute('data-start') }); return; }
+
+    var stop = e.target.closest('[data-act="stop"]');
+    if (stop) { emit('session_stop', {}); return; }
+
+    var f = e.target.closest('[data-f]');
+    if (f) { filter = f.getAttribute('data-f'); render(); return; }
+
+    var tk = e.target.closest('[data-tick]');
+    if (tk) {
+      var id = tk.getAttribute('data-tick');
+      var task = (state.tasks || []).filter(function (x) { return x.id === id; })[0];
+      if (!task) return;
+      if (local.ticked && local.ticked[id]) return;   // ticking twice is not a thing
+      emit('task_tick', { id:id, title:task.title, area:task.area, section:task.section });
+    }
+  });
+
+  // ------------------------------------------------------------- boot
+  cfg   = readConfig();
+  state = load(STATE_KEY, null);
+  queue = load(QUEUE_KEY, []);
+  local = load(LOCAL_KEY, null) || freshLocal();
+  if (local.date !== todayISO()) local = freshLocal();
+
+  if (!cfg) {
+    document.querySelector('main').innerHTML =
+      '<div class="setup"><b>Not linked yet.</b><br><br>Open the console link ending in ' +
+      '<code>#d=…&amp;k=…</code>, or open the <a class="plain" href="../">capture app</a> ' +
+      'first in the same browser. If you just did and still see this, you are in a ' +
+      '<b>Private</b> tab, which cannot save anything.</div>';
+    document.querySelector('nav').style.display = 'none';
+  } else {
+    render();          // cached state paints immediately, before any network call
+    refresh();
+    flush();
+    setInterval(function () { refresh(); flush(); }, POLL_MS);
+    setInterval(function () { if (openSession()) render(); }, 30000);  // live timer
+    window.addEventListener('online', function () { refresh(); flush(); });
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) { refresh(); flush(); }
+    });
+  }
+})();
+</script>
+</body>
+</html>
