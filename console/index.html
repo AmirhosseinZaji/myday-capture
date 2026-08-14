@@ -10,17 +10,17 @@
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 
 <!--
-  myday console — the visual half of a_myday.
+  myday console: the visual half of a_myday.
 
   READS a state blob that Claude publishes from the Mac (tasks, today's sessions,
   focus balance). WRITES only events: "I started ucw", "I stopped", "I ticked X".
-  It never edits tasks/ or days/ — that is Claude's job at the Mac, and keeping
+  It never edits tasks/ or days/. That is Claude's job at the Mac, and keeping
   that boundary is what makes the markdown trustworthy.
 
   Everything renders from localStorage first and refreshes in the background, so
   opening the app is instant even on bad signal, and it works with none.
   Events are saved to localStorage BEFORE any network call and only removed once
-  the server confirms — the same save-before-send ordering the capture app had to
+  the server confirms. Same save-before-send ordering the capture app had to
   learn the hard way on 2026-08-11.
 -->
 
@@ -246,7 +246,7 @@
            pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds());
   }
   function hm(mins) {
-    if (mins == null) return '—';
+    if (mins == null) return '·';
     mins = Math.max(0, Math.round(mins));
     return Math.floor(mins/60) + 'h' + pad(mins%60) + 'm';
   }
@@ -375,7 +375,7 @@
       }
       // The optimistic session overlay exists only until the file catches up.
       // Each piece is dropped the moment the publish actually contradicts it,
-      // never on a timer — a guess about when Claude filed something is how the
+      // never on a timer. A guess about when Claude filed something is how the
       // same hour ends up counted twice.
       if (local && s.today) {
         var pubOpen = s.today.open_session;
@@ -475,7 +475,7 @@
     h += '</div>';
     if (t.overhead_minutes) {
       h += '<div class="sub" style="color:var(--dim);font-size:12px;margin-top:8px">' +
-           '🚚 Overhead ' + hm(t.overhead_minutes) + ' — counts as work, not in the split</div>';
+           '🚚 Overhead ' + hm(t.overhead_minutes) + ' · counts as work, not in the split</div>';
     }
 
     // Sessions so far, newest first.
@@ -527,7 +527,7 @@
       el.innerHTML = h; return;
     }
 
-    // One group per area, and UCW split further by list — it runs too many
+    // One group per area, and UCW split further by list: it runs too many
     // concurrent lists to read as one block.
     var groups = {}, order = [];
     view.forEach(function (t) {
