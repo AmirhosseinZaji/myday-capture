@@ -12,22 +12,25 @@
 <!--
   myday console: the visual half of a_myday.
 
-  READS a state blob that Claude publishes from the Mac (tasks, today's sessions,
-  focus balance). WRITES only events: "I started ucw", "I stopped", "I ticked X".
-  It never edits tasks/ or days/. That is Claude's job at the Mac, and keeping
-  that boundary is what makes the markdown trustworthy.
+  THE MODEL, in one paragraph. The Mac is the source of truth: Claude publishes a
+  state blob (tasks, today's sessions, focus balance) and this page renders it.
+  The page never edits tasks/ or days/. Everything Amir taps here is an EVENT
+  ("started ucw", "stopped", "ticked X") that queues up and is reconciled by
+  Claude at the Mac. So the screen always shows two layers: what Claude has
+  filed, and what Amir has done since that hasn't been filed yet. Every pending
+  thing is labelled as pending. That distinction is the whole design.
 
   Renders from localStorage first and refreshes in the background, so opening the
-  app is instant on bad signal and works with none. Events are saved to
-  localStorage BEFORE any network call and removed only once the server confirms:
-  the same save-before-send ordering the capture app learned the hard way on
+  app is instant on bad signal and works with none. Events and voice notes are
+  saved to localStorage BEFORE any network call and removed only once the server
+  confirms: the save-before-send ordering the capture app learned the hard way on
   2026-08-11.
 -->
 
 <style>
   :root {
     --bg:#f2f2f7; --surface:#fff; --fg:#000; --dim:#8a8a8e; --faint:#c7c7cc;
-    --line:rgba(60,60,67,.10);
+    --line:rgba(60,60,67,.10); --sunk:#ececf1;
     --go:#34c759; --stop:#ff3b30; --warn:#ff9500; --accent:#007aff;
     --acad:#5e5ce6; --dog:#ff9500; --ai:#32ade6;
     --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.05);
@@ -36,11 +39,10 @@
   @media (prefers-color-scheme: dark) {
     :root {
       --bg:#000; --surface:#1c1c1e; --fg:#fff; --dim:#98989d; --faint:#48484a;
-      --line:rgba(84,84,88,.5);
+      --line:rgba(84,84,88,.5); --sunk:#2c2c2e;
       --go:#30d158; --stop:#ff453a; --warn:#ff9f0a; --accent:#0a84ff;
       --acad:#7d7aff; --dog:#ff9f0a; --ai:#64d2ff;
-      --shadow:none;
-      --ring-track:rgba(120,120,128,.22);
+      --shadow:none; --ring-track:rgba(120,120,128,.22);
     }
   }
 
@@ -50,13 +52,11 @@
   body {
     background:var(--bg); color:var(--fg);
     font:17px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-    -webkit-user-select:none; user-select:none;
-    overscroll-behavior-y:none;
+    -webkit-user-select:none; user-select:none; overscroll-behavior-y:none;
     padding-top:env(safe-area-inset-top);
   }
   button { font-family:inherit; touch-action:manipulation; }
 
-  /* ---------------------------------------------------------------- header */
   header {
     position:sticky; top:0; z-index:20;
     padding:calc(env(safe-area-inset-top) + 6px) 20px 10px;
@@ -66,9 +66,13 @@
     backdrop-filter:saturate(180%) blur(20px);
     border-bottom:.5px solid var(--line);
   }
-  .htop { display:flex; align-items:center; gap:9px; }
+  .htop { display:flex; align-items:center; gap:10px; }
   header h1 { font-size:26px; font-weight:700; margin:0; letter-spacing:-.03em; }
   header .date { color:var(--dim); font-size:14px; font-weight:500; margin-left:auto; }
+  .qmark {
+    width:26px; height:26px; border-radius:50%; border:0; background:var(--sunk);
+    color:var(--dim); font-size:14px; font-weight:700; flex:none; line-height:1;
+  }
   .status { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--dim); margin-top:3px; }
   .status .led { width:6px; height:6px; border-radius:50%; background:var(--go); flex:none; }
   .status.bad .led { background:var(--stop); }
@@ -79,156 +83,167 @@
   section.on { display:block; }
   @keyframes fade { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:none; } }
 
-  /* ------------------------------------------------------------------- nav */
   nav {
-    position:fixed; left:0; right:0; bottom:0; z-index:30;
-    display:flex; align-items:stretch;
+    position:fixed; left:0; right:0; bottom:0; z-index:30; display:flex; align-items:stretch;
     background:color-mix(in srgb, var(--bg) 80%, transparent);
-    -webkit-backdrop-filter:saturate(180%) blur(20px);
-    backdrop-filter:saturate(180%) blur(20px);
-    border-top:.5px solid var(--line);
-    padding-bottom:max(env(safe-area-inset-bottom), 6px);
+    -webkit-backdrop-filter:saturate(180%) blur(20px); backdrop-filter:saturate(180%) blur(20px);
+    border-top:.5px solid var(--line); padding-bottom:max(env(safe-area-inset-bottom), 6px);
   }
-  /* Fixed minimums: an earlier build let these collapse on iOS until they were
-     too small to hit. Never make the tap target smaller than 56px. */
+  /* Never smaller than 56px: an earlier build let these collapse on iOS until
+     they could not be hit. */
   nav button {
     flex:1 1 0; min-height:56px; border:0; background:none; color:var(--dim);
     font-size:11px; font-weight:600; line-height:1.1;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
     padding:8px 4px;
   }
-  nav button .ic { font-size:23px; line-height:1; font-weight:400; }
+  nav button .ic { font-size:22px; line-height:1; font-weight:400; }
   nav button.on { color:var(--accent); }
   nav button:active { opacity:.55; }
-
-  /* ----------------------------------------------------------------- cards */
-  .card {
-    background:var(--surface); border-radius:18px; padding:18px;
-    box-shadow:var(--shadow); margin-bottom:14px;
-  }
-  h2 {
-    font-size:13px; font-weight:600; letter-spacing:-.01em;
-    color:var(--dim); margin:24px 4px 10px; text-transform:none;
+  nav button .badge {
+    position:absolute; transform:translate(16px,-14px); background:var(--warn); color:#fff;
+    font-size:10px; font-weight:700; min-width:16px; height:16px; border-radius:8px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
   }
 
-  /* ------------------------------------------------------------------ ring */
+  .card { background:var(--surface); border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:14px; }
+  h2 { font-size:13px; font-weight:600; color:var(--dim); margin:24px 4px 10px; }
+  .sub { font-size:12.5px; color:var(--dim); margin:-6px 4px 10px; line-height:1.45; }
+
+  /* ring */
   .ringwrap { display:flex; align-items:center; gap:16px; }
   .ring { width:142px; height:142px; flex:none; position:relative; }
   .ring svg { transform:rotate(-90deg); display:block; }
-  .ring .mid {
-    position:absolute; inset:0; display:flex; flex-direction:column;
-    align-items:center; justify-content:center; text-align:center;
-  }
+  .ring .mid { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
   .ring .mid .v { font-size:23px; font-weight:700; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
-  .ring .mid .l { font-size:10px; color:var(--dim); font-weight:500; margin-top:1px;
-                 max-width:88px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .ring .mid .l { font-size:10px; color:var(--dim); font-weight:500; margin-top:1px; max-width:92px;
+                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
   .ring.live .mid .v { color:var(--go); }
-
   .legend { flex:1; min-width:0; display:flex; flex-direction:column; gap:11px; }
   .legend .row { display:flex; align-items:center; gap:9px; }
   .legend .sw { width:9px; height:9px; border-radius:3px; flex:none; }
   .legend .nm { font-size:14px; font-weight:500; flex:1; }
   .legend .vl { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
   .legend .row.zero .nm, .legend .row.zero .vl { color:var(--dim); }
-
   .verdict { margin-top:16px; padding-top:14px; border-top:.5px solid var(--line);
              font-size:13.5px; line-height:1.5; color:var(--dim); }
   .verdict b { color:var(--fg); font-weight:600; }
 
-  /* ---------------------------------------------------------------- timer */
-  .running {
-    display:flex; align-items:center; gap:13px; margin-bottom:14px;
-    background:var(--surface); border-radius:18px; padding:16px 18px; box-shadow:var(--shadow);
-    border-left:4px solid var(--go);
-  }
-  .running .dot { width:9px; height:9px; border-radius:50%; background:var(--go); flex:none;
-               animation:pulse 2.2s ease-in-out infinite; }
+  /* the timer card: the one thing that has to be unambiguous */
+  .timer { padding:0; overflow:hidden; }
+  .timer .head { display:flex; align-items:center; gap:12px; padding:18px; }
+  .timer.on .head { border-left:4px solid var(--go); padding-left:14px; }
+  .timer.off .head { border-left:4px solid var(--faint); padding-left:14px; }
+  .timer .dot { width:9px; height:9px; border-radius:50%; background:var(--go); flex:none;
+                animation:pulse 2.2s ease-in-out infinite; }
   @keyframes pulse { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.3; transform:scale(.82)} }
-  .running .txt { flex:1; min-width:0; }
-  .running .txt b { display:block; font-size:16px; font-weight:600; letter-spacing:-.01em; }
-  .running .txt span { font-size:12.5px; color:var(--dim); }
-  .running .el { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+  .timer .what { flex:1; min-width:0; }
+  .timer .what b { display:block; font-size:17px; font-weight:600; letter-spacing:-.01em; }
+  .timer .what span { font-size:12.5px; color:var(--dim); display:block; margin-top:2px; }
+  .timer .el { font-size:23px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
+  .timer .acts { display:flex; gap:8px; padding:0 18px 18px; }
+  .timer .acts.stack { flex-direction:column; }
 
   button.primary {
-    width:100%; border:0; border-radius:16px; padding:17px;
-    font-size:17px; font-weight:600; color:#fff; letter-spacing:-.01em;
-    display:flex; align-items:center; justify-content:center; gap:8px;
+    width:100%; border:0; border-radius:14px; padding:16px; font-size:17px; font-weight:600;
+    color:#fff; letter-spacing:-.01em; display:flex; align-items:center; justify-content:center; gap:7px;
     transition:transform .12s ease, opacity .12s ease;
   }
   button.primary:active { transform:scale(.975); opacity:.85; }
   button.primary.stop { background:var(--stop); }
+  button.ghost {
+    flex:1; border:0; border-radius:14px; padding:13px; font-size:15px; font-weight:600;
+    background:var(--sunk); color:var(--fg);
+  }
+  button.ghost:active { opacity:.6; }
+  button.ghost.warn { color:var(--warn); }
 
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:10px; }
+  .picker { padding:0 18px 18px; }
+  .picker .lbl { font-size:13px; font-weight:600; color:var(--dim); margin-bottom:10px; }
+  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
   .grid button {
-    background:var(--surface); border:0; border-radius:16px; color:var(--fg);
-    padding:15px 6px 13px; box-shadow:var(--shadow);
-    display:flex; flex-direction:column; align-items:center; gap:7px;
-    font-size:13px; font-weight:600; min-height:82px;
-    transition:transform .12s ease;
+    background:var(--sunk); border:0; border-radius:14px; color:var(--fg);
+    padding:14px 6px 12px; display:flex; flex-direction:column; align-items:center; gap:6px;
+    font-size:13px; font-weight:600; min-height:78px; transition:transform .12s ease;
   }
   .grid button:active { transform:scale(.95); }
-  .grid button .ic { font-size:25px; line-height:1; }
+  .grid button .ic { font-size:24px; line-height:1; }
 
-  /* -------------------------------------------------------------- sessions */
-  .sess { display:flex; align-items:center; gap:12px; padding:11px 0; border-bottom:.5px solid var(--line); }
+  .pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600;
+          padding:3px 8px; border-radius:999px; background:var(--sunk); color:var(--dim); }
+  .pill.pend { background:rgba(255,149,0,.16); color:var(--warn); }
+  .pill.filed { background:rgba(52,199,89,.16); color:var(--go); }
+
+  /* sessions */
+  .sess { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:.5px solid var(--line); }
   .sess:last-child { border-bottom:0; padding-bottom:0; }
   .sess:first-child { padding-top:0; }
   .sess .ic { font-size:19px; width:26px; text-align:center; flex:none; }
   .sess .b { flex:1; min-width:0; }
   .sess .b b { font-size:15px; font-weight:500; display:block; }
   .sess .b span { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
-  .sess .d { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .sess.open .d { color:var(--go); }
+  .sess .d { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
+  .sess.running .d { color:var(--go); }
 
-  /* ----------------------------------------------------------------- tasks */
-  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 10px; margin:0 -20px;
-           scrollbar-width:none; }
+  /* tasks */
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 10px; margin:0 -20px; scrollbar-width:none; }
   .chips::-webkit-scrollbar { display:none; }
-  .chips button {
-    border:0; background:var(--surface); color:var(--dim); white-space:nowrap;
-    border-radius:999px; padding:8px 15px; font-size:14px; font-weight:600;
-    box-shadow:var(--shadow); flex:none;
-  }
+  .chips button { border:0; background:var(--surface); color:var(--dim); white-space:nowrap;
+                  border-radius:999px; padding:8px 15px; font-size:14px; font-weight:600;
+                  box-shadow:var(--shadow); flex:none; }
   .chips button.on { background:var(--fg); color:var(--bg); }
   .chips button .ct { opacity:.5; margin-left:4px; font-weight:500; }
-
   .grp { margin-bottom:22px; }
   .grp .hd { display:flex; align-items:baseline; gap:8px; margin:0 4px 8px; }
-  .grp .hd b { font-size:15px; font-weight:600; letter-spacing:-.01em; }
+  .grp .hd b { font-size:15px; font-weight:600; }
   .grp .hd span { font-size:13px; color:var(--dim); }
   .grp .body { background:var(--surface); border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
-
-  .task { display:flex; gap:13px; align-items:flex-start; padding:14px 16px;
-          border-bottom:.5px solid var(--line); transition:background .12s ease; }
+  .task { display:flex; gap:13px; align-items:flex-start; padding:14px 16px; border-bottom:.5px solid var(--line); }
   .task:last-child { border-bottom:0; }
   .task:active { background:var(--bg); }
-  .task .box {
-    width:23px; height:23px; border:2px solid var(--faint); border-radius:7px; flex:none; margin-top:1px;
-    display:flex; align-items:center; justify-content:center; font-size:14px; color:#fff;
-    transition:background .15s ease, border-color .15s ease;
-  }
+  .task .box { width:23px; height:23px; border:2px solid var(--faint); border-radius:7px; flex:none;
+               margin-top:1px; display:flex; align-items:center; justify-content:center;
+               font-size:14px; color:#fff; transition:background .15s, border-color .15s; }
   .task.on .box { background:var(--go); border-color:var(--go); }
   .task.on .tt { text-decoration:line-through; color:var(--dim); }
   .task .c { flex:1; min-width:0; }
   .task .tt { font-size:15.5px; line-height:1.35; }
-  .task .mt { font-size:12.5px; color:var(--dim); margin-top:4px; display:flex; gap:9px; flex-wrap:wrap;
-              align-items:center; }
+  .task .mt { font-size:12.5px; color:var(--dim); margin-top:4px; display:flex; gap:9px;
+              flex-wrap:wrap; align-items:center; }
   .task .mt .od { color:var(--stop); font-weight:600; }
 
-  /* -------------------------------------------------------------- diagnose */
-  .diag { font-size:14px; }
+  /* talk */
+  .rec {
+    width:100%; border:0; border-radius:20px; padding:30px 16px; color:#fff;
+    font-size:19px; font-weight:700; letter-spacing:.02em; background:var(--go);
+    display:flex; flex-direction:column; align-items:center; gap:6px; min-height:132px;
+    justify-content:center; transition:background .18s ease, transform .12s ease;
+  }
+  .rec small { font-size:12.5px; font-weight:500; opacity:.85; letter-spacing:0; }
+  .rec.arming { background:var(--faint); }
+  .rec.live { background:var(--stop); transform:scale(1.01); }
+  .rec:disabled { background:var(--faint); }
+  .note { display:flex; gap:11px; padding:13px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
+  .note:last-child { border-bottom:0; padding-bottom:0; }
+  .note:first-child { padding-top:0; }
+  .note .w { flex:1; min-width:0; }
+  .note .w p { margin:0; font-size:15px; line-height:1.4; word-wrap:break-word; }
+  .note .w span { font-size:11.5px; color:var(--dim); display:block; margin-top:4px; }
+
+  /* diagnostics + misc */
   .diag .r { display:flex; gap:11px; padding:11px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
   .diag .r:last-child { border-bottom:0; padding-bottom:0; }
   .diag .r .s { font-size:15px; width:20px; flex:none; text-align:center; }
-  .diag .r .t { flex:1; }
   .diag .r .t b { display:block; font-weight:600; font-size:14.5px; }
   .diag .r .t span { color:var(--dim); font-size:13px; line-height:1.45; display:block; margin-top:2px; }
-  code { font:12px/1.5 ui-monospace,SFMono-Regular,Menlo,monospace;
-         background:var(--bg); padding:2px 6px; border-radius:5px;
-         display:inline-block; max-width:100%; overflow-wrap:anywhere; margin-top:3px; }
+  code { font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--bg);
+         padding:2px 6px; border-radius:5px; word-break:break-all; }
   .hint { color:var(--dim); font-size:13.5px; line-height:1.55; text-align:center; padding:26px 10px; }
   .hint b { color:var(--fg); }
   .foot { text-align:center; color:var(--faint); font-size:11px; padding:6px 0 2px; }
+  .help p { margin:0 0 11px; font-size:14px; line-height:1.5; color:var(--dim); }
+  .help p:last-child { margin-bottom:0; }
+  .help b { color:var(--fg); }
 </style>
 </head>
 
@@ -237,6 +252,7 @@
 <header>
   <div class="htop">
     <h1 id="hTitle">Today</h1>
+    <button class="qmark" id="hHelp" aria-label="How this works">?</button>
     <span class="date" id="hDate"></span>
   </div>
   <div class="status" id="hStatus"><span class="led"></span><span id="hStatusT">starting…</span></div>
@@ -245,27 +261,32 @@
 <main>
   <section id="s-today" class="on"></section>
   <section id="s-tasks"></section>
+  <section id="s-talk"></section>
 </main>
 
 <nav>
   <button data-go="today" class="on"><span class="ic">◍</span>Today</button>
   <button data-go="tasks"><span class="ic">☑</span>Tasks</button>
+  <button data-go="talk"><span class="ic">🎙</span>Talk</button>
 </nav>
 
 <script>
 (function () {
   'use strict';
 
-  var BUILD = 'c2 · 2026-08-14';
+  var BUILD = 'c3 · 2026-08-14';
 
-  // Shared with the capture app on purpose: same origin, same endpoint, same
-  // token. Linking one in Safari links the other.
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
-  var QUEUE_KEY = 'myday_evq';    // events saved before sending, never after
-  var LOCAL_KEY = 'myday_local';  // optimistic session, until a publish confirms
+  var EVQ_KEY   = 'myday_evq';     // start/stop/tick events, saved before sending
+  var NOTEQ_KEY = 'myday_queue';   // voice notes. SHARED with the capture app on
+                                   // purpose: same origin, same format, same
+                                   // server contract, and qid makes a double
+                                   // send by both apps harmless.
+  var LOCAL_KEY = 'myday_local2';  // what Amir has done since the last publish
 
   var POLL_MS = 20000;
+  var MAX_AUDIO_BYTES = 4500000;
 
   var AREAS = [
     { slug:'ucw',      label:'UCW',      ic:'🎓' },
@@ -283,278 +304,335 @@
     { k:'ai',       n:'AI',       c:'var(--ai)'   }
   ];
 
-  var cfg=null, state=null, local=null, queue=[], tab='today', filter='all';
-  // Why the screen looks the way it does, so "it is empty" is never a mystery.
+  var cfg=null, state=null, local=null, evq=[], tab='today', filter='all';
+  var picking=false, showHelp=false, notes=[];
   var health = { net:null, err:'', lastTry:'' };
 
   // ---------------------------------------------------------------- storage
-  function load(k, d) { try { var v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch (e) { return d; } }
-  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+  function load(k, d) { try { var v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch(e){ return d; } }
+  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 
-  // Endpoint and token arrive once in the URL fragment, which is never sent to
-  // any server. Keep the fragment in the address bar: iOS gives a Home Screen
-  // web app its own storage, so the saved bookmark must still carry the config.
   function readConfig() {
     var h = location.hash.replace(/^#/, '');
     if (h) {
       var p = {};
       h.split('&').forEach(function (kv) {
-        var i = kv.indexOf('=');
-        if (i > 0) p[kv.slice(0, i)] = decodeURIComponent(kv.slice(i + 1));
+        var i = kv.indexOf('='); if (i>0) p[kv.slice(0,i)] = decodeURIComponent(kv.slice(i+1));
       });
-      var url = p.e || (p.d ? 'https://script.google.com/macros/s/' + p.d + '/exec' : '');
-      if (url && p.k) { var c = { url:url, token:p.k }; save(CFG_KEY, c); return c; }
+      var url = p.e || (p.d ? 'https://script.google.com/macros/s/'+p.d+'/exec' : '');
+      if (url && p.k) { var c={url:url, token:p.k}; save(CFG_KEY,c); return c; }
     }
     return load(CFG_KEY, null);
   }
 
   // ---------------------------------------------------------------- helpers
   function esc(t) {
-    return String(t == null ? '' : t).replace(/[&<>"]/g, function (c) {
-      return { '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c];
+    return String(t==null?'':t).replace(/[&<>"]/g, function(c){
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
     });
   }
-  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function pad(n){ return (n<10?'0':'')+n; }
   function stamp() {
-    var d = new Date();
+    var d=new Date();
     return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+
            pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
   }
+  function clock(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
   function hm(m) {
-    if (m == null) return '—';
+    if (m==null) return '—';
     m = Math.max(0, Math.round(m));
     return Math.floor(m/60)+'h'+pad(m%60)+'m';
   }
-  function todayISO() { var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
 
-  /** Minutes from an "HH:MM" earlier today until now. */
+  function toMin(hhmm) {
+    var m = /^(\d{1,2}):(\d{2})/.exec(hhmm||''); return m ? (+m[1])*60 + (+m[2]) : null;
+  }
+  /** Minutes from an "HH:MM" earlier today until now. Amir's day rolls over at
+      05:00, not midnight, so a start in the future is really yesterday's. */
   function sinceToday(hhmm) {
-    var m = /^(\d{1,2}):(\d{2})$/.exec(hhmm || '');
-    if (!m) return 0;
-    var now = new Date(), then = new Date(now);
-    then.setHours(+m[1], +m[2], 0, 0);
-    // A start that looks like the future is really yesterday's: Amir's day rolls
-    // over at 05:00, not midnight (CLAUDE.md).
-    if (then > now) then.setDate(then.getDate() - 1);
-    return Math.floor((now - then) / 60000);
+    var s = toMin(hhmm); if (s==null) return 0;
+    var d = new Date(), now = d.getHours()*60 + d.getMinutes();
+    return now >= s ? now - s : (24*60 - s) + now;
+  }
+  function spanMin(a, b) {
+    var x = toMin(a), y = toMin(b);
+    if (x==null || y==null) return 0;
+    return y >= x ? y - x : (24*60 - x) + y;
   }
 
   // ---------------------------------------------------------------- network
   function get(action, params) {
     var q = 'action='+action+'&token='+encodeURIComponent(cfg.token);
     for (var k in params) q += '&'+k+'='+encodeURIComponent(params[k]);
-    return fetch(cfg.url+'?'+q, { method:'GET' }).then(function (r) { return r.json(); });
+    return fetch(cfg.url+'?'+q, {method:'GET'}).then(function(r){ return r.json(); });
   }
   function post(body) {
     var b = { token: cfg.token };
     for (var k in body) b[k] = body[k];
-    return fetch(cfg.url, {
-      method:'POST',
-      // text/plain keeps this a "simple" request, so the browser skips the CORS
-      // preflight that Apps Script cannot answer.
-      headers:{ 'Content-Type':'text/plain' },
-      body: JSON.stringify(b)
-    }).then(function (r) { return r.json(); });
+    // text/plain keeps this a "simple" request, so the browser skips the CORS
+    // preflight that Apps Script cannot answer.
+    return fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain'},
+                            body: JSON.stringify(b), redirect:'follow' })
+           .then(function(r){ return r.json(); });
+  }
+
+  // ============================================================= the model
+  //
+  //  filed        what Claude has written into days/<today>.md
+  //  pending      what Amir has done on the phone since the last publish
+  //
+  //  local = {
+  //    date,
+  //    open:      {start, area} | null      a session started here, still running
+  //    segments:  [{start, end, area}]      sessions started AND stopped here
+  //    filedEnd:  "HH:MM" | null            he stopped the session Claude had open
+  //    ticked:    {taskId: true}
+  //  }
+  //
+  //  Exactly one session can be running at a time, and it is either the filed
+  //  one (if he has not stopped it) or the local one. They can never both count,
+  //  which is what made the old screen show two different totals.
+
+  function freshLocal() { return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{} }; }
+
+  /** The filed session Claude has open, if Amir has not already stopped it here. */
+  function filedOpen() {
+    var s = state && state.today && state.today.open_session;
+    if (!s) return null;
+    if (local && local.filedEnd) return null;   // he stopped it from the phone
+    return s;
+  }
+  /** The single running session, whichever layer it comes from. */
+  function running() {
+    if (local && local.open) return { start:local.open.start, area:local.open.area, pending:true };
+    var f = filedOpen();
+    return f ? { start:f.start, area:f.area, task:f.task, pending:false } : null;
+  }
+  /** Minutes contributed by the filed open session, whether or not it is still running. */
+  function filedOpenMinutes() {
+    var s = state && state.today && state.today.open_session;
+    if (!s) return 0;
+    return (local && local.filedEnd) ? spanMin(s.start, local.filedEnd) : sinceToday(s.start);
+  }
+  function workedMinutes() {
+    var t = (state && state.today) || {};
+    var n = t.closed_minutes || 0;      // filed, already closed
+    n += filedOpenMinutes();            // filed, still open (or stopped here)
+    (local.segments||[]).forEach(function (s) { n += spanMin(s.start, s.end); });
+    if (local.open) n += sinceToday(local.open.start);
+    return n;
+  }
+  function liveBuckets() {
+    var b = (state && state.today && state.today.buckets) || {};
+    var out = { academia:b.academia||0, dog:b.dog||0, ai:b.ai||0 };
+    function add(area, mins) { var k = BUCKET_OF[area]; if (k) out[k] += mins; }
+    var fs = state && state.today && state.today.open_session;
+    if (fs) add(fs.area, filedOpenMinutes());
+    (local.segments||[]).forEach(function (s) { add(s.area, spanMin(s.start, s.end)); });
+    if (local.open) add(local.open.area, sinceToday(local.open.start));
+    return out;
   }
 
   // ----------------------------------------------------------------- events
-  // Save first, then send. A queued event survives a dead network, a reload and
-  // a force-quit; it leaves the queue only when the server has confirmed it.
-
   function emit(kind, payload) {
-    var ev = {
-      qid: 'e'+Date.now()+'-'+Math.random().toString(36).slice(2,8),
-      kind: kind, payload: payload || {}, client_ts: stamp()
-    };
-    queue.push(ev); save(QUEUE_KEY, queue);
-    applyLocally(ev);
+    var ev = { qid:'e'+Date.now()+'-'+Math.random().toString(36).slice(2,8),
+               kind:kind, payload:payload||{}, client_ts:stamp() };
+    evq.push(ev); save(EVQ_KEY, evq);
+    return ev;
+  }
+
+  function doStart(area) {
+    var now = clock();
+    // Starting while something runs is a SWITCH: close the old one first, so the
+    // two can never overlap and the totals stay honest.
+    if (running()) doStop(true);
+    emit('session_start', { area:area });
+    local.open = { start:now, area:area };
+    local.date = todayISO(); save(LOCAL_KEY, local);
+    picking = false; render(); flush();
+  }
+
+  function doStop(silent) {
+    var now = clock();
+    if (local.open) {
+      local.segments.push({ start:local.open.start, end:now, area:local.open.area });
+      local.open = null;
+    } else if (filedOpen()) {
+      local.filedEnd = now;
+    } else { return; }
+    emit('session_stop', {});
+    local.date = todayISO(); save(LOCAL_KEY, local);
+    if (!silent) { render(); flush(); }
+  }
+
+  /**
+   * Undo a start he did not mean. If the event is still queued it is simply
+   * dropped and the server never hears about it; if it has already gone, a
+   * `session_cancel` tells Claude to ignore the previous start.
+   */
+  function doUndoStart() {
+    if (!local.open) return;
+    var i = -1;
+    for (var j = evq.length-1; j >= 0; j--) {
+      if (evq[j].kind === 'session_start') { i = j; break; }
+    }
+    if (i > -1) { evq.splice(i,1); save(EVQ_KEY, evq); }
+    else { emit('session_cancel', { start: local.open.start, area: local.open.area }); }
+    local.open = null; save(LOCAL_KEY, local);
     render(); flush();
   }
 
   var flushing = false;
   function flush() {
-    if (flushing || !queue.length || !cfg) return;
+    if (flushing || !cfg) return;
+    if (!evq.length) { flushNotes(); return; }
     flushing = true;
-    var ev = queue[0];
+    var ev = evq[0];
     post({ action:'event', kind:ev.kind, payload:ev.payload, client_ts:ev.client_ts, qid:ev.qid })
       .then(function (r) {
-        if (r && r.ok) { queue.shift(); save(QUEUE_KEY, queue); health.net = true; }
+        if (r && r.ok) { evq.shift(); save(EVQ_KEY, evq); health.net = true; }
         else if (r && r.error) { health.net = false; health.err = r.error; }
       })
       .catch(function (e) { health.net = false; health.err = String(e && e.message || e); })
       .then(function () {
         flushing = false; render();
-        if (queue.length) setTimeout(flush, 1500);
+        if (evq.length) setTimeout(flush, 1500); else flushNotes();
       });
   }
 
-  /**
-   * Optimistic local view. The phone cannot edit the markdown, so until Claude
-   * publishes again this is what makes a tap feel like it did something.
-   */
-  function applyLocally(ev) {
-    if (ev.kind === 'session_start') {
-      local.open = { start: ev.client_ts.slice(11,16), area: ev.payload.area };
-      local.stopped = null;
-    } else if (ev.kind === 'session_stop') {
-      if (local.open) {
-        local.closed = (local.closed||0) + sinceToday(local.open.start);
-        local.open = null;
-      } else {
-        // Stopping a session that came from the Mac's last publish. Claude has
-        // not filed it yet, so remember which one was stopped and keep its
-        // minutes, or the total would drop back the moment it disappears.
-        var pub = state && state.today && state.today.open_session;
-        if (pub) {
-          local.stopped = { start: pub.start };
-          local.closed = (local.closed||0) + sinceToday(pub.start);
-        }
-      }
-    } else if (ev.kind === 'task_tick') {
-      local.ticked = local.ticked || {};
-      local.ticked[ev.payload.id] = true;
-    }
-    local.date = todayISO();
-    save(LOCAL_KEY, local);
-  }
-
   // ------------------------------------------------------------------- sync
-  function freshLocal() { return { date: todayISO(), open:null, stopped:null, closed:0, ticked:{} }; }
-
   function refresh() {
     if (!cfg) return;
-    health.lastTry = stamp().slice(11,16);
+    health.lastTry = clock();
     get('state').then(function (r) {
-      if (!r) { health.net = false; health.err = 'no response'; render(); return; }
-      if (!r.ok) { health.net = false; health.err = r.error || 'server refused'; render(); return; }
+      if (!r)      { health.net=false; health.err='no response'; render(); return; }
+      if (!r.ok)   { health.net=false; health.err=r.error||'server refused'; render(); return; }
       health.net = true; health.err = '';
+      if (!r.state){ state=null; render(); return; }
 
-      if (!r.state) { state = null; save(STATE_KEY, null); render(); return; }
-      var s; try { s = JSON.parse(r.state); } catch (e) { health.err = 'state unreadable'; render(); return; }
+      var s; try { s = JSON.parse(r.state); } catch(e){ health.err='state unreadable'; render(); return; }
       s._updated = r.updated || '';
+      var prev = state && state._updated;
       state = s; save(STATE_KEY, s);
 
-      // A publish that already knows about a tick makes the optimistic copy
-      // redundant; drop those so the two can never disagree.
-      if (local && local.ticked && s.tasks) {
-        var live = {}; s.tasks.forEach(function (t) { live[t.id] = true; });
-        Object.keys(local.ticked).forEach(function (id) { if (!live[id]) delete local.ticked[id]; });
+      // A fresh publish means Claude has filed everything up to that moment, so
+      // the pending layer for sessions is no longer needed. Dropping it here is
+      // what stops the same hour being counted twice.
+      if (prev !== s._updated) {
+        local.segments = [];
+        local.filedEnd = null;
+        if (local.open && s.today && s.today.open_session &&
+            s.today.open_session.area === local.open.area) local.open = null;
       }
-      if (local && local.open && s.today && s.today.open_session) { local.open = null; local.closed = 0; }
-      if (local && local.stopped) {
-        var still = s.today && s.today.open_session;
-        if (!still || still.start !== local.stopped.start) { local.stopped = null; local.closed = 0; }
+      if (local.ticked && s.tasks) {
+        var live = {}; s.tasks.forEach(function(t){ live[t.id]=true; });
+        Object.keys(local.ticked).forEach(function(id){ if (!live[id]) delete local.ticked[id]; });
       }
-      if (local && local.date !== todayISO()) local = freshLocal();
+      if (local.date !== todayISO()) local = freshLocal();
       save(LOCAL_KEY, local);
       render();
     }).catch(function (e) {
       health.net = false; health.err = String(e && e.message || e);
-      render();   // the cached state stays on screen; only the badge changes
+      render();   // cached state stays on screen; only the badge changes
     });
-  }
-
-  // ----------------------------------------------------------------- derive
-  function openSession() {
-    if (local && local.open) return { start:local.open.start, area:local.open.area, local:true };
-    var s = state && state.today && state.today.open_session;
-    if (!s) return null;
-    // Already stopped on the phone, just not yet filed at the Mac.
-    if (local && local.stopped && local.stopped.start === s.start) return null;
-    return { start:s.start, area:s.area, task:s.task, local:false };
-  }
-  function workedMinutes() {
-    var base = (state && state.today && state.today.closed_minutes) || 0;
-    base += (local && local.closed) || 0;
-    var o = openSession();
-    if (o) base += sinceToday(o.start);
-    return base;
-  }
-  function liveBuckets() {
-    var b = (state && state.today && state.today.buckets) || {};
-    var out = { academia:b.academia||0, dog:b.dog||0, ai:b.ai||0 };
-    var o = openSession();
-    if (o && BUCKET_OF[o.area]) out[BUCKET_OF[o.area]] += sinceToday(o.start);
-    return out;
   }
 
   // ----------------------------------------------------------------- render
   function ringSVG(vals, live) {
-    var R = 62, SW = 13, C = 2*Math.PI*R, total = vals.academia+vals.dog+vals.ai;
-    var h = '<svg width="142" height="142" viewBox="0 0 142 142">';
-    h += '<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="var(--ring-track)" stroke-width="'+SW+'"/>';
-    if (total > 0) {
-      var off = 0;
+    var R=62, SW=14, C=2*Math.PI*R, total=vals.academia+vals.dog+vals.ai;
+    var h='<svg width="142" height="142" viewBox="0 0 142 142">';
+    h+='<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="var(--ring-track)" stroke-width="'+SW+'"/>';
+    if (total>0) {
+      var off=0;
       BUCKETS.forEach(function (b) {
-        var v = vals[b.k]; if (!v) return;
-        var len = v/total*C;
-        h += '<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="'+b.c+'" stroke-width="'+SW+
-             '" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+
-             '" stroke-dashoffset="'+(-off).toFixed(2)+'" stroke-linecap="butt"/>';
-        off += len;
+        var v=vals[b.k]; if (!v) return;
+        var len=v/total*C;
+        h+='<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="'+b.c+'" stroke-width="'+SW+
+           '" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+
+           '" stroke-dashoffset="'+(-off).toFixed(2)+'" stroke-linecap="butt"/>';
+        off+=len;
       });
     }
-    h += '</svg>';
-    return '<div class="ring'+(live?' live':'')+'">'+h+'</div>';
+    h+='</svg>';
+    return '<div class="ring'+(live?' live':'')+'">'+h;
+  }
+
+  function helpCard() {
+    return '<div class="card help">'+
+      '<p><b>Claude on the Mac owns the record.</b> This app shows what he has already written down, '+
+      'and lets you tell him what you are doing now.</p>'+
+      '<p><b>One session runs at a time.</b> Tap an area to start it. Tapping a different area while '+
+      'one is running <b>switches</b>: the first is stopped at that moment and the new one begins. '+
+      'Nothing ever overlaps.</p>'+
+      '<p><b>Orange “pending” means Claude has not filed it yet.</b> It is safely stored and will be '+
+      'counted. Green “filed” means it is already in today’s file.</p>'+
+      '<p><b>Nothing here can delete anything.</b> Ticking a task or stopping a session is a message '+
+      'to Claude, never an edit.</p>'+
+      '</div>';
   }
 
   function renderToday() {
     var el = document.getElementById('s-today');
+    if (!state) { el.innerHTML = (showHelp?helpCard():'') + diagnostics(); return; }
 
-    if (!state) { el.innerHTML = diagnostics(); return; }
-
-    var t = state.today || {}, o = openSession(), mins = workedMinutes();
+    var t = state.today || {}, r = running(), mins = workedMinutes();
     var b = liveBuckets(), total = b.academia+b.dog+b.ai;
-    var h = '';
+    var h = showHelp ? helpCard() : '';
 
-    // --- the ring: total worked in the middle, the three-way split as arcs ---
+    // --- ring ---
     h += '<div class="card"><div class="ringwrap">';
-    h += ringSVG(b, !!o).replace('</div>',
-          '<div class="mid"><div class="v">'+hm(mins)+'</div><div class="l">'+
-          (t.target && !/not set/i.test(t.target) ? esc(t.target) : 'no target')+'</div></div></div>');
+    h += ringSVG(b, !!r) +
+         '<div class="mid"><div class="v">'+hm(mins)+'</div><div class="l">'+
+         (t.target && !/not set/i.test(t.target) ? 'of '+esc(t.target) : 'no target set')+
+         '</div></div></div>';
     h += '<div class="legend">';
     BUCKETS.forEach(function (x) {
       h += '<div class="row'+(b[x.k]?'':' zero')+'"><span class="sw" style="background:'+x.c+'"></span>'+
            '<span class="nm">'+x.n+'</span><span class="vl">'+hm(b[x.k])+'</span></div>';
     });
-    h += '</div></div>';
+    h += '</div></div><div class="verdict">'+balanceLine(b,total,r)+'</div></div>';
 
-    // The blunt line, computed the same way the coach computes it.
-    h += '<div class="verdict">'+balanceLine(b, total, o)+'</div>';
+    // --- the timer, always in exactly one of two states ---
+    h += '<div class="card timer '+(r?'on':'off')+'"><div class="head">';
+    if (r) {
+      h += '<span class="dot"></span><div class="what"><b>'+(AREA_IC[r.area]||'•')+' '+
+           esc((state.areas&&state.areas[r.area])||r.area)+'</b>'+
+           '<span>started '+esc(r.start)+' · '+
+           (r.pending?'<span class="pill pend">pending</span>':'<span class="pill filed">filed</span>')+
+           '</span></div><div class="el">'+hm(sinceToday(r.start))+'</div>';
+    } else {
+      var last = lastFinished();
+      h += '<div class="what"><b>Not working</b><span>'+
+           (last ? 'last: '+(AREA_IC[last.area]||'')+' '+
+                   esc((state.areas&&state.areas[last.area])||last.area)+' until '+esc(last.end)
+                 : 'nothing recorded yet today')+'</span></div>';
+    }
     h += '</div>';
 
-    // --- the button that fixes the unclosed-session problem ---
-    if (o) {
-      h += '<div class="running"><span class="dot"></span><div class="txt">'+
-           '<b>'+(AREA_IC[o.area]||'•')+' '+esc((state.areas&&state.areas[o.area])||o.area)+'</b>'+
-           '<span>since '+esc(o.start)+(o.local?' · not filed yet':'')+'</span></div>'+
-           '<div class="el">'+hm(sinceToday(o.start))+'</div></div>';
-      h += '<button class="primary stop" data-act="stop">Stop work</button>';
+    if (r) {
+      h += '<div class="acts stack"><button class="primary stop" data-act="stop">Stop work</button>'+
+           '<div style="display:flex;gap:8px">'+
+           '<button class="ghost" data-act="pick">Switch area</button>'+
+           (r.pending ? '<button class="ghost warn" data-act="undo">Undo start</button>' : '')+
+           '</div></div>';
+      if (picking) h += areaPicker('Switch to');
     } else {
-      h += '<h2>Start working on</h2><div class="grid">';
-      AREAS.forEach(function (a) {
-        h += '<button data-start="'+a.slug+'"><span class="ic">'+a.ic+'</span>'+a.label+'</button>';
-      });
-      h += '</div>';
+      h += areaPicker('Start working on');
     }
+    h += '</div>';
 
-    if (t.overhead_minutes) {
-      h += '<div class="verdict" style="padding:14px 4px 0">🚚 <b>'+hm(t.overhead_minutes)+
-           '</b> overhead. Counts as work, not toward the split.</div>';
-    }
-
-    var ss = (t.sessions||[]).slice().reverse();
-    if (ss.length) {
-      h += '<h2>Sessions</h2><div class="card" style="padding:16px 18px">';
-      ss.forEach(function (s) {
-        // A session stopped on the phone but not yet filed must not still read
-        // as running here while the ring above says it ended.
-        var pendingStop = s.open && local && local.stopped && local.stopped.start === s.start;
-        var stillOpen = s.open && !pendingStop;
-        h += '<div class="sess'+(stillOpen?' open':'')+'"><span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
-             '<div class="b"><b dir="auto">'+esc(s.task||s.area)+'</b><span>'+esc(s.start)+' → '+
-             (s.end?esc(s.end):(pendingStop?'stopped, filing':'now'))+'</span></div>'+
-             '<div class="d">'+(s.minutes!=null?hm(s.minutes):hm(sinceToday(s.start)))+'</div></div>';
+    // --- sessions, each labelled with where it came from ---
+    var rows = sessionRows();
+    if (rows.length) {
+      h += '<h2>Sessions today</h2><div class="sub">Green is already in today’s file. '+
+           'Orange is waiting for Claude to file it.</div><div class="card">';
+      rows.forEach(function (s) {
+        h += '<div class="sess'+(s.running?' running':'')+'"><span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
+             '<div class="b"><b>'+esc((state.areas&&state.areas[s.area])||s.area)+'</b>'+
+             '<span>'+esc(s.start)+' → '+(s.end?esc(s.end):'now')+' · '+
+             (s.pending?'<span class="pill pend">pending</span>':'<span class="pill filed">filed</span>')+
+             '</span></div><div class="d">'+hm(s.minutes)+'</div></div>';
       });
       h += '</div>';
     }
@@ -563,119 +641,136 @@
     el.innerHTML = h;
   }
 
-  /** The ⚖️ coaching line, on the phone, without waiting for a chat. */
-  function balanceLine(b, total, open) {
-    if (!total) return 'No focused work logged yet today.';
-    var arr = BUCKETS.map(function (x) { return { n:x.n, v:b[x.k] }; })
-                     .sort(function (p, q) { return q.v - p.v; });
-    var lead = arr[0], last = arr[2], gap = lead.v - last.v;
-    var even = Math.round(total/3);
-    if (gap < 30) return 'Evenly split, about <b>'+hm(even)+'</b> each. Keep it there.';
-    if (last.v === 0) return '<b>'+last.n+' is at zero.</b> '+lead.n+' has '+hm(lead.v)+
-                             '. An even finish needs '+hm(even)+' in each.';
-    return '<b>'+lead.n+' leads '+last.n+' by '+hm(gap)+'.</b> Even would be '+hm(even)+' each'+
-           (open ? ' — you are on '+ (open.area||'') +' right now.' : '.');
+  function areaPicker(label) {
+    var h = '<div class="picker"><div class="lbl">'+label+'</div><div class="grid">';
+    AREAS.forEach(function (a) {
+      h += '<button data-start="'+a.slug+'"><span class="ic">'+a.ic+'</span>'+a.label+'</button>';
+    });
+    h += '</div>';
+    if (picking) h += '<button class="ghost" style="width:100%;margin-top:9px" data-act="cancelpick">Cancel</button>';
+    return h + '</div>';
   }
 
-  /**
-   * Shown instead of a blank screen. An empty console has exactly three causes
-   * and this says which one it is, so it never has to be guessed at again.
-   */
+  /** Filed rows + pending rows, in clock order, each knowing which layer it is. */
+  function sessionRows() {
+    var out = [];
+    ((state.today && state.today.sessions) || []).forEach(function (s) {
+      if (s.open) {
+        var end = (local && local.filedEnd) || null;
+        out.push({ start:s.start, end:end, area:s.area, pending:false,
+                   running:!end, minutes: end ? spanMin(s.start,end) : sinceToday(s.start) });
+      } else {
+        out.push({ start:s.start, end:s.end, area:s.area, pending:false, minutes:s.minutes });
+      }
+    });
+    (local.segments||[]).forEach(function (s) {
+      out.push({ start:s.start, end:s.end, area:s.area, pending:true, minutes:spanMin(s.start,s.end) });
+    });
+    if (local.open) {
+      out.push({ start:local.open.start, end:null, area:local.open.area, pending:true,
+                 running:true, minutes:sinceToday(local.open.start) });
+    }
+    return out.sort(function (a,c) { return (toMin(a.start)||0) - (toMin(c.start)||0); }).reverse();
+  }
+
+  function lastFinished() {
+    var done = sessionRows().filter(function (s) { return s.end; });
+    return done.length ? done[0] : null;
+  }
+
+  function balanceLine(b, total, open) {
+    if (!total) return 'No focused work logged yet today.';
+    var arr = BUCKETS.map(function(x){ return {n:x.n, v:b[x.k]}; })
+                     .sort(function(p,q){ return q.v-p.v; });
+    var lead=arr[0], last=arr[2], gap=lead.v-last.v, even=Math.round(total/3);
+    if (gap < 30) return 'Evenly split, about <b>'+hm(even)+'</b> each. Keep it there.';
+    if (!last.v)  return '<b>'+last.n+' is at zero.</b> '+lead.n+' has '+hm(lead.v)+
+                         '. An even finish needs '+hm(even)+' in each.';
+    return '<b>'+lead.n+' leads '+last.n+' by '+hm(gap)+'.</b> Even would be '+hm(even)+' each.';
+  }
+
   function diagnostics() {
     var deployed = !(health.err && /unknown action/i.test(health.err));
     var rows = [
-      { ok: health.net === true, t:'Connection to the sheet',
-        s: health.net === true ? 'Reached the endpoint at '+esc(health.lastTry)
-         : health.net === false ? 'Failed: '+esc(health.err||'no network')
-         : 'Checking…' },
-      { ok: health.net === true && deployed, t:'Console endpoints deployed',
-        s: health.net !== true ? 'Cannot tell until the connection works'
+      { ok: health.net===true, t:'Connection to the sheet',
+        s: health.net===true ? 'Reached the endpoint at '+esc(health.lastTry)
+         : health.net===false ? 'Failed: '+esc(health.err||'no network') : 'Checking…' },
+      { ok: health.net===true && deployed, t:'Console endpoints deployed',
+        s: health.net!==true ? 'Cannot tell until the connection works'
          : deployed ? 'Server answers the state call'
-         : 'The Apps Script still runs the old code. Redeploy it: Extensions → Apps Script, paste Code.gs, then Deploy → Manage deployments → pencil → Version: New version.' },
+         : 'The Apps Script still runs the old code and needs redeploying.' },
       { ok:false, t:'First publish from the Mac',
         s:'Nothing published yet. At the Mac, run <code>python3 scripts/myday_console.py publish</code>.' }
     ];
     var h = '<div class="card diag">';
     rows.forEach(function (r) {
-      h += '<div class="r"><span class="s">'+(r.ok?'✅':'⚪️')+'</span><div class="t"><b>'+r.t+'</b><span>'+r.s+'</span></div></div>';
+      h += '<div class="r"><span class="s">'+(r.ok?'✅':'⚪️')+'</span><div class="t"><b>'+
+           r.t+'</b><span>'+r.s+'</span></div></div>';
     });
-    h += '</div><div class="hint">This screen fills in the moment the Mac publishes.<br>Nothing is lost in the meantime.</div>';
-    h += '<div class="foot">'+BUILD+'</div>';
-    return h;
+    return h + '</div><div class="hint">This screen fills in the moment the Mac publishes.<br>'+
+               'Nothing is lost in the meantime.</div><div class="foot">'+BUILD+'</div>';
   }
 
   function renderTasks() {
     var el = document.getElementById('s-tasks');
     if (!state) { el.innerHTML = diagnostics(); return; }
-
-    var ticked = (local && local.ticked) || {};
-    var all = (state.tasks||[]).slice();
-    function match(f, t) {
-      if (f === 'all')     return t.when !== 'future';
-      if (f === 'overdue') return t.when === 'overdue';
-      if (f === 'today')   return t.when === 'today';
-      if (f === 'nodate')  return !t.due;
-      if (f === 'later')   return t.when === 'future';
-      return t.area === f;
+    var ticked = local.ticked || {}, all = (state.tasks||[]).slice();
+    function match(f,t) {
+      if (f==='all')     return t.when!=='future';
+      if (f==='overdue') return t.when==='overdue';
+      if (f==='today')   return t.when==='today';
+      if (f==='nodate')  return !t.due;
+      if (f==='later')   return t.when==='future';
+      return t.area===f;
     }
-    var view = all.filter(function (t) { return match(filter, t); });
-
+    var view = all.filter(function(t){ return match(filter,t); });
     var defs = [['all','All'],['overdue','Overdue'],['today','Today'],['nodate','No date'],['later','Later']]
-      .concat(AREAS.filter(function (a) { return a.slug !== 'overhead'; })
-                   .map(function (a) { return [a.slug, a.ic+' '+a.label]; }));
+      .concat(AREAS.filter(function(a){return a.slug!=='overhead';})
+                   .map(function(a){ return [a.slug, a.ic+' '+a.label]; }));
 
     var h = '<div class="chips">';
     defs.forEach(function (f) {
-      var n = all.filter(function (t) { return match(f[0], t); }).length;
-      if (!n && f[0] !== 'all' && f[0] !== filter) return;   // hide empty filters
+      var n = all.filter(function(t){ return match(f[0],t); }).length;
+      if (!n && f[0]!=='all' && f[0]!==filter) return;
       h += '<button data-f="'+f[0]+'"'+(filter===f[0]?' class="on"':'')+'>'+f[1]+
            '<span class="ct">'+n+'</span></button>';
     });
     h += '</div>';
+    if (!view.length) { el.innerHTML = h+'<div class="hint">Nothing here.</div>'; return; }
 
-    if (!view.length) { el.innerHTML = h + '<div class="hint">Nothing here.</div>'; return; }
-
-    // One group per area, and UCW split further by list: it runs too many
-    // concurrent lists to read as a single block.
-    var groups = {}, order = [];
+    var groups={}, order=[];
     view.forEach(function (t) {
-      var key = t.area === 'ucw' ? 'ucw · '+t.section : t.area;
-      if (!groups[key]) { groups[key] = []; order.push(key); }
+      var key = t.area==='ucw' ? 'ucw · '+t.section : t.area;
+      if (!groups[key]) { groups[key]=[]; order.push(key); }
       groups[key].push(t);
     });
-    // Most-overdue group first: the thing he is furthest behind on leads.
-    order.sort(function (a, c) {
-      function worst(k) {
-        return Math.max.apply(null, groups[k].map(function (t) { return t.overdue_days||0; }));
-      }
-      return worst(c) - worst(a);
+    order.sort(function (a,c) {
+      function worst(k){ return Math.max.apply(null, groups[k].map(function(t){return t.overdue_days||0;})); }
+      return worst(c)-worst(a);
     });
-
     order.forEach(function (key) {
-      var list = groups[key].slice().sort(function (a, c) {
+      var list = groups[key].slice().sort(function (a,c) {
         if (!a.due && !c.due) return 0;
-        if (!a.due) return 1;
-        if (!c.due) return -1;
+        if (!a.due) return 1; if (!c.due) return -1;
         return a.due < c.due ? -1 : 1;
       });
       var f = list[0];
-      var name = key.indexOf('ucw · ') === 0 ? '🎓 '+key.slice(6)
+      var name = key.indexOf('ucw · ')===0 ? '🎓 '+key.slice(6)
                : (AREA_IC[f.area]||'•')+' '+((state.areas&&state.areas[f.area])||f.area);
-      var od = list.filter(function (t) { return t.when === 'overdue'; }).length;
-
+      var od = list.filter(function(t){ return t.when==='overdue'; }).length;
       h += '<div class="grp"><div class="hd"><b>'+esc(name)+'</b><span>'+list.length+
-           (od ? ' · '+od+' overdue' : '')+'</span></div><div class="body">';
+           (od?' · '+od+' overdue':'')+'</span></div><div class="body">';
       list.forEach(function (t) {
         var on = !!ticked[t.id];
-        h += '<div class="task'+(on?' on':'')+'" data-tick="'+t.id+'">'+
-             '<div class="box">'+(on?'✓':'')+'</div><div class="c">'+
-             '<div class="tt" dir="auto">'+esc(t.title)+'</div><div class="mt">';
-        if (t.when === 'overdue')  h += '<span class="od">'+t.overdue_days+'d overdue</span>';
+        h += '<div class="task'+(on?' on':'')+'" data-tick="'+t.id+'"><div class="box">'+(on?'✓':'')+
+             '</div><div class="c"><div class="tt">'+esc(t.title)+'</div><div class="mt">';
+        if (t.when==='overdue')    h += '<span class="od">'+t.overdue_days+'d overdue</span>';
         else if (t.when==='today') h += '<span>due today</span>';
         else if (t.due)            h += '<span>'+esc(t.due)+'</span>';
         else                       h += '<span>no date</span>';
-        if (t.priority === 'high') h += '<span>🔴</span>';
-        if (t.repeat)              h += '<span>🔁 '+esc(t.repeat)+'</span>';
+        if (t.priority==='high') h += '<span>🔴</span>';
+        if (t.repeat)            h += '<span>🔁 '+esc(t.repeat)+'</span>';
+        if (on)                  h += '<span class="pill pend">pending</span>';
         h += '</div></div></div>';
       });
       h += '</div></div>';
@@ -683,76 +778,290 @@
     el.innerHTML = h;
   }
 
+  function renderTalk() {
+    var el = document.getElementById('s-talk');
+    var q = load(NOTEQ_KEY, []);
+    var h = '<div style="padding:8px 0 4px">'+
+            '<button class="rec" id="rec">HOLD &amp; TALK<small>let go to send</small></button></div>'+
+            '<div class="sub" style="text-align:center;margin:12px 4px 0">'+
+            'Notes stay listed until Claude files them at the Mac.</div>';
+    var rows = q.map(function (x) { return { ts:x.ts, text:x.spoken || '(recorded, not transcribed yet)', local:true }; })
+      .concat(notes.map(function (n) { return { ts:n.client_ts||n.server_ts, text:n.text, local:false }; }));
+
+    if (rows.length) {
+      h += '<h2>Waiting for Claude</h2><div class="card">';
+      rows.reverse().forEach(function (n) {
+        h += '<div class="note"><div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+' · '+
+             (n.local?'<span class="pill pend">on phone</span>':'<span class="pill">in the cloud</span>')+
+             '</span></div></div>';
+      });
+      h += '</div>';
+    } else {
+      h += '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
+    }
+    el.innerHTML = h;
+    bindRecorder();
+  }
+
   function render() {
-    document.getElementById('hTitle').textContent = tab === 'today' ? 'Today' : 'Tasks';
+    document.getElementById('hTitle').textContent =
+      tab==='today' ? 'Today' : tab==='tasks' ? 'Tasks' : 'Talk';
     document.getElementById('hDate').textContent =
       state && state.today ? state.today.weekday+' '+state.today.date.slice(5).replace('-','/') : '';
 
-    var bar = document.getElementById('hStatus'), txt = document.getElementById('hStatusT');
-    var cls = 'status', msg;
-    if (queue.length)             { cls += ' warn'; msg = queue.length+' waiting to send'; }
-    else if (health.net === false){ cls += ' bad';  msg = 'offline · showing last known'; }
-    else if (state && state._updated) { msg = 'synced · published '+state._updated.slice(11); }
-    else                          { cls += ' warn'; msg = 'waiting for the first publish'; }
-    bar.className = cls; txt.textContent = msg;
+    var noteQ = load(NOTEQ_KEY, []).length;
+    var bar=document.getElementById('hStatus'), txt=document.getElementById('hStatusT');
+    var cls='status', msg;
+    if (evq.length || noteQ)          { cls+=' warn'; msg=(evq.length+noteQ)+' waiting to send'; }
+    else if (health.net===false)      { cls+=' bad';  msg='offline · showing last known'; }
+    else if (state && state._updated) { msg='synced · Claude filed up to '+state._updated.slice(11); }
+    else                              { cls+=' warn'; msg='waiting for the first publish'; }
+    bar.className=cls; txt.textContent=msg;
 
-    if (tab === 'today') renderToday(); else renderTasks();
+    [].forEach.call(document.querySelectorAll('nav button'), function (x) {
+      x.classList.toggle('on', x.getAttribute('data-go')===tab);
+    });
+    document.getElementById('s-today').classList.toggle('on', tab==='today');
+    document.getElementById('s-tasks').classList.toggle('on', tab==='tasks');
+    document.getElementById('s-talk').classList.toggle('on', tab==='talk');
+
+    if (tab==='today') renderToday();
+    else if (tab==='tasks') renderTasks();
+    else renderTalk();
   }
 
-  // -------------------------------------------------------------- interaction
+  // ------------------------------------------------------------ interaction
   document.addEventListener('click', function (e) {
     var n = e.target.closest('[data-go]');
-    if (n) {
-      tab = n.getAttribute('data-go');
-      [].forEach.call(document.querySelectorAll('nav button'), function (x) {
-        x.classList.toggle('on', x.getAttribute('data-go') === tab);
-      });
-      document.getElementById('s-today').classList.toggle('on', tab === 'today');
-      document.getElementById('s-tasks').classList.toggle('on', tab === 'tasks');
-      window.scrollTo(0, 0);
-      render(); return;
-    }
-    var st = e.target.closest('[data-start]');
-    if (st) { emit('session_start', { area: st.getAttribute('data-start') }); return; }
+    if (n) { tab=n.getAttribute('data-go'); picking=false; window.scrollTo(0,0); render(); return; }
 
-    var sp = e.target.closest('[data-act="stop"]');
-    if (sp) { emit('session_stop', {}); return; }
+    if (e.target.closest('#hHelp')) { showHelp=!showHelp; render(); return; }
+
+    var st = e.target.closest('[data-start]');
+    if (st) { doStart(st.getAttribute('data-start')); return; }
+
+    var a = e.target.closest('[data-act]');
+    if (a) {
+      var act = a.getAttribute('data-act');
+      if (act==='stop')       doStop(false);
+      if (act==='pick')       { picking=true; render(); }
+      if (act==='cancelpick') { picking=false; render(); }
+      if (act==='undo')       doUndoStart();
+      return;
+    }
 
     var f = e.target.closest('[data-f]');
-    if (f) { filter = f.getAttribute('data-f'); render(); return; }
+    if (f) { filter=f.getAttribute('data-f'); render(); return; }
 
     var tk = e.target.closest('[data-tick]');
     if (tk) {
       var id = tk.getAttribute('data-tick');
-      var task = (state.tasks||[]).filter(function (x) { return x.id === id; })[0];
-      if (!task) return;
-      if (local.ticked && local.ticked[id]) return;   // ticking twice is not a thing
+      var task = (state.tasks||[]).filter(function(x){ return x.id===id; })[0];
+      if (!task || (local.ticked && local.ticked[id])) return;
       emit('task_tick', { id:id, title:task.title, area:task.area, section:task.section });
+      local.ticked = local.ticked || {}; local.ticked[id] = true;
+      save(LOCAL_KEY, local); render(); flush();
     }
   });
+
+  // ================================================================ recorder
+  // Ported from the capture app. Every comment below records a failure that
+  // actually happened; do not "simplify" any of it.
+
+  var stream=null, mr=null, chunks=[], holding=false, startedAt=0, ticker=null, armed=false;
+  var queueSeq=0, sending=false, sendingSince=0, recBound=null;
+
+  function pickMime() {
+    var want=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
+    for (var i=0;i<want.length;i++) {
+      if (window.MediaRecorder && MediaRecorder.isTypeSupported(want[i])) return want[i];
+    }
+    return '';
+  }
+  function extFor(m){ return m.indexOf('mp4')>-1 ? 'm4a' : 'webm'; }
+
+  function enqueueNote(item) {
+    var q = load(NOTEQ_KEY, []);
+    var held = q.reduce(function(n,x){ return n + (x.audio?x.audio.length:0); }, 0);
+    // Over budget: drop audio from the OLDEST entries that still have words to
+    // fall back on, so the newest recording always keeps its audio.
+    for (var i=0; i<q.length && held+(item.audio?item.audio.length:0)>MAX_AUDIO_BYTES; i++) {
+      if (q[i].audio && q[i].spoken) { held-=q[i].audio.length; q[i].audio=null; q[i].mime=null; }
+    }
+    q.push(item); save(NOTEQ_KEY, q); render();
+  }
+  function patchNote(qid, ch) {
+    var q = load(NOTEQ_KEY, []);
+    q.forEach(function(x){ if (x.qid===qid) { for (var k in ch) x[k]=ch[k]; } });
+    save(NOTEQ_KEY, q); render();
+  }
+  function dequeueNote(qid) {
+    save(NOTEQ_KEY, load(NOTEQ_KEY, []).filter(function(x){ return x.qid!==qid; }));
+    render();
+  }
+
+  /** Oldest first, one at a time, stopping at the first failure. */
+  function flushNotes() {
+    if (sending && Date.now()-sendingSince > 90000) sending=false;   // never wedge
+    if (sending || !cfg) return;
+    var q = load(NOTEQ_KEY, []); if (!q.length) return;
+    sending = true; sendingSince = Date.now();
+    var item = q[0];
+    // qid makes the send idempotent: a request can succeed on the server and
+    // still fail on the way back, and the retry must not store the note twice.
+    var body = item.audio
+      ? { action:'transcribe', qid:item.qid, audio:item.audio, mime:item.mime, client_ts:item.ts }
+      : { action:'add', qid:item.qid, text:item.spoken, client_ts:item.ts };
+    post(body)
+      .then(function (d) {
+        if (d && d.ok) { notes = d.pending || notes; dequeueNote(item.qid); }
+        else if (item.audio && item.spoken) patchNote(item.qid, {audio:null, mime:null});
+        else if (item.audio) patchNote(item.qid, {audio:null, mime:null, spoken:'[could not transcribe]'});
+        sending=false; flushNotes();
+      })
+      .catch(function () { sending=false; });   // stays queued, retried next tick
+  }
+
+  function recSet(cls, label, sub) {
+    var rec = document.getElementById('rec'); if (!rec) return;
+    rec.className = 'rec' + (cls?' '+cls:'');
+    rec.innerHTML = esc(label) + (sub ? '<small>'+esc(sub)+'</small>' : '');
+  }
+
+  /**
+   * Three states, because the microphone takes a second or two to open and the
+   * button used to go red immediately. Anything said in that gap was never
+   * recorded, and nothing on screen said so. Red is driven by MediaRecorder's
+   * own onstart, the real moment capture begins.
+   */
+  function down(ev) {
+    ev.preventDefault();
+    if (holding) return;
+    holding = true; armed = false;
+    recSet('arming', 'GETTING READY', 'opening the microphone');
+
+    navigator.mediaDevices.getUserMedia({ audio:true }).then(function (s) {
+      stream = s;
+      if (!holding) { releaseMic(); return; }        // released while it was opening
+      var mime = pickMime(); chunks = [];
+      // 48 kbps: 24 kbps was tried and cost real accuracy ("UCW work" came back
+      // as "UCW award"). See phone/README.md.
+      var opts = mime ? { mimeType:mime, audioBitsPerSecond:48000 } : { audioBitsPerSecond:48000 };
+      try { mr = new MediaRecorder(s, opts); }
+      catch (e) { mr = mime ? new MediaRecorder(s, {mimeType:mime}) : new MediaRecorder(s); }
+
+      mr.onstart = function () {
+        if (!holding) { releaseMic(); return; }      // let go before capture began
+        armed = true; startedAt = Date.now();
+        recSet('live', 'LISTENING', 'let go to send');
+        clearInterval(ticker);
+        ticker = setInterval(function () {
+          if (holding && armed) {
+            recSet('live', 'LISTENING  '+Math.round((Date.now()-startedAt)/1000)+'s', 'let go to send');
+          }
+        }, 500);
+      };
+      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+      mr.onstop = function () {
+        var type = (mr && mr.mimeType) || 'audio/mp4';
+        var blob = new Blob(chunks, { type:type });
+        if (blob.size < 1200) { releaseMic(); return; }   // a tap, not speech
+        var ts = stamp(), qid = ts+'-'+(queueSeq++);
+        var fr = new FileReader();
+        fr.onloadend = function () {
+          enqueueNote({ qid:qid, ts:ts, spoken:'', audio:String(fr.result).split(',')[1],
+                        mime:type+';name=note.'+extFor(type) });
+          flushNotes();
+        };
+        // If the clip itself is unreadable, still record that something was said.
+        fr.onerror = function () {
+          enqueueNote({ qid:qid, ts:ts, spoken:'[recording unreadable]', audio:null, mime:null });
+          flushNotes();
+        };
+        fr.readAsDataURL(blob);
+        releaseMic();
+      };
+      // Chunked, so a long note accumulates as it goes. Buffering ten minutes in
+      // one lump is exactly how the tail of a note gets lost.
+      mr.start(1000);
+    }).catch(function (err) {
+      holding = false; clearInterval(ticker);
+      var rec = document.getElementById('rec');
+      if (rec) { rec.disabled = true; recSet('', 'MIC BLOCKED', String(err && err.name || '')); }
+    });
+  }
+
+  /**
+   * Hands the microphone back to iOS. Keeping the stream alive between presses
+   * left the amber recording indicator lit permanently. Never hold it open.
+   */
+  function releaseMic() {
+    if (mr) { try { if (mr.state==='recording') mr.stop(); } catch(e){} mr=null; }
+    if (stream) { try { stream.getTracks().forEach(function(t){t.stop();}); } catch(e){} stream=null; }
+  }
+
+  function up(ev) {
+    if (ev) ev.preventDefault();
+    if (!holding) return;
+    holding = false;
+    // Measured from the real start, not from the press.
+    var tooShort = !armed || (Date.now()-startedAt) < 1000;
+    clearInterval(ticker); armed = false;
+    var rec = document.getElementById('rec');
+    if (rec && !rec.disabled) recSet('', 'HOLD & TALK', 'let go to send');
+    if (mr && mr.state==='recording') {
+      if (tooShort) { try { mr.ondataavailable=null; mr.onstop=null; mr.stop(); } catch(e){} releaseMic(); }
+      else { try { mr.stop(); } catch(e){} }        // onstop releases the mic
+    } else { releaseMic(); }
+  }
+
+  /**
+   * Pointer events ONLY. Binding touch* and mouse* together was a real bug: iOS
+   * fires synthetic mouse events after every touch, so the second press ran
+   * down() twice and could tear down a recording in progress.
+   */
+  function bindRecorder() {
+    var rec = document.getElementById('rec');
+    if (!rec || recBound === rec) return;
+    recBound = rec;
+    rec.addEventListener('pointerdown', function (e) {
+      try { rec.setPointerCapture(e.pointerId); } catch (err) {}
+      down(e);
+    });
+    rec.addEventListener('pointerup', up);
+    rec.addEventListener('pointercancel', up);
+  }
+
+  function refreshNotes() {
+    if (!cfg) return;
+    get('fetch').then(function (d) { if (d && d.ok) { notes = d.entries||[]; if (tab==='talk') render(); } })
+                .catch(function(){});
+  }
 
   // -------------------------------------------------------------------- boot
   cfg   = readConfig();
   state = load(STATE_KEY, null);
-  queue = load(QUEUE_KEY, []);
+  evq   = load(EVQ_KEY, []);
   local = load(LOCAL_KEY, null) || freshLocal();
   if (local.date !== todayISO()) local = freshLocal();
+  if (!local.segments) local.segments = [];
 
   if (!cfg) {
     document.querySelector('main').innerHTML =
       '<div class="card diag"><div class="r"><span class="s">⚪️</span><div class="t">'+
-      '<b>Not linked yet</b><span>Open the console link ending in <code>#d=…&amp;k=…</code> and keep the '+
-      'whole fragment in the address bar when you add it to the Home Screen. If you just did and still '+
-      'see this, you are in a Private tab, which cannot save anything.</span></div></div></div>';
+      '<b>Not linked yet</b><span>Open the console link ending in <code>#d=…&amp;k=…</code> and keep '+
+      'the whole fragment in the address bar when you add it to the Home Screen. If you just did '+
+      'and still see this, you are in a Private tab, which cannot save anything.</span></div></div></div>';
     document.querySelector('nav').style.display = 'none';
   } else {
-    render();            // cached state paints immediately, before any network call
-    refresh(); flush();
-    setInterval(function () { refresh(); flush(); }, POLL_MS);
-    setInterval(function () { if (openSession()) render(); }, 30000);   // live timer
-    window.addEventListener('online', function () { refresh(); flush(); });
+    render();                       // cached state paints before any network call
+    refresh(); refreshNotes(); flush();
+    setInterval(function(){ refresh(); refreshNotes(); flush(); }, POLL_MS);
+    setInterval(function(){ if (running()) render(); }, 30000);   // live timer
+    window.addEventListener('online', function(){ refresh(); flush(); });
     document.addEventListener('visibilitychange', function () {
-      if (!document.hidden) { refresh(); flush(); }
+      if (document.hidden) { holding=false; releaseMic(); }
+      else { refresh(); refreshNotes(); flush(); }
     });
   }
 })();
