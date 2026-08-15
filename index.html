@@ -539,10 +539,13 @@
         if (!holding) { releaseMic(); return; }   // released while it was opening
         var mime = pickMime();
         chunks = [];
-        // Speech needs very little bandwidth. 24 kbps cuts the upload several-fold
-        // with no loss the transcriber notices, and the upload is the one leg we own.
-        var opts = mime ? { mimeType: mime, audioBitsPerSecond: 24000 }
-                        : { audioBitsPerSecond: 24000 };
+        // 48 kbps, NOT 24. 24 kbps was chosen for upload speed and cost real
+        // accuracy: "UCW work" came back as "UCW award". The v14 commit message
+        // and phone/README.md both claimed this was already 48000; the code
+        // still said 24000, so every note since has been recorded at the worse
+        // setting. Corrected 2026-08-15. Do not lower it again for upload speed.
+        var opts = mime ? { mimeType: mime, audioBitsPerSecond: 48000 }
+                        : { audioBitsPerSecond: 48000 };
         try { mr = new MediaRecorder(s, opts); }
         catch (e) { mr = mime ? new MediaRecorder(s, { mimeType: mime }) : new MediaRecorder(s); }
 
