@@ -216,8 +216,14 @@
   .rec {
     width:100%; border:0; border-radius:20px; padding:30px 16px; color:#fff;
     font-size:19px; font-weight:700; letter-spacing:.02em; background:var(--go);
-    display:flex; flex-direction:column; align-items:center; gap:6px; min-height:132px;
+    display:flex; flex-direction:column; align-items:center; gap:6px; min-height:150px;
     justify-content:center; transition:background .18s ease, transform .12s ease;
+    /* touch-action:none, NOT manipulation. With manipulation iOS may decide a
+       slight finger movement is a scroll, claim the gesture and fire
+       pointercancel, which ends the recording while the finger is still down.
+       That is exactly what made the button flash red and drop back to green
+       mid-hold. The capture app has always had none; do not relax it. */
+    touch-action:none; user-select:none; -webkit-user-select:none;
   }
   .rec small { font-size:12.5px; font-weight:500; opacity:.85; letter-spacing:0; }
   .rec.arming { background:var(--faint); }
@@ -261,7 +267,22 @@
 <main>
   <section id="s-today" class="on"></section>
   <section id="s-tasks"></section>
-  <section id="s-talk"></section>
+
+  <!--
+    The record button is STATIC markup and is never re-rendered. The notes list
+    below it is the only part that redraws. Rebuilding this button while a
+    recording was in progress tore the live one out of the DOM, taking its
+    pointer capture with it, and the hold silently died on the next 20s poll.
+  -->
+  <section id="s-talk">
+    <div style="padding:8px 0 4px">
+      <button class="rec" id="rec"><span id="recLabel">HOLD &amp; TALK</span><small id="recSub">let go to send</small></button>
+    </div>
+    <div class="sub" style="text-align:center;margin:12px 4px 0">
+      Notes stay listed until Claude files them at the Mac.
+    </div>
+    <div id="notes"></div>
+  </section>
 </main>
 
 <nav>
@@ -778,29 +799,30 @@
     el.innerHTML = h;
   }
 
+  /** Only the notes list. The button above it is static and must never be
+      rebuilt, or an in-progress recording loses its element mid-hold. */
   function renderTalk() {
-    var el = document.getElementById('s-talk');
+    var el = document.getElementById('notes');
+    if (!el) return;
     var q = load(NOTEQ_KEY, []);
-    var h = '<div style="padding:8px 0 4px">'+
-            '<button class="rec" id="rec">HOLD &amp; TALK<small>let go to send</small></button></div>'+
-            '<div class="sub" style="text-align:center;margin:12px 4px 0">'+
-            'Notes stay listed until Claude files them at the Mac.</div>';
-    var rows = q.map(function (x) { return { ts:x.ts, text:x.spoken || '(recorded, not transcribed yet)', local:true }; })
-      .concat(notes.map(function (n) { return { ts:n.client_ts||n.server_ts, text:n.text, local:false }; }));
+    var rows = q.map(function (x) {
+        return { ts:x.ts, text:x.spoken || '(recorded, sending…)', local:true };
+      })
+      .concat(notes.map(function (n) {
+        return { ts:n.client_ts||n.server_ts, text:n.text, local:false };
+      }));
 
-    if (rows.length) {
-      h += '<h2>Waiting for Claude</h2><div class="card">';
-      rows.reverse().forEach(function (n) {
-        h += '<div class="note"><div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+' · '+
-             (n.local?'<span class="pill pend">on phone</span>':'<span class="pill">in the cloud</span>')+
-             '</span></div></div>';
-      });
-      h += '</div>';
-    } else {
-      h += '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
+    if (!rows.length) {
+      el.innerHTML = '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
+      return;
     }
-    el.innerHTML = h;
-    bindRecorder();
+    var h = '<h2>Waiting for Claude</h2><div class="card">';
+    rows.reverse().forEach(function (n) {
+      h += '<div class="note"><div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+' · '+
+           (n.local?'<span class="pill pend">on phone</span>':'<span class="pill">in the cloud</span>')+
+           '</span></div></div>';
+    });
+    el.innerHTML = h + '</div>';
   }
 
   function render() {
@@ -922,10 +944,13 @@
       .catch(function () { sending=false; });   // stays queued, retried next tick
   }
 
+  /** Updates only the two text nodes inside the button, never the button or its
+      structure, so a captured pointer is never disturbed mid-hold. */
   function recSet(cls, label, sub) {
     var rec = document.getElementById('rec'); if (!rec) return;
-    rec.className = 'rec' + (cls?' '+cls:'');
-    rec.innerHTML = esc(label) + (sub ? '<small>'+esc(sub)+'</small>' : '');
+    rec.className = 'rec' + (cls ? ' '+cls : '');
+    document.getElementById('recLabel').textContent = label;
+    document.getElementById('recSub').textContent = sub || '';
   }
 
   /**
@@ -1054,6 +1079,7 @@
       'and still see this, you are in a Private tab, which cannot save anything.</span></div></div></div>';
     document.querySelector('nav').style.display = 'none';
   } else {
+    bindRecorder();                 // once, on the static button
     render();                       // cached state paints before any network call
     refresh(); refreshNotes(); flush();
     setInterval(function(){ refresh(); refreshNotes(); flush(); }, POLL_MS);
