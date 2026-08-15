@@ -584,9 +584,15 @@
       // A fresh publish means Claude has filed everything up to that moment, so
       // the pending layer for sessions is no longer needed. Dropping it here is
       // what stops the same hour being counted twice.
+      // A newer publish means Claude has filed everything up to that moment, so
+      // this phone's pending layer is spent. Dropping ALL of it here is what
+      // stops the same hour being counted twice, a corrected session being
+      // overridden by a stale local copy, and a row deleted here staying hidden
+      // forever even after Claude legitimately files it again.
       if (prev !== s._updated) {
         local.segments = [];
         local.filedEnd = null;
+        local.edits = {};
         if (local.open && s.today && s.today.open_session &&
             s.today.open_session.area === local.open.area) local.open = null;
       }
