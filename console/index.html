@@ -67,7 +67,7 @@
     border-bottom:.5px solid var(--line);
   }
   .htop { display:flex; align-items:center; gap:10px; }
-  header h1 { font-size:26px; font-weight:700; margin:0; letter-spacing:-.03em; }
+  header h1 { font-size:23px; font-weight:700; margin:0; letter-spacing:-.03em; }
   header .date { color:var(--dim); font-size:14px; font-weight:500; margin-left:auto; }
   .qmark {
     width:26px; height:26px; border-radius:50%; border:0; background:var(--sunk);
@@ -255,12 +255,28 @@
   .rec.arming { background:var(--faint); }
   .rec.live { background:var(--stop); transform:scale(1.01); }
   .rec:disabled { background:var(--faint); }
-  .note { display:flex; gap:11px; padding:13px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
-  .note:last-child { border-bottom:0; padding-bottom:0; }
-  .note:first-child { padding-top:0; }
-  .note .w { flex:1; min-width:0; }
+  /* Swipe a note left to reveal Edit and Delete, same gesture as the capture
+     app. A misheard word has to be fixable where it is noticed. */
+  .note { position:relative; overflow:hidden; border-bottom:.5px solid var(--line); }
+  .note:last-child { border-bottom:0; }
+  .note .w {
+    position:relative; z-index:1; background:var(--surface); padding:13px 2px;
+    transition:transform .18s ease;
+  }
+  .note.swiping .w { transition:none; }
+  .note.open .w { transform:translateX(-160px); }
   .note .w p { margin:0; font-size:15px; line-height:1.4; word-wrap:break-word; }
   .note .w span { font-size:11.5px; color:var(--dim); display:block; margin-top:4px; }
+  .note .w p[contenteditable="true"] {
+    background:var(--sunk); border-radius:8px; padding:8px; outline:0;
+    -webkit-user-select:text; user-select:text;
+  }
+  .note .actions { position:absolute; top:0; right:0; bottom:0; display:flex; z-index:0; }
+  .note .actions button {
+    border:0; width:80px; color:#fff; font-size:14px; font-weight:600;
+  }
+  .note .actions .e { background:var(--accent); }
+  .note .actions .d { background:var(--stop); }
 
   /* diagnostics + misc */
   .diag .r { display:flex; gap:11px; padding:11px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
@@ -312,7 +328,7 @@
 </main>
 
 <nav>
-  <button data-go="today" class="on"><span class="ic">◍</span>Today</button>
+  <button data-go="today" class="on"><span class="ic">◍</span>Time</button>
   <button data-go="tasks"><span class="ic">☑</span>Tasks</button>
   <button data-go="talk"><span class="ic">🎙</span>Talk</button>
 </nav>
@@ -390,7 +406,17 @@
     m = Math.max(0, Math.round(m));
     return Math.floor(m/60)+'h'+pad(m%60)+'m';
   }
-  function todayISO(){ var d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  /**
+   * The WORKING day, not the calendar day. Amir's day ends when he sleeps, and
+   * CLAUDE.md puts the boundary at 05:00. Without this the screen would reset
+   * itself at midnight while he was still mid-session, and a session started at
+   * 23:00 would look like it belonged to a day that had already ended.
+   */
+  function todayISO() {
+    var d = new Date();
+    if (d.getHours() < 5) d.setDate(d.getDate() - 1);
+    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+  }
 
   function toMin(hhmm) {
     var m = /^(\d{1,2}):(\d{2})/.exec(hhmm||''); return m ? (+m[1])*60 + (+m[2]) : null;
@@ -816,6 +842,8 @@
            '<span class="ct">'+n+'</span></button>';
     });
     h += '</div>';
+    h += '<div class="sub" style="margin:6px 4px 14px">Tick something and it is sent to Claude. '+
+         'It stays here until he files it at the Mac.</div>';
     if (!view.length) { el.innerHTML = h+'<div class="hint">Nothing here.</div>'; return; }
 
     var groups={}, order=[];
@@ -850,7 +878,7 @@
         else                       h += '<span>no date</span>';
         if (t.priority==='high') h += '<span>🔴</span>';
         if (t.repeat)            h += '<span>🔁 '+esc(t.repeat)+'</span>';
-        if (on)                  h += '<span class="pill pend">pending</span>';
+
         h += '</div></div></div>';
       });
       h += '</div></div>';
@@ -865,28 +893,34 @@
     if (!el) return;
     var q = load(NOTEQ_KEY, []);
     var rows = q.map(function (x) {
-        return { ts:x.ts, text:x.spoken || '(recorded, sending…)', local:true };
+        return { ts:x.ts, text:x.spoken || '(recorded, sending…)', local:true, qid:x.qid };
       })
       .concat(notes.map(function (n) {
-        return { ts:n.client_ts||n.server_ts, text:n.text, local:false };
+        return { ts:n.client_ts||n.server_ts, text:n.text, local:false, id:n.id };
       }));
 
     if (!rows.length) {
       el.innerHTML = '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
       return;
     }
-    var h = '<h2>Waiting for Claude</h2><div class="card">';
+    var h = '<h2>Waiting for Claude</h2><div class="sub">Swipe a note left to edit or delete it.</div>'+
+            '<div class="card" style="padding:4px 16px">';
     rows.reverse().forEach(function (n) {
-      h += '<div class="note"><div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+' · '+
-           (n.local?'<span class="pill pend">on phone</span>':'<span class="pill">in the cloud</span>')+
-           '</span></div></div>';
+      // A note still on the phone has no server id yet, so it can only be
+      // dropped locally: there is nothing to edit until it comes back as text.
+      h += '<div class="note" data-id="'+(n.id||'')+'" data-qid="'+esc(n.qid||'')+'">'+
+           '<div class="actions">'+
+           (n.id ? '<button class="e" data-nact="edit">Edit</button>' : '')+
+           '<button class="d" data-nact="delete">Delete</button></div>'+
+           '<div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+
+           (n.local?' · on this phone':'')+'</span></div></div>';
     });
     el.innerHTML = h + '</div>';
   }
 
   function render() {
     document.getElementById('hTitle').textContent =
-      tab==='today' ? 'Today' : tab==='tasks' ? 'Tasks' : 'Talk';
+      tab==='today' ? 'Time tracking' : tab==='tasks' ? 'Tasks' : 'Talk';
     document.getElementById('hDate').textContent =
       state && state.today ? state.today.weekday+' '+state.today.date.slice(5).replace('-','/') : '';
 
@@ -1155,6 +1189,106 @@
     rec.addEventListener('pointerup', up);
     rec.addEventListener('pointercancel', up);
   }
+
+  // ------------------------------------------------------- notes: swipe/edit
+  /**
+   * Horizontal drag reveals Edit and Delete. The direction is decided once, on
+   * the first few pixels of movement, so a vertical scroll through the list is
+   * never mistaken for a swipe.
+   */
+  (function () {
+    var host = document.getElementById('s-talk');
+    var startX=0, startY=0, row=null, decided=false, horizontal=false;
+
+    function closeAll(except) {
+      [].forEach.call(host.querySelectorAll('.note.open'), function (r) {
+        if (r !== except) r.classList.remove('open');
+      });
+    }
+    host.addEventListener('touchstart', function (e) {
+      var t = e.target.closest ? e.target.closest('.note') : null;
+      if (!t || e.target.closest('.actions') || t.querySelector('[contenteditable="true"]')) return;
+      row=t; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
+      decided=false; horizontal=false;
+    }, { passive:true });
+
+    host.addEventListener('touchmove', function (e) {
+      if (!row) return;
+      var dx = e.touches[0].clientX-startX, dy = e.touches[0].clientY-startY;
+      if (!decided) {
+        if (Math.abs(dx)<8 && Math.abs(dy)<8) return;
+        decided=true; horizontal=Math.abs(dx)>Math.abs(dy);
+        if (horizontal) { closeAll(row); row.classList.add('swiping'); }
+      }
+      if (!horizontal) return;
+      var w = row.querySelectorAll('.actions button').length * 80;
+      var off = Math.max(-w, Math.min(0, dx - (row.classList.contains('open') ? -0 : 0)));
+      row.querySelector('.w').style.transform = 'translateX('+off+'px)';
+    }, { passive:true });
+
+    host.addEventListener('touchend', function () {
+      if (!row) return;
+      var body = row.querySelector('.w');
+      if (horizontal) {
+        var cur = parseFloat((body.style.transform.match(/-?\d+(\.\d+)?/)||[0])[0]) || 0;
+        var w = row.querySelectorAll('.actions button').length * 80;
+        row.classList.remove('swiping');
+        body.style.transform = '';
+        row.classList.toggle('open', cur < -w/2);
+      }
+      row = null;
+    });
+  })();
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-nact]');
+    if (!b) return;
+    var note = b.closest('.note');
+    var id = Number(note.getAttribute('data-id')) || 0;
+    var qid = note.getAttribute('data-qid');
+    var act = b.getAttribute('data-nact');
+
+    if (act === 'delete') {
+      note.classList.remove('open');
+      if (id) {
+        // Marked "discarded" server-side, never actually deleted: a mis-swipe
+        // must not be able to lose a note.
+        notes = notes.filter(function (n) { return n.id !== id; });
+        render();
+        post({ action:'discard', id:id })
+          .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
+          .catch(function () { refreshNotes(); });
+      } else if (qid) {
+        save(NOTEQ_KEY, load(NOTEQ_KEY, []).filter(function (x) { return x.qid !== qid; }));
+        render();
+      }
+      return;
+    }
+
+    if (act === 'edit' && id) {
+      note.classList.remove('open');
+      var p = note.querySelector('p');
+      var before = p.textContent;
+      p.setAttribute('contenteditable','true');
+      p.focus();
+      // Caret at the end rather than selecting everything, so one wrong word can
+      // be fixed without retyping the note.
+      var r = document.createRange(); r.selectNodeContents(p); r.collapse(false);
+      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+
+      p.addEventListener('blur', function onBlur() {
+        p.removeEventListener('blur', onBlur);
+        p.removeAttribute('contenteditable');
+        var after = p.textContent.trim();
+        if (!after || after === before) { render(); return; }
+        notes.forEach(function (n) { if (n.id === id) n.text = after; });
+        render();
+        post({ action:'edit', id:id, text:after })
+          .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
+          .catch(function () { refreshNotes(); });
+      });
+    }
+  });
 
   function refreshNotes() {
     if (!cfg) return;
