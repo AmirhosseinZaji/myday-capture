@@ -184,6 +184,32 @@
   .sess .b span { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
   .sess .d { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
   .sess.running .d { color:var(--go); }
+  .sess .chev { color:var(--faint); font-size:17px; flex:none; margin-left:2px; }
+  .sess:active { opacity:.55; }
+
+  /* editing a session: native time inputs, because a wrong entry has to be
+     fixable on the phone. Not being able to correct 17h56m is what made the
+     whole screen untrustworthy. */
+  .edit { background:var(--sunk); border-radius:14px; padding:14px; margin:10px 0; }
+  .edit .fields { display:flex; gap:10px; margin-bottom:12px; }
+  .edit .f { flex:1; }
+  .edit .f label { display:block; font-size:11.5px; font-weight:600; color:var(--dim); margin-bottom:5px; }
+  .edit input[type=time] {
+    width:100%; border:0; border-radius:10px; padding:11px 10px; font-size:17px;
+    font-family:inherit; background:var(--surface); color:var(--fg);
+    font-variant-numeric:tabular-nums; -webkit-appearance:none; min-height:44px;
+  }
+  .edit .areas { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
+  .edit .areas button {
+    border:0; border-radius:999px; padding:8px 12px; font-size:13px; font-weight:600;
+    background:var(--surface); color:var(--dim);
+  }
+  .edit .areas button.on { background:var(--fg); color:var(--bg); }
+  .edit .btns { display:flex; gap:8px; }
+  .edit .btns button { flex:1; border:0; border-radius:11px; padding:12px; font-size:15px; font-weight:600; }
+  .edit .save { background:var(--accent); color:#fff; }
+  .edit .cancel { background:var(--surface); color:var(--fg); }
+  .edit .del { background:var(--surface); color:var(--stop); }
 
   /* tasks */
   .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 10px; margin:0 -20px; scrollbar-width:none; }
@@ -326,7 +352,7 @@
   ];
 
   var cfg=null, state=null, local=null, evq=[], tab='today', filter='all';
-  var picking=false, showHelp=false, notes=[];
+  var picking=false, showHelp=false, notes=[], editing=null, editArea=null;
   var health = { net:null, err:'', lastTry:'' };
 
   // ---------------------------------------------------------------- storage
@@ -415,7 +441,9 @@
   //  one (if he has not stopped it) or the local one. They can never both count,
   //  which is what made the old screen show two different totals.
 
-  function freshLocal() { return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{} }; }
+  function freshLocal() {
+    return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{}, edits:{} };
+  }
 
   /** The filed session Claude has open, if Amir has not already stopped it here. */
   function filedOpen() {
@@ -424,34 +452,24 @@
     if (local && local.filedEnd) return null;   // he stopped it from the phone
     return s;
   }
-  /** The single running session, whichever layer it comes from. */
+  /** The single running session, whichever layer it comes from, after edits. */
   function running() {
-    if (local && local.open) return { start:local.open.start, area:local.open.area, pending:true };
-    var f = filedOpen();
-    return f ? { start:f.start, area:f.area, task:f.task, pending:false } : null;
+    var rows = sessionRows();
+    for (var i=0; i<rows.length; i++) if (rows[i].running) return rows[i];
+    return null;
   }
-  /** Minutes contributed by the filed open session, whether or not it is still running. */
-  function filedOpenMinutes() {
-    var s = state && state.today && state.today.open_session;
-    if (!s) return 0;
-    return (local && local.filedEnd) ? spanMin(s.start, local.filedEnd) : sinceToday(s.start);
-  }
+  // The big number and the buckets are both derived from the SAME list the user
+  // is looking at, so they can never disagree with it. Two independent sums were
+  // what let the ring say one thing and the rows another.
   function workedMinutes() {
-    var t = (state && state.today) || {};
-    var n = t.closed_minutes || 0;      // filed, already closed
-    n += filedOpenMinutes();            // filed, still open (or stopped here)
-    (local.segments||[]).forEach(function (s) { n += spanMin(s.start, s.end); });
-    if (local.open) n += sinceToday(local.open.start);
-    return n;
+    return sessionRows().reduce(function (n, s) { return n + (s.minutes||0); }, 0);
   }
   function liveBuckets() {
-    var b = (state && state.today && state.today.buckets) || {};
-    var out = { academia:b.academia||0, dog:b.dog||0, ai:b.ai||0 };
-    function add(area, mins) { var k = BUCKET_OF[area]; if (k) out[k] += mins; }
-    var fs = state && state.today && state.today.open_session;
-    if (fs) add(fs.area, filedOpenMinutes());
-    (local.segments||[]).forEach(function (s) { add(s.area, spanMin(s.start, s.end)); });
-    if (local.open) add(local.open.area, sinceToday(local.open.start));
+    var out = { academia:0, dog:0, ai:0 };
+    sessionRows().forEach(function (s) {
+      var k = BUCKET_OF[s.area];
+      if (k) out[k] += (s.minutes||0);
+    });
     return out;
   }
 
@@ -586,10 +604,10 @@
       '<p><b>One session runs at a time.</b> Tap an area to start it. Tapping a different area while '+
       'one is running <b>switches</b>: the first is stopped at that moment and the new one begins. '+
       'Nothing ever overlaps.</p>'+
-      '<p><b>Orange “pending” means Claude has not filed it yet.</b> It is safely stored and will be '+
-      'counted. Green “filed” means it is already in today’s file.</p>'+
-      '<p><b>Nothing here can delete anything.</b> Ticking a task or stopping a session is a message '+
-      'to Claude, never an edit.</p>'+
+      '<p><b>Got something wrong? Tap the session and fix it.</b> You can change the start, the end, '+
+      'the area, or delete it outright. Claude picks the correction up at the Mac.</p>'+
+      '<p><b>The big number is just the sessions added up.</b> If it looks wrong, one of the rows '+
+      'below it is wrong — fix that row and the number follows.</p>'+
       '</div>';
   }
 
@@ -617,11 +635,11 @@
     // --- the timer, always in exactly one of two states ---
     h += '<div class="card timer '+(r?'on':'off')+'"><div class="head">';
     if (r) {
+      var mins = sinceToday(r.start);
       h += '<span class="dot"></span><div class="what"><b>'+(AREA_IC[r.area]||'•')+' '+
            esc((state.areas&&state.areas[r.area])||r.area)+'</b>'+
-           '<span>started '+esc(r.start)+' · '+
-           (r.pending?'<span class="pill pend">pending</span>':'<span class="pill filed">filed</span>')+
-           '</span></div><div class="el">'+hm(sinceToday(r.start))+'</div>';
+           '<span>since '+esc(r.start)+'</span></div>'+
+           '<div class="el">'+(mins<1 ? '<span style="font-size:15px">just now</span>' : hm(mins))+'</div>';
     } else {
       var last = lastFinished();
       h += '<div class="what"><b>Not working</b><span>'+
@@ -646,14 +664,16 @@
     // --- sessions, each labelled with where it came from ---
     var rows = sessionRows();
     if (rows.length) {
-      h += '<h2>Sessions today</h2><div class="sub">Green is already in today’s file. '+
-           'Orange is waiting for Claude to file it.</div><div class="card">';
+      h += '<h2>Sessions today</h2><div class="sub">Tap any session to fix its times or delete it.</div>'+
+           '<div class="card">';
       rows.forEach(function (s) {
-        h += '<div class="sess'+(s.running?' running':'')+'"><span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
+        if (editing === s.key) { h += sessionEditor(s); return; }
+        h += '<div class="sess'+(s.running?' running':'')+'" data-edit="'+esc(s.key)+'">'+
+             '<span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
              '<div class="b"><b>'+esc((state.areas&&state.areas[s.area])||s.area)+'</b>'+
-             '<span>'+esc(s.start)+' → '+(s.end?esc(s.end):'now')+' · '+
-             (s.pending?'<span class="pill pend">pending</span>':'<span class="pill filed">filed</span>')+
-             '</span></div><div class="d">'+hm(s.minutes)+'</div></div>';
+             '<span>'+esc(s.start)+' → '+(s.end?esc(s.end):'now')+'</span></div>'+
+             '<div class="d">'+(s.minutes<1?'just started':hm(s.minutes))+'</div>'+
+             '<span class="chev">›</span></div>';
       });
       h += '</div>';
     }
@@ -672,26 +692,65 @@
     return h + '</div>';
   }
 
-  /** Filed rows + pending rows, in clock order, each knowing which layer it is. */
+  /**
+   * Every session for today, from both layers, in clock order.
+   *
+   * `key` is start+area: stable enough to survive a redraw and readable enough
+   * that an edit event tells Claude exactly which row Amir meant. Whether a row
+   * came from the file or from an unsent tap is deliberately NOT shown any more:
+   * it is this app's plumbing, not something Amir should have to reason about.
+   */
   function sessionRows() {
     var out = [];
     ((state.today && state.today.sessions) || []).forEach(function (s) {
       if (s.open) {
         var end = (local && local.filedEnd) || null;
-        out.push({ start:s.start, end:end, area:s.area, pending:false,
+        out.push({ start:s.start, end:end, area:s.area, local:false,
                    running:!end, minutes: end ? spanMin(s.start,end) : sinceToday(s.start) });
       } else {
-        out.push({ start:s.start, end:s.end, area:s.area, pending:false, minutes:s.minutes });
+        out.push({ start:s.start, end:s.end, area:s.area, local:false, minutes:s.minutes });
       }
     });
     (local.segments||[]).forEach(function (s) {
-      out.push({ start:s.start, end:s.end, area:s.area, pending:true, minutes:spanMin(s.start,s.end) });
+      out.push({ start:s.start, end:s.end, area:s.area, local:true, minutes:spanMin(s.start,s.end) });
     });
     if (local.open) {
-      out.push({ start:local.open.start, end:null, area:local.open.area, pending:true,
+      out.push({ start:local.open.start, end:null, area:local.open.area, local:true,
                  running:true, minutes:sinceToday(local.open.start) });
     }
+    // Apply anything Amir has corrected here but Claude has not filed yet.
+    var edits = (local && local.edits) || {};
+    out = out.filter(function (s) {
+      s.key = s.start + '|' + s.area;
+      return edits[s.key] !== 'deleted';
+    });
+    out.forEach(function (s) {
+      var e = edits[s.key];
+      if (!e || e === 'deleted') return;
+      s.start = e.start; s.end = e.end; s.area = e.area;
+      s.minutes = spanMin(e.start, e.end);
+      s.running = false;              // an edited session has an explicit end
+    });
     return out.sort(function (a,c) { return (toMin(a.start)||0) - (toMin(c.start)||0); }).reverse();
+  }
+
+  /** Inline editor for one session. Native time inputs, so iOS gives its own picker. */
+  function sessionEditor(s) {
+    var h = '<div class="edit" data-editing="'+esc(s.key)+'">';
+    h += '<div class="fields">'+
+         '<div class="f"><label>Started</label><input type="time" id="edStart" value="'+esc(s.start)+'"></div>'+
+         '<div class="f"><label>Ended</label><input type="time" id="edEnd" value="'+
+         esc(s.end||clock())+'"></div></div>';
+    h += '<div class="areas">';
+    AREAS.forEach(function (a) {
+      h += '<button data-earea="'+a.slug+'"'+(a.slug===s.area?' class="on"':'')+'>'+a.ic+' '+a.label+'</button>';
+    });
+    h += '</div><div class="btns">'+
+         '<button class="cancel" data-eact="cancel">Cancel</button>'+
+         '<button class="del" data-eact="delete">Delete</button>'+
+         '<button class="save" data-eact="save">Save</button>'+
+         '</div></div>';
+    return h;
   }
 
   function lastFinished() {
@@ -870,6 +929,46 @@
       if (act==='cancelpick') { picking=false; render(); }
       if (act==='undo')       doUndoStart();
       return;
+    }
+
+    // --- session editing -------------------------------------------------
+    var ed = e.target.closest('[data-edit]');
+    if (ed) {
+      editing = ed.getAttribute('data-edit');
+      var row = sessionRows().filter(function(s){ return s.key===editing; })[0];
+      editArea = row ? row.area : null;
+      render(); return;
+    }
+    var ea = e.target.closest('[data-earea]');
+    if (ea) {
+      // Change the highlight in place: a full re-render would throw away
+      // whatever he has already typed into the time fields.
+      editArea = ea.getAttribute('data-earea');
+      [].forEach.call(document.querySelectorAll('[data-earea]'), function (b) {
+        b.classList.toggle('on', b.getAttribute('data-earea')===editArea);
+      });
+      return;
+    }
+    var ec = e.target.closest('[data-eact]');
+    if (ec) {
+      var act = ec.getAttribute('data-eact'), key = editing;
+      var was = sessionRows().filter(function(s){ return s.key===key; })[0];
+      if (act === 'cancel') { editing=null; render(); return; }
+      local.edits = local.edits || {};
+      if (act === 'delete') {
+        local.edits[key] = 'deleted';
+        emit('session_delete', { start:was&&was.start, area:was&&was.area });
+      } else {
+        var st = document.getElementById('edStart').value;
+        var en = document.getElementById('edEnd').value;
+        if (!st || !en) return;
+        local.edits[key] = { start:st, end:en, area:editArea || (was&&was.area) };
+        emit('session_edit', { was:{ start:was&&was.start, end:was&&was.end, area:was&&was.area },
+                               now:{ start:st, end:en, area:editArea || (was&&was.area) } });
+      }
+      // An edited or deleted row is no longer the running one.
+      if (was && was.running) { local.open = null; local.filedEnd = local.filedEnd || was.start; }
+      editing=null; save(LOCAL_KEY, local); render(); flush(); return;
     }
 
     var f = e.target.closest('[data-f]');
