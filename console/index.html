@@ -106,8 +106,9 @@
     /* Reserving the whole safe-area inset (34px on this phone) parked the row well
        above the bottom edge, twice over. A flat 10px sits the labels as low as they
        can go while still clearing the home indicator, which occupies roughly the
-       bottom 8px. Raise this number if the indicator ever crowds the text. */
-    padding-bottom:6px;
+       bottom 8px, so 11px here plus the button's own 3px lands the labels right on
+       top of it, the same place YouTube Studio and every native tab bar put them. */
+    padding-bottom:11px;
   }
   /* Never smaller than 56px: an earlier build let these collapse on iOS until
      they could not be hit. */
@@ -357,7 +358,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c7 · 2026-08-17';
+  var BUILD = 'c8 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -1330,6 +1331,38 @@
   if (local.date !== todayISO()) local = freshLocal();
   if (!local.segments) local.segments = [];
 
+  /* ---------- self-update ----------
+   * A Home Screen app has no address bar and no reload button, and GitHub Pages
+   * serves this file with max-age=600, so a published fix can sit unseen on the
+   * phone for a long time. Three layout fixes shipped on 2026-08-17 and none of
+   * them reached the phone, which is what this exists to prevent. The page fetches
+   * its own URL with cache:'no-store', reads the BUILD string out of the response,
+   * and reloads itself when the server is running something newer. Never while a
+   * recording is in progress: that would drop the audio mid-hold.
+   */
+  var updating = false;
+  function checkForUpdate() {
+    if (updating || holding) return;
+    updating = true;
+    fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })
+      .then(function (r) { return r.ok ? r.text() : null; })
+      .then(function (html) {
+        if (!html) return;
+        var m = html.match(/var BUILD = '([^']+)'/);
+        if (!m || m[1] === BUILD) return;
+        /* Reload at most once per distinct build seen. Without this, a CDN edge
+           still serving the PREVIOUS build to a page already running the new one
+           would reload, come back identical, and loop forever. */
+        var seen = null;
+        try { seen = sessionStorage.getItem('myday_selfreload'); } catch (e) {}
+        if (seen === m[1]) return;
+        try { sessionStorage.setItem('myday_selfreload', m[1]); } catch (e) {}
+        location.reload();
+      })
+      .catch(function () {})
+      .then(function () { updating = false; });
+  }
+
   if (!cfg) {
     document.querySelector('main').innerHTML =
       '<div class="card diag"><div class="r"><span class="s">⚪️</span><div class="t">'+
@@ -1341,12 +1374,13 @@
     bindRecorder();                 // once, on the static button
     render();                       // cached state paints before any network call
     refresh(); refreshNotes(); flush();
-    setInterval(function(){ refresh(); refreshNotes(); flush(); }, POLL_MS);
+    checkForUpdate();
+    setInterval(function(){ refresh(); refreshNotes(); flush(); checkForUpdate(); }, POLL_MS);
     setInterval(function(){ if (running()) render(); }, 30000);   // live timer
     window.addEventListener('online', function(){ refresh(); flush(); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { holding=false; releaseMic(); }
-      else { refresh(); refreshNotes(); flush(); }
+      else { refresh(); refreshNotes(); flush(); checkForUpdate(); }
     });
   }
 })();
