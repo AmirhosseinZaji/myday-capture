@@ -5,7 +5,15 @@
 <title>myday</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!--
+  NOT black-translucent. On a Home Screen app iOS draws a black-translucent page
+  from the top of the screen but sizes the web view as though the status bar still
+  occupied its space, so the page ends about one status-bar height above the bottom
+  of the screen. On a 440x956 iPhone that is 62pt of screen the page cannot paint,
+  which is why the tab bar sat visibly high no matter what padding it had: the bar
+  was flush with the bottom of the page, and the page was not flush with the screen.
+-->
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="myday">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
 
@@ -357,7 +365,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c11 · 2026-08-17';
+  var BUILD = 'c12 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
