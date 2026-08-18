@@ -365,7 +365,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c13 · 2026-08-17';
+  var BUILD = 'c14 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -966,7 +966,7 @@
     else if (health.net===false)      { cls+=' bad';  msg='offline · showing last known'; }
     else if (state && state._updated) { msg='synced · Claude filed up to '+state._updated.slice(11); }
     else                              { cls+=' warn'; msg='waiting for the first publish'; }
-    bar.className=cls; txt.textContent=msg;
+    bar.className=cls; txt.textContent=msg + ' · ' + geom();
 
     [].forEach.call(document.querySelectorAll('nav button'), function (x) {
       x.classList.toggle('on', x.getAttribute('data-go')===tab);
