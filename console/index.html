@@ -365,7 +365,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c12 · 2026-08-17';
+  var BUILD = 'c13 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -738,7 +738,8 @@
       h += '</div>';
     }
 
-    h += '<div class="foot">'+BUILD+' · published '+esc(state._updated||'?')+'</div>';
+    h += '<div class="foot">'+BUILD+' · published '+esc(state._updated||'?')+
+         '<br>'+esc(geom())+'</div>';
     el.innerHTML = h;
   }
 
@@ -1338,6 +1339,36 @@
   if (local.date !== todayISO()) local = freshLocal();
   if (!local.segments) local.segments = [];
 
+  /* ---------- viewport ----------
+   * inset:0 is supposed to give the full viewport, but on this phone the tab bar
+   * still lands short of the bottom of the screen, so stop trusting it and pin the
+   * height to what the browser reports as visible. Runs on load, on resize and on
+   * rotation. geom() prints the same measurements into the footer, because reading
+   * them off a screenshot is the only way this Mac can see an iPhone.
+   */
+  function fitViewport() {
+    var h = (window.visualViewport ? Math.round(visualViewport.height) : 0) || window.innerHeight;
+    document.body.style.top = '0px';
+    document.body.style.bottom = 'auto';
+    document.body.style.height = h + 'px';
+  }
+  function envBottom() {
+    var d = document.createElement('div');
+    d.style.cssText = 'position:fixed;visibility:hidden;height:env(safe-area-inset-bottom)';
+    document.body.appendChild(d);
+    var v = parseFloat(getComputedStyle(d).height) || 0;
+    d.remove();
+    return Math.round(v);
+  }
+  function geom() {
+    var nav = document.querySelector('nav');
+    var nb = nav ? Math.round(nav.getBoundingClientRect().bottom) : -1;
+    var vv = window.visualViewport ? Math.round(visualViewport.height) : -1;
+    return 'ih' + window.innerHeight + ' vv' + vv + ' sh' + screen.height +
+           ' sab' + envBottom() + ' navB' + nb + ' gap' + (window.innerHeight - nb) +
+           ' std' + (navigator.standalone ? 1 : 0);
+  }
+
   /* ---------- self-update ----------
    * A Home Screen app has no address bar and no reload button, and GitHub Pages
    * serves this file with max-age=600, so a published fix can sit unseen on the
@@ -1384,6 +1415,10 @@
     document.querySelector('nav').style.display = 'none';
   } else {
     bindRecorder();                 // once, on the static button
+    fitViewport();
+    window.addEventListener('resize', fitViewport);
+    window.addEventListener('orientationchange', fitViewport);
+    if (window.visualViewport) visualViewport.addEventListener('resize', fitViewport);
     render();                       // cached state paints before any network call
     refresh(); refreshNotes(); flush();
     checkForUpdate();
@@ -1392,7 +1427,7 @@
     window.addEventListener('online', function(){ refresh(); flush(); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { holding=false; releaseMic(); }
-      else { refresh(); refreshNotes(); flush(); checkForUpdate(); }
+      else { fitViewport(); refresh(); refreshNotes(); flush(); checkForUpdate(); }
     });
   }
 })();
