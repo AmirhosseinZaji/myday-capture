@@ -357,7 +357,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c10 · 2026-08-17';
+  var BUILD = 'c11 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -1349,14 +1349,19 @@
         if (!html) return;
         var m = html.match(/var BUILD = '([^']+)'/);
         if (!m || m[1] === BUILD) return;
-        /* Reload at most once per distinct build seen. Without this, a CDN edge
-           still serving the PREVIOUS build to a page already running the new one
-           would reload, come back identical, and loop forever. */
-        var seen = null;
-        try { seen = sessionStorage.getItem('myday_selfreload'); } catch (e) {}
-        if (seen === m[1]) return;
-        try { sessionStorage.setItem('myday_selfreload', m[1]); } catch (e) {}
-        location.reload();
+        /* location.reload() is allowed to come back out of the HTTP cache, and with
+           max-age=600 on Pages it often did. Paired with the attempt guard below
+           that pinned the phone to a stale build for good: it recorded the target
+           as tried, reloaded, got the cached old copy back, and then refused to
+           retry. Navigating to a URL carrying the build number instead is a URL the
+           cache has never seen, so the fetch is always fresh. The hash carries the
+           deployment id and token and must survive. */
+        var target = m[1];
+        var tries = 0;
+        try { tries = parseInt(sessionStorage.getItem('myday_reload_' + target) || '0', 10); } catch (e) {}
+        if (tries >= 2) return;                 // give up rather than loop on a stuck edge
+        try { sessionStorage.setItem('myday_reload_' + target, tries + 1); } catch (e) {}
+        location.replace(location.pathname + '?b=' + encodeURIComponent(target) + location.hash);
       })
       .catch(function () {})
       .then(function () { updating = false; });
