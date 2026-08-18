@@ -115,7 +115,7 @@
        env() here is what kept lifting it. Keeping env() out also means this file
        renders identically on a desktop browser and on the phone, so the layout can
        actually be checked before it ships. */
-    padding-bottom:0;
+    padding-bottom:8px;
   }
   /* Never smaller than 56px: an earlier build let these collapse on iOS until
      they could not be hit. */
@@ -365,7 +365,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c14 · 2026-08-17';
+  var BUILD = 'c15 · 2026-08-18';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -966,7 +966,7 @@
     else if (health.net===false)      { cls+=' bad';  msg='offline · showing last known'; }
     else if (state && state._updated) { msg='synced · Claude filed up to '+state._updated.slice(11); }
     else                              { cls+=' warn'; msg='waiting for the first publish'; }
-    bar.className=cls; txt.textContent=msg + ' · ' + geom();
+    bar.className=cls; txt.textContent=msg;
 
     [].forEach.call(document.querySelectorAll('nav button'), function (x) {
       x.classList.toggle('on', x.getAttribute('data-go')===tab);
