@@ -58,7 +58,12 @@
      on all three tabs, and stops the layout jumping while scrolling. */
   html { height:100%; }
   body {
-    height:100%; height:100dvh;
+    /* position:fixed with inset:0 pins the app to the initial containing block,
+       which with viewport-fit=cover is the whole screen. 100dvh was leaving a
+       strip of dead page below the tab bar on the Home Screen app, which is why
+       the bar kept looking like it was floating too high no matter how much
+       padding came off it. inset:0 cannot come up short the way dvh can. */
+    position:fixed; inset:0;
     display:flex; flex-direction:column; overflow:hidden;
     background:var(--bg); color:var(--fg);
     font:17px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
@@ -96,13 +101,13 @@
 
   nav {
     flex:none; position:relative; z-index:30; display:flex; align-items:stretch;
-    background:var(--bg);
+    background:var(--surface);
     border-top:.5px solid var(--line);
     /* Reserving the whole safe-area inset (34px on this phone) parked the row well
        above the bottom edge, twice over. A flat 10px sits the labels as low as they
        can go while still clearing the home indicator, which occupies roughly the
        bottom 8px. Raise this number if the indicator ever crowds the text. */
-    padding-bottom:10px;
+    padding-bottom:6px;
   }
   /* Never smaller than 56px: an earlier build let these collapse on iOS until
      they could not be hit. */
@@ -352,7 +357,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c6 · 2026-08-17';
+  var BUILD = 'c7 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
