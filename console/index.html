@@ -101,14 +101,14 @@
 
   nav {
     flex:none; position:relative; z-index:30; display:flex; align-items:stretch;
-    background:var(--surface);
+    background:var(--bg);
     border-top:.5px solid var(--line);
-    /* Reserving the whole safe-area inset (34px on this phone) parked the row well
-       above the bottom edge, twice over. A flat 10px sits the labels as low as they
-       can go while still clearing the home indicator, which occupies roughly the
-       bottom 8px, so 11px here plus the button's own 3px lands the labels right on
-       top of it, the same place YouTube Studio and every native tab bar put them. */
-    padding-bottom:11px;
+    /* A native iOS tab bar, YouTube Studio's included, ends its labels about 8px
+       above the home-indicator inset. Measured on a 440x956 phone that puts the
+       label bottom roughly 42px above the screen edge, and this lands a little
+       under that. The empty band below the labels is the indicator's safe area and
+       cannot be reclaimed; it is invisible because the bar matches the page. */
+    padding-bottom:max(calc(env(safe-area-inset-bottom) - 8px), 6px);
   }
   /* Never smaller than 56px: an earlier build let these collapse on iOS until
      they could not be hit. */
@@ -358,7 +358,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c8 · 2026-08-17';
+  var BUILD = 'c9 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
