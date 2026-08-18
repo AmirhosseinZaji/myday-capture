@@ -103,12 +103,11 @@
     flex:none; position:relative; z-index:30; display:flex; align-items:stretch;
     background:var(--bg);
     border-top:.5px solid var(--line);
-    /* A native iOS tab bar, YouTube Studio's included, ends its labels about 8px
-       above the home-indicator inset. Measured on a 440x956 phone that puts the
-       label bottom roughly 42px above the screen edge, and this lands a little
-       under that. The empty band below the labels is the indicator's safe area and
-       cannot be reclaimed; it is invisible because the bar matches the page. */
-    padding-bottom:max(calc(env(safe-area-inset-bottom) - 8px), 6px);
+    /* No safe-area reservation at all. Amir wants the row on the bottom edge, and
+       env() here is what kept lifting it. Keeping env() out also means this file
+       renders identically on a desktop browser and on the phone, so the layout can
+       actually be checked before it ships. */
+    padding-bottom:0;
   }
   /* Never smaller than 56px: an earlier build let these collapse on iOS until
      they could not be hit. */
@@ -116,7 +115,7 @@
     flex:1 1 0; min-height:66px; border:0; background:none; color:var(--dim);
     font-size:12.5px; font-weight:600; line-height:1.1;
     display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-    padding:8px 4px 3px;
+    padding:8px 4px 0;
   }
   nav button .ic { font-size:31px; line-height:1; font-weight:400; }
   nav button.on { color:var(--accent); }
@@ -358,7 +357,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c9 · 2026-08-17';
+  var BUILD = 'c10 · 2026-08-17';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
