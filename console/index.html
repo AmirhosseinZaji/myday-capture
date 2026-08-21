@@ -883,7 +883,7 @@
 
     var groups={}, order=[];
     view.forEach(function (t) {
-      var key = t.area==='ucw' ? 'ucw · '+t.section : t.area;
+      var key = t.section ? t.area+' · '+t.section : t.area;
       if (!groups[key]) { groups[key]=[]; order.push(key); }
       groups[key].push(t);
     });
@@ -898,8 +898,8 @@
         return a.due < c.due ? -1 : 1;
       });
       var f = list[0];
-      var name = key.indexOf('ucw · ')===0 ? '🎓 '+key.slice(6)
-               : (AREA_IC[f.area]||'•')+' '+((state.areas&&state.areas[f.area])||f.area);
+      var name = (AREA_IC[f.area]||'•')+' '+
+                 (f.section || (state.areas&&state.areas[f.area]) || f.area);
       var od = list.filter(function(t){ return t.when==='overdue'; }).length;
       h += '<div class="grp"><div class="hd"><b>'+esc(name)+'</b><span>'+list.length+
            (od?' · '+od+' overdue':'')+'</span></div><div class="body">';
