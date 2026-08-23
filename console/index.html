@@ -240,7 +240,8 @@
   .edit .del { background:var(--surface); color:var(--stop); }
 
   /* tasks */
-  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 10px; margin:0 -20px; scrollbar-width:none; }
+  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 8px; margin:0 -20px; scrollbar-width:none; }
+  .chips + .chips { padding-top:2px; padding-bottom:10px; }
   .chips::-webkit-scrollbar { display:none; }
   .chips button { border:0; background:var(--surface); color:var(--dim); white-space:nowrap;
                   border-radius:999px; padding:8px 15px; font-size:14px; font-weight:600;
@@ -365,7 +366,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c17 · 2026-08-23';
+  var BUILD = 'c18 · 2026-08-23';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -395,7 +396,8 @@
     { k:'ai',       n:'AI',       c:'var(--ai)'   }
   ];
 
-  var cfg=null, state=null, local=null, evq=[], tab='today', filter='all';
+  var cfg=null, state=null, local=null, evq=[], tab='today';
+  var dueFilter='all', areaFilter='all';
   var picking=false, showHelp=false, notes=[], editing=null, editArea=null;
   var health = { net:null, err:'', lastTry:'' };
 
@@ -856,24 +858,33 @@
     var el = document.getElementById('s-tasks');
     if (!state) { el.innerHTML = diagnostics(); return; }
     var ticked = local.ticked || {}, all = (state.tasks||[]).slice();
-    function match(f,t) {
+    function matchDue(f,t) {
       if (f==='all')     return t.when!=='future';
       if (f==='overdue') return t.when==='overdue';
       if (f==='today')   return t.when==='today';
       if (f==='nodate')  return !t.due;
       if (f==='later')   return t.when==='future';
-      return t.area===f;
+      return false;
     }
-    var view = all.filter(function(t){ return match(filter,t); });
-    var defs = [['all','All'],['overdue','Overdue'],['today','Today'],['nodate','No date'],['later','Later']]
-      .concat(AREAS.filter(function(a){return a.slug!=='overhead';})
-                   .map(function(a){ return [a.slug, a.ic+' '+a.label]; }));
+    function matchArea(f,t) { return f==='all' || t.area===f; }
+    function matches(t) { return matchDue(dueFilter,t) && matchArea(areaFilter,t); }
+    var view = all.filter(matches);
+    var dueDefs = [['all','All'],['overdue','Overdue'],['today','Today'],['nodate','No date'],['later','Later']];
+    var areaDefs = [['all','All areas']].concat(
+      AREAS.filter(function(a){return a.slug!=='overhead';})
+           .map(function(a){ return [a.slug, a.ic+' '+a.label]; })
+    );
 
-    var h = '<div class="chips">';
-    defs.forEach(function (f) {
-      var n = all.filter(function(t){ return match(f[0],t); }).length;
-      if (!n && f[0]!=='all' && f[0]!==filter) return;
-      h += '<button data-f="'+f[0]+'"'+(filter===f[0]?' class="on"':'')+'>'+f[1]+
+    var h = '<div class="chips" aria-label="Due date filters">';
+    dueDefs.forEach(function (f) {
+      var n = all.filter(function(t){ return matchDue(f[0],t) && matchArea(areaFilter,t); }).length;
+      h += '<button data-due="'+f[0]+'"'+(dueFilter===f[0]?' class="on"':'')+'>'+f[1]+
+           '<span class="ct">'+n+'</span></button>';
+    });
+    h += '</div><div class="chips" aria-label="Area filters">';
+    areaDefs.forEach(function (f) {
+      var n = all.filter(function(t){ return matchDue(dueFilter,t) && matchArea(f[0],t); }).length;
+      h += '<button data-area="'+f[0]+'"'+(areaFilter===f[0]?' class="on"':'')+'>'+f[1]+
            '<span class="ct">'+n+'</span></button>';
     });
     h += '</div>';
@@ -1040,8 +1051,11 @@
       editing=null; save(LOCAL_KEY, local); render(); flush(); return;
     }
 
-    var f = e.target.closest('[data-f]');
-    if (f) { filter=f.getAttribute('data-f'); render(); return; }
+    var df = e.target.closest('[data-due]');
+    if (df) { dueFilter=df.getAttribute('data-due'); render(); return; }
+
+    var af = e.target.closest('[data-area]');
+    if (af) { areaFilter=af.getAttribute('data-area'); render(); return; }
 
     var tk = e.target.closest('[data-tick]');
     if (tk) {
