@@ -366,7 +366,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c18 · 2026-08-23';
+  var BUILD = 'c19 · 2026-08-25';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -889,7 +889,7 @@
     });
     h += '</div>';
     h += '<div class="sub" style="margin:6px 4px 14px">Tick something and it is sent to Codex. '+
-         'It stays here until Codex files it at the Mac.</div>';
+         'Tap it again to undo before Codex files it at the Mac.</div>';
     if (!view.length) { el.innerHTML = h+'<div class="hint">Nothing here.</div>'; return; }
 
     var groups={}, order=[];
@@ -1061,9 +1061,22 @@
     if (tk) {
       var id = tk.getAttribute('data-tick');
       var task = (state.tasks||[]).filter(function(x){ return x.id===id; })[0];
-      if (!task || (local.ticked && local.ticked[id])) return;
-      emit('task_tick', { id:id, title:task.title, area:task.area, section:task.section });
-      local.ticked = local.ticked || {}; local.ticked[id] = true;
+      if (!task) return;
+      var payload = { id:id, title:task.title, area:task.area, section:task.section,
+                      due:task.due, priority:task.priority, repeat:task.repeat,
+                      last_done:task.last_done };
+      local.ticked = local.ticked || {};
+      if (local.ticked[id]) {
+        // The original tick may already be in flight or stored in the Sheet, so
+        // never delete it from evq: doing that while flush() owns evq[0] can
+        // shift the wrong event. Send an explicit correction instead. Events
+        // are ordered, so Codex sees tick -> untick and keeps the task active.
+        emit('task_untick', payload);
+        delete local.ticked[id];
+      } else {
+        emit('task_tick', payload);
+        local.ticked[id] = true;
+      }
       save(LOCAL_KEY, local); render(); flush();
     }
   });
@@ -1352,6 +1365,13 @@
   local = load(LOCAL_KEY, null) || freshLocal();
   if (local.date !== todayISO()) local = freshLocal();
   if (!local.segments) local.segments = [];
+  // c18 could not reverse a task tick. Clear its stranded optimistic ticks once
+  // when c19 first loads; the server-side event is reconciled independently.
+  if (!load('myday_task_undo_c19', false)) {
+    local.ticked = {};
+    save(LOCAL_KEY, local);
+    save('myday_task_undo_c19', true);
+  }
 
   /* ---------- viewport ----------
    * inset:0 is supposed to give the full viewport, but on this phone the tab bar
