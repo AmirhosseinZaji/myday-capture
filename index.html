@@ -112,7 +112,7 @@
   var CFG_KEY   = 'myday_cfg';
   var QUEUE_KEY = 'myday_queue';
 
-  var pending = [];      // in the cloud, waiting for Codex to file it
+  var pending = [];      // in the cloud, waiting for Claude to file it
   var cfg     = null;
 
   // ---------------------------------------------------------------- config
@@ -155,7 +155,7 @@
   function needsSetup() {
     document.getElementById('bar').style.display = 'none';
     listEl.innerHTML =
-      '<div id="setup"><b>Not linked yet.</b><br><br>Scan the QR code Codex sent, or open the ' +
+      '<div id="setup"><b>Not linked yet.</b><br><br>Scan the QR code Claude sent, or open the ' +
       'full link ending in <code>#d=...&amp;k=...</code>. If you just did and still see this, ' +
       'you are in a <b>Private</b> tab, which cannot save anything. Open it in a normal tab.</div>';
   }

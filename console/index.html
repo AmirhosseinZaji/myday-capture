@@ -20,11 +20,11 @@
 <!--
   myday console: the visual half of a_myday.
 
-  THE MODEL, in one paragraph. The Mac is the source of truth: Codex publishes a
+  THE MODEL, in one paragraph. The Mac is the source of truth: Claude publishes a
   state blob (tasks, today's sessions, focus balance) and this page renders it.
   The page never edits tasks/ or days/. Everything Amir taps here is an EVENT
   ("started ucw", "stopped", "ticked X") that queues up and is reconciled by
-  Codex at the Mac. So the screen always shows two layers: what Codex has
+  Claude at the Mac. So the screen always shows two layers: what Claude has
   filed, and what Amir has done since that hasn't been filed yet. Every pending
   thing is labelled as pending. That distinction is the whole design.
 
@@ -296,16 +296,47 @@
   .note.open .w { transform:translateX(-160px); }
   .note .w p { margin:0; font-size:15px; line-height:1.4; word-wrap:break-word; }
   .note .w span { font-size:11.5px; color:var(--dim); display:block; margin-top:4px; }
-  .note .w p[contenteditable="true"] {
-    background:var(--sunk); border-radius:8px; padding:8px; outline:0;
-    -webkit-user-select:text; user-select:text;
-  }
   .note .actions { position:absolute; top:0; right:0; bottom:0; display:flex; z-index:0; }
   .note .actions button {
     border:0; width:80px; color:#fff; font-size:14px; font-weight:600;
   }
   .note .actions .e { background:var(--accent); }
   .note .actions .d { background:var(--stop); }
+
+  /* Editing a note happens in a full-screen sheet, never in place. In-place
+     editing had two faults and both of them bit. It fought the keyboard for the
+     scrap of room left under the record button and the tab bar, and it lived
+     inside the markup that the 20s poll redraws, so a poll landing mid-sentence
+     tore the box out and threw the typing away. This is the same fault that once
+     killed recordings mid-hold, which is why the record button is static markup.
+     The sheet is static too, and its height comes from fitViewport(), so it
+     follows the keyboard instead of guessing. */
+  #esheet {
+    position:fixed; left:0; right:0; top:0; z-index:50;
+    display:none; flex-direction:column; background:var(--bg);
+  }
+  #esheet.on { display:flex; }
+  #esheet .ehead {
+    flex:none; display:flex; align-items:center; gap:10px;
+    padding:calc(env(safe-area-inset-top) + 8px) 16px 10px;
+    border-bottom:.5px solid var(--line);
+  }
+  #esheet .ehead b { flex:1; text-align:center; font-size:15px; font-weight:600; }
+  #esheet .ehead button {
+    flex:none; border:0; border-radius:11px; padding:9px 15px;
+    font-size:15px; font-weight:600;
+  }
+  #esheet .ehead .cancel { background:var(--sunk); color:var(--fg); }
+  #esheet .ehead .save   { background:var(--accent); color:#fff; }
+  #esheet .ehead button:active { opacity:.6; }
+  /* 16px is a floor, not a preference: iOS zooms the whole page in on any input
+     smaller than that, and the zoom does not come back out on blur. */
+  #esheet textarea {
+    flex:1 1 auto; min-height:0; width:100%; resize:none; border:0; outline:0;
+    background:var(--bg); color:var(--fg);
+    font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    padding:14px 16px 20px; -webkit-user-select:text; user-select:text;
+  }
 
   /* diagnostics + misc */
   .diag .r { display:flex; gap:11px; padding:11px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
@@ -350,7 +381,7 @@
       <button class="rec" id="rec"><span id="recLabel">HOLD &amp; TALK</span><small id="recSub">let go to send</small></button>
     </div>
     <div class="sub" style="text-align:center;margin:12px 4px 0">
-      Notes stay listed until Codex files them at the Mac.
+      Notes stay listed until Claude files them at the Mac.
     </div>
     <div id="notes"></div>
   </section>
@@ -362,11 +393,26 @@
   <button data-go="talk"><span class="ic">🎙</span>Talk</button>
 </nav>
 
+<!--
+  The note editor. Static markup, deliberately outside <main>, so that no redraw
+  can tear it out from under him mid-sentence. Save and Cancel are explicit
+  buttons: the old editor saved on blur, and a blur it never asked for is exactly
+  what made editing feel random.
+-->
+<div id="esheet">
+  <div class="ehead">
+    <button class="cancel" id="eCancel">Cancel</button>
+    <b>Edit note</b>
+    <button class="save" id="eSave">Save</button>
+  </div>
+  <textarea id="eText" enterkeyhint="done" autocapitalize="sentences"></textarea>
+</div>
+
 <script>
 (function () {
   'use strict';
 
-  var BUILD = 'c19 · 2026-08-25';
+  var BUILD = 'c20 · 2026-08-29';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -399,6 +445,7 @@
   var cfg=null, state=null, local=null, evq=[], tab='today';
   var dueFilter='all', areaFilter='all';
   var picking=false, showHelp=false, notes=[], editing=null, editArea=null;
+  var editNote=null;                 // the note open in the editor sheet, if any
   var health = { net:null, err:'', lastTry:'' };
 
   // ---------------------------------------------------------------- storage
@@ -438,7 +485,7 @@
   }
   /**
    * The WORKING day, not the calendar day. Amir's day ends when he sleeps, and
-   * AGENTS.md puts the boundary at 05:00. Without this the screen would reset
+   * CLAUDE.md puts the boundary at 05:00. Without this the screen would reset
    * itself at midnight while he was still mid-session, and a session started at
    * 23:00 would look like it belonged to a day that had already ended.
    */
@@ -482,14 +529,14 @@
 
   // ============================================================= the model
   //
-  //  filed        what Codex has written into days/<today>.md
+  //  filed        what Claude has written into days/<today>.md
   //  pending      what Amir has done on the phone since the last publish
   //
   //  local = {
   //    date,
   //    open:      {start, area} | null      a session started here, still running
   //    segments:  [{start, end, area}]      sessions started AND stopped here
-  //    filedEnd:  "HH:MM" | null            he stopped the session Codex had open
+  //    filedEnd:  "HH:MM" | null            he stopped the session Claude had open
   //    ticked:    {taskId: true}
   //  }
   //
@@ -501,7 +548,7 @@
     return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{}, edits:{} };
   }
 
-  /** The filed session Codex has open, if Amir has not already stopped it here. */
+  /** The filed session Claude has open, if Amir has not already stopped it here. */
   function filedOpen() {
     var s = state && state.today && state.today.open_session;
     if (!s) return null;
@@ -564,7 +611,7 @@
   /**
    * Undo a start he did not mean. If the event is still queued it is simply
    * dropped and the server never hears about it; if it has already gone, a
-   * `session_cancel` tells Codex to ignore the previous start.
+   * `session_cancel` tells Claude to ignore the previous start.
    */
   function doUndoStart() {
     if (!local.open) return;
@@ -611,14 +658,14 @@
       var prev = state && state._updated;
       state = s; save(STATE_KEY, s);
 
-      // A fresh publish means Codex has filed everything up to that moment, so
+      // A fresh publish means Claude has filed everything up to that moment, so
       // the pending layer for sessions is no longer needed. Dropping it here is
       // what stops the same hour being counted twice.
-      // A newer publish means Codex has filed everything up to that moment, so
+      // A newer publish means Claude has filed everything up to that moment, so
       // this phone's pending layer is spent. Dropping ALL of it here is what
       // stops the same hour being counted twice, a corrected session being
       // overridden by a stale local copy, and a row deleted here staying hidden
-      // forever even after Codex legitimately files it again.
+      // forever even after Claude legitimately files it again.
       if (prev !== s._updated) {
         local.segments = [];
         local.filedEnd = null;
@@ -661,13 +708,13 @@
 
   function helpCard() {
     return '<div class="card help">'+
-      '<p><b>Codex on the Mac owns the record.</b> This app shows what has already been written down, '+
+      '<p><b>Claude on the Mac owns the record.</b> This app shows what has already been written down, '+
       'and lets you record what you are doing now.</p>'+
       '<p><b>One session runs at a time.</b> Tap an area to start it. Tapping a different area while '+
       'one is running <b>switches</b>: the first is stopped at that moment and the new one begins. '+
       'Nothing ever overlaps.</p>'+
       '<p><b>Got something wrong? Tap the session and fix it.</b> You can change the start, the end, '+
-      'the area, or delete it outright. Codex picks the correction up at the Mac.</p>'+
+      'the area, or delete it outright. Claude picks the correction up at the Mac.</p>'+
       '<p><b>The big number is just the sessions added up.</b> If it looks wrong, one of the rows '+
       'below it is wrong — fix that row and the number follows.</p>'+
       '</div>';
@@ -759,7 +806,7 @@
    * Every session for today, from both layers, in clock order.
    *
    * `key` is start+area: stable enough to survive a redraw and readable enough
-   * that an edit event tells Codex exactly which row Amir meant. Whether a row
+   * that an edit event tells Claude exactly which row Amir meant. Whether a row
    * came from the file or from an unsent tap is deliberately NOT shown any more:
    * it is this app's plumbing, not something Amir should have to reason about.
    */
@@ -781,7 +828,7 @@
       out.push({ start:local.open.start, end:null, area:local.open.area, local:true,
                  running:true, minutes:sinceToday(local.open.start) });
     }
-    // Apply anything Amir has corrected here but Codex has not filed yet.
+    // Apply anything Amir has corrected here but Claude has not filed yet.
     var edits = (local && local.edits) || {};
     out = out.filter(function (s) {
       s.key = s.start + '|' + s.area;
@@ -888,8 +935,8 @@
            '<span class="ct">'+n+'</span></button>';
     });
     h += '</div>';
-    h += '<div class="sub" style="margin:6px 4px 14px">Tick something and it is sent to Codex. '+
-         'Tap it again to undo before Codex files it at the Mac.</div>';
+    h += '<div class="sub" style="margin:6px 4px 14px">Tick something and it is sent to Claude. '+
+         'Tap it again to undo before Claude files it at the Mac.</div>';
     if (!view.length) { el.innerHTML = h+'<div class="hint">Nothing here.</div>'; return; }
 
     var groups={}, order=[];
@@ -949,7 +996,7 @@
       el.innerHTML = '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
       return;
     }
-    var h = '<h2>Waiting for Codex</h2><div class="sub">Swipe a note left to edit or delete it.</div>'+
+    var h = '<h2>Waiting for Claude</h2><div class="sub">Swipe a note left to edit or delete it.</div>'+
             '<div class="card" style="padding:4px 16px">';
     rows.reverse().forEach(function (n) {
       // A note still on the phone has no server id yet, so it can only be
@@ -965,6 +1012,10 @@
   }
 
   function render() {
+    // Never redraw while the editor sheet is open. The sheet itself is safe, but
+    // a redraw replaces `notes` and rebuilds the list under it, and the save that
+    // follows would then be written against a row that no longer matches.
+    if (editNote) return;
     document.getElementById('hTitle').textContent =
       tab==='today' ? 'Time tracking' : tab==='tasks' ? 'Tasks' : 'Talk';
     document.getElementById('hDate').textContent =
@@ -975,7 +1026,7 @@
     var cls='status', msg;
     if (evq.length || noteQ)          { cls+=' warn'; msg=(evq.length+noteQ)+' waiting to send'; }
     else if (health.net===false)      { cls+=' bad';  msg='offline · showing last known'; }
-    else if (state && state._updated) { msg='synced · Codex filed up to '+state._updated.slice(11); }
+    else if (state && state._updated) { msg='synced · Claude filed up to '+state._updated.slice(11); }
     else                              { cls+=' warn'; msg='waiting for the first publish'; }
     bar.className=cls; txt.textContent=msg;
 
@@ -1070,7 +1121,7 @@
         // The original tick may already be in flight or stored in the Sheet, so
         // never delete it from evq: doing that while flush() owns evq[0] can
         // shift the wrong event. Send an explicit correction instead. Events
-        // are ordered, so Codex sees tick -> untick and keeps the task active.
+        // are ordered, so Claude sees tick -> untick and keeps the task active.
         emit('task_untick', payload);
         delete local.ticked[id];
       } else {
@@ -1269,7 +1320,7 @@
     }
     host.addEventListener('touchstart', function (e) {
       var t = e.target.closest ? e.target.closest('.note') : null;
-      if (!t || e.target.closest('.actions') || t.querySelector('[contenteditable="true"]')) return;
+      if (!t || e.target.closest('.actions')) return;
       row=t; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
       decided=false; horizontal=false;
     }, { passive:true });
@@ -1329,27 +1380,51 @@
 
     if (act === 'edit' && id) {
       note.classList.remove('open');
-      var p = note.querySelector('p');
-      var before = p.textContent;
-      p.setAttribute('contenteditable','true');
-      p.focus();
-      // Caret at the end rather than selecting everything, so one wrong word can
-      // be fixed without retyping the note.
-      var r = document.createRange(); r.selectNodeContents(p); r.collapse(false);
-      var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
-
-      p.addEventListener('blur', function onBlur() {
-        p.removeEventListener('blur', onBlur);
-        p.removeAttribute('contenteditable');
-        var after = p.textContent.trim();
-        if (!after || after === before) { render(); return; }
-        notes.forEach(function (n) { if (n.id === id) n.text = after; });
-        render();
-        post({ action:'edit', id:id, text:after })
-          .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
-          .catch(function () { refreshNotes(); });
-      });
+      openNoteEditor(id, note.querySelector('p').textContent);
     }
+  });
+
+  /* ------------------------------------------------------- the note editor
+   * Opening the sheet, and the two ways out of it. Nothing here saves on blur:
+   * he leaves by pressing Save or Cancel, and nothing else ends the edit.
+   */
+  function openNoteEditor(id, text) {
+    editNote = { id:id, before:text };
+    var ta = document.getElementById('eText');
+    ta.value = text;
+    document.getElementById('esheet').classList.add('on');
+    fitViewport();
+    ta.focus();
+    // Caret at the end rather than everything selected, so one wrong word can be
+    // fixed without retyping the note.
+    try { ta.setSelectionRange(text.length, text.length); } catch (e) {}
+    // iOS reports the viewport height several times while the keyboard slides up
+    // and the early values are wrong, which is what left a band of dead white
+    // page below the tab bar. Measure again until it has settled.
+    [80, 250, 500, 900].forEach(function (ms) { setTimeout(fitViewport, ms); });
+  }
+
+  function closeNoteEditor() {
+    editNote = null;
+    document.getElementById('esheet').classList.remove('on');
+    document.getElementById('eText').blur();
+    fitViewport();
+    render();
+  }
+
+  document.getElementById('eCancel').addEventListener('click', closeNoteEditor);
+
+  document.getElementById('eSave').addEventListener('click', function () {
+    if (!editNote) return;
+    var id = editNote.id, before = editNote.before;
+    var after = document.getElementById('eText').value.trim();
+    closeNoteEditor();
+    if (!after || after === before) return;
+    notes.forEach(function (n) { if (n.id === id) n.text = after; });
+    render();
+    post({ action:'edit', id:id, text:after })
+      .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
+      .catch(function () { refreshNotes(); });
   });
 
   function refreshNotes() {
@@ -1381,10 +1456,17 @@
    * them off a screenshot is the only way this Mac can see an iPhone.
    */
   function fitViewport() {
-    var h = (window.visualViewport ? Math.round(visualViewport.height) : 0) || window.innerHeight;
-    document.body.style.top = '0px';
+    var vv = window.visualViewport;
+    var h = (vv ? Math.round(vv.height) : 0) || window.innerHeight;
+    // offsetTop is how far iOS has scrolled the visible area down inside the
+    // page to keep the caret above the keyboard. A fixed element that ignores it
+    // stays behind, which is why the tab bar ended up stranded in mid-screen.
+    var top = vv ? Math.round(vv.offsetTop) : 0;
+    document.body.style.top = top + 'px';
     document.body.style.bottom = 'auto';
     document.body.style.height = h + 'px';
+    var sh = document.getElementById('esheet');
+    if (sh) { sh.style.top = top + 'px'; sh.style.height = h + 'px'; }
   }
   function envBottom() {
     var d = document.createElement('div');
@@ -1414,7 +1496,7 @@
    */
   var updating = false;
   function checkForUpdate() {
-    if (updating || holding) return;
+    if (updating || holding || editNote) return;
     updating = true;
     fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
@@ -1452,7 +1534,10 @@
     fitViewport();
     window.addEventListener('resize', fitViewport);
     window.addEventListener('orientationchange', fitViewport);
-    if (window.visualViewport) visualViewport.addEventListener('resize', fitViewport);
+    if (window.visualViewport) {
+      visualViewport.addEventListener('resize', fitViewport);
+      visualViewport.addEventListener('scroll', fitViewport);
+    }
     render();                       // cached state paints before any network call
     refresh(); refreshNotes(); flush();
     checkForUpdate();
