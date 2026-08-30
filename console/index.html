@@ -338,6 +338,43 @@
     padding:14px 16px 20px; -webkit-user-select:text; user-select:text;
   }
 
+  /* The 15-minute reminder switch, and the banner it raises. */
+  .nudgerow {
+    display:flex; align-items:center; gap:12px; padding:14px 18px;
+    border-top:.5px solid var(--line);
+  }
+  .nudgerow .t { flex:1; min-width:0; }
+  .nudgerow .t b { display:block; font-size:15px; font-weight:600; }
+  .nudgerow .t span { display:block; font-size:12px; color:var(--dim); margin-top:2px; }
+  .sw {
+    flex:none; width:51px; height:31px; border-radius:16px; border:0; padding:0;
+    background:var(--faint); position:relative; transition:background .18s ease;
+  }
+  .sw.on { background:var(--go); }
+  .sw i {
+    position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .18s ease;
+  }
+  .sw.on i { transform:translateX(20px); }
+
+  /* The banner is static markup outside every redraw, for the same reason the
+     record button and the note editor are. */
+  #nudge {
+    position:fixed; left:12px; right:12px; z-index:60; display:none;
+    top:calc(env(safe-area-inset-top) + 62px);
+    background:var(--fg); color:var(--bg); border-radius:16px;
+    padding:15px 17px; box-shadow:0 8px 30px rgba(0,0,0,.28);
+    align-items:center; gap:14px;
+  }
+  #nudge.on { display:flex; }
+  #nudge .t { flex:1; min-width:0; }
+  #nudge .t b { display:block; font-size:17px; font-weight:700; }
+  #nudge .t span { display:block; font-size:13px; opacity:.75; margin-top:2px; }
+  #nudge button {
+    flex:none; border:0; border-radius:11px; padding:10px 15px;
+    font-size:15px; font-weight:600; background:var(--bg); color:var(--fg);
+  }
+
   /* diagnostics + misc */
   .diag .r { display:flex; gap:11px; padding:11px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
   .diag .r:last-child { border-bottom:0; padding-bottom:0; }
@@ -399,6 +436,13 @@
   buttons: the old editor saved on blur, and a blur it never asked for is exactly
   what made editing feel random.
 -->
+<!-- The 15-minute nudge. Static markup, outside <main>, so a redraw can never
+     swallow it while it is on screen. -->
+<div id="nudge">
+  <div class="t"><b>timer</b><span>Is it still right?</span></div>
+  <button id="nudgeOK">OK</button>
+</div>
+
 <div id="esheet">
   <div class="ehead">
     <button class="cancel" id="eCancel">Cancel</button>
@@ -412,7 +456,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c21 · 2026-08-29';
+  var BUILD = 'c22 · 2026-08-30';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -421,6 +465,7 @@
                                    // purpose: same origin, same format, same
                                    // server contract, and qid makes a double
                                    // send by both apps harmless.
+  var NUDGE_KEY = 'myday_nudge';   // the 15-minute reminder switch, and when it next fires
   var LOCAL_KEY = 'myday_local2';  // what Amir has done since the last publish
 
   var POLL_MS = 20000;
@@ -789,6 +834,13 @@
     } else {
       h += areaPicker('Start working on');
     }
+    // The switch belongs on this card because the thing it is nagging about is
+    // this card. It reads the same whether or not a session is running: the point
+    // is to catch the times the timer says one thing and he is doing another.
+    h += '<div class="nudgerow"><div class="t"><b>Nudge me every 15 minutes</b>'+
+         '<span>'+(nudgeOn() ? nudgeStatusLine() : 'A sound and a banner, until you switch it off')+
+         '</span></div>'+
+         '<button class="sw'+(nudgeOn()?' on':'')+'" data-act="nudge" aria-label="Nudge me every 15 minutes"><i></i></button></div>';
     h += '</div>';
 
     // --- sessions, each labelled with where it came from ---
@@ -1077,6 +1129,7 @@
     if (a) {
       var act = a.getAttribute('data-act');
       if (act==='stop')       doStop(false);
+      if (act==='nudge')      { toggleNudge(); render(); return; }
       if (act==='pick')       { picking=true; render(); }
       if (act==='cancelpick') { picking=false; render(); }
       if (act==='undo')       doUndoStart();
@@ -1476,6 +1529,124 @@
    * rotation. geom() prints the same measurements into the footer, because reading
    * them off a screenshot is the only way this Mac can see an iPhone.
    */
+  /* --------------------------------------------------------------- the nudge
+   * A reminder every 15 minutes that the timer is only as honest as he is. It
+   * plays a sound of its own and raises a banner. Nothing is sent from a server:
+   * the page raises this itself, which is why it needs no push setup at all and
+   * also why it can only fire while the page is alive.
+   *
+   * The deadline is stored as a timestamp rather than run off one long
+   * setInterval. iOS throttles and then suspends timers in a page that is not in
+   * front, so a 15-minute interval would quietly stop and never say so. A
+   * timestamp, checked every few seconds, fires the moment the page is alive
+   * again. Late is a great deal better than never.
+   */
+  var EVERY = 15*60*1000;
+  var audio = null, hold = null;
+
+  function nudgeState() { return load(NUDGE_KEY, null); }
+  function nudgeOn()    { var n = nudgeState(); return !!(n && n.on); }
+  function nudgeStatusLine() {
+    var n = nudgeState();
+    if (!n || !n.at) return 'On';
+    return 'On · next in ' + Math.max(0, Math.round((n.at - Date.now())/60000)) + ' min';
+  }
+
+  function toggleNudge() {
+    if (nudgeOn()) { save(NUDGE_KEY, {on:false}); stopAudio(); hideNudge(); return; }
+    save(NUDGE_KEY, {on:true, at: Date.now() + EVERY});
+    // Both of these need the tap that got us here. iOS only lets a page open an
+    // audio session, or ask about notifications, from a real gesture. Each is
+    // guarded separately so a refusal on one does not cost us the other.
+    try { startAudio(); } catch (e) {}
+    try { askToNotify(); } catch (e) {}
+  }
+
+  function ctx() {
+    if (!audio) {
+      var C = window.AudioContext || window.webkitAudioContext;
+      if (!C) return null;
+      try { audio = new C(); } catch (e) { return null; }
+    }
+    if (audio.state === 'suspended') { try { audio.resume(); } catch (e) {} }
+    return audio;
+  }
+
+  /* A near-silent loop that runs the whole time the switch is on. Without it iOS
+     suspends the page soon after the screen goes dark and the reminder never
+     arrives. An open audio session is the one thing that keeps a web page awake.
+     It is not literally silent, because a page playing pure nothing has the
+     session taken back off it. */
+  function startAudio() {
+    var a = ctx(); if (!a || hold) return;
+    var buf = a.createBuffer(1, a.sampleRate, a.sampleRate);
+    var d = buf.getChannelData(0);
+    for (var i = 0; i < d.length; i++) d[i] = Math.sin(2*Math.PI*50*i/a.sampleRate) * 0.0008;
+    var src = a.createBufferSource();
+    src.buffer = buf; src.loop = true;
+    src.connect(a.destination);
+    try { src.start(); hold = src; } catch (e) {}
+  }
+  function stopAudio() {
+    if (hold) { try { hold.stop(); } catch (e) {} hold = null; }
+  }
+
+  /* Three rising notes on a triangle wave. Deliberately unlike anything else on
+     his phone, because a reminder he mistakes for a text message is no reminder. */
+  function chime() {
+    var a = ctx(); if (!a) return;
+    [660, 880, 1174].forEach(function (hz, i) {
+      var t = a.currentTime + i*0.16;
+      var o = a.createOscillator(), g = a.createGain();
+      o.type = 'triangle'; o.frequency.value = hz;
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.45, t + 0.02);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.34);
+      o.connect(g); g.connect(a.destination);
+      o.start(t); o.stop(t + 0.36);
+    });
+  }
+
+  function askToNotify() {
+    try {
+      if (window.Notification && Notification.permission === 'default') Notification.requestPermission();
+    } catch (e) {}
+  }
+  /* A real iOS notification, raised by the service worker. No push server is
+     involved: a page is allowed to ask its own service worker to show one. That
+     also means it only works while the page is alive, which is what the audio
+     loop above is for. */
+  function systemNote() {
+    try {
+      if (!window.Notification || Notification.permission !== 'granted') return;
+      if (!navigator.serviceWorker) return;
+      navigator.serviceWorker.getRegistration().then(function (reg) {
+        if (reg) reg.showNotification('timer', {
+          body: 'Is it still right?', tag: 'myday-nudge', renotify: true
+        });
+      }).catch(function () {});
+    } catch (e) {}
+  }
+
+  function showNudge() { var el=document.getElementById('nudge'); if (el) el.classList.add('on'); }
+  function hideNudge() { var el=document.getElementById('nudge'); if (el) el.classList.remove('on'); }
+
+  function nudgeCheck() {
+    var n = nudgeState();
+    if (!n || !n.on) return;
+    if (!n.at) { save(NUDGE_KEY, {on:true, at: Date.now() + EVERY}); return; }
+    if (Date.now() < n.at) return;
+    save(NUDGE_KEY, {on:true, at: Date.now() + EVERY});
+    // The banner goes up first, and every other part is guarded on its own. A
+    // phone that will not make a sound, or has notifications switched off, must
+    // still show the reminder. An early version raised the sound first and lost
+    // the banner entirely the one time the sound failed.
+    showNudge();
+    try { chime(); } catch (e) {}
+    try { systemNote(); } catch (e) {}
+    if (tab === 'today') render();
+  }
+
   function fitViewport() {
     var vv = window.visualViewport;
     var h = (vv ? Math.round(vv.height) : 0) || window.innerHeight;
@@ -1571,6 +1742,25 @@
       var el = document.getElementById('elapsed');
       if (el) el.textContent = hms(secSince(el.getAttribute('data-start')));
     }, 1000);
+
+    // The reminder. Checked often and cheaply, so a page that has been asleep
+    // fires as soon as it wakes rather than skipping the turn entirely.
+    setInterval(nudgeCheck, 5000);
+    document.getElementById('nudgeOK').addEventListener('click', hideNudge);
+    // A page that reloads with the switch already on cannot open an audio session
+    // on its own. The first touch anywhere gives it the gesture it needs.
+    document.addEventListener('touchend', function reopen() {
+      if (!nudgeOn()) return;
+      document.removeEventListener('touchend', reopen);
+      startAudio();
+    }, { passive:true });
+    /* The service worker exists ONLY so the page can raise a real notification.
+       It deliberately has no fetch handler, so it never serves anything from a
+       cache and cannot strand the phone on a stale build the way a caching worker
+       would. Do not give it one. */
+    if (navigator.serviceWorker) {
+      navigator.serviceWorker.register('sw.js').catch(function () {});
+    }
     window.addEventListener('online', function(){ refresh(); flush(); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { holding=false; releaseMic(); }
