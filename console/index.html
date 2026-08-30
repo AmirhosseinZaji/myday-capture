@@ -412,7 +412,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c20 · 2026-08-29';
+  var BUILD = 'c21 · 2026-08-29';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -505,6 +505,25 @@
     var d = new Date(), now = d.getHours()*60 + d.getMinutes();
     return now >= s ? now - s : (24*60 - s) + now;
   }
+  /**
+   * The running timer is the one number on this screen that has to prove it is
+   * moving. Minutes alone left Amir watching a still number, unsure the start had
+   * registered at all, so this counts in seconds. The start he is measured from
+   * is only ever HH:MM, so the reading can sit up to 59 seconds behind the moment
+   * he actually pressed the button. It still ticks once a second, which is the
+   * point of it.
+   */
+  function secSince(hhmm) {
+    var m = toMin(hhmm); if (m==null) return 0;
+    var st = m*60, d = new Date();
+    var now = d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
+    return now >= st ? now - st : (24*3600 - st) + now;
+  }
+  function hms(sec) {
+    sec = Math.max(0, Math.round(sec));
+    return Math.floor(sec/3600)+'h'+pad(Math.floor(sec/60)%60)+'m'+pad(sec%60)+'s';
+  }
+
   function spanMin(a, b) {
     var x = toMin(a), y = toMin(b);
     if (x==null || y==null) return 0;
@@ -744,11 +763,13 @@
     // --- the timer, always in exactly one of two states ---
     h += '<div class="card timer '+(r?'on':'off')+'"><div class="head">';
     if (r) {
-      var mins = sinceToday(r.start);
+      // data-start is what the one-second tick below reads, so the number keeps
+      // moving without redrawing the page around it.
       h += '<span class="dot"></span><div class="what"><b>'+(AREA_IC[r.area]||'•')+' '+
            esc((state.areas&&state.areas[r.area])||r.area)+'</b>'+
            '<span>since '+esc(r.start)+'</span></div>'+
-           '<div class="el">'+(mins<1 ? '<span style="font-size:15px">just now</span>' : hm(mins))+'</div>';
+           '<div class="el" id="elapsed" data-start="'+esc(r.start)+'">'+
+           hms(secSince(r.start))+'</div>';
     } else {
       var last = lastFinished();
       h += '<div class="what"><b>Not working</b><span>'+
@@ -1543,6 +1564,13 @@
     checkForUpdate();
     setInterval(function(){ refresh(); refreshNotes(); flush(); checkForUpdate(); }, POLL_MS);
     setInterval(function(){ if (running()) render(); }, 30000);   // live timer
+    // Only the number is rewritten. Redrawing the whole page once a second would
+    // fight the swipe gestures, the area picker and the editor sheet, which is the
+    // same mistake that used to tear the note editor out mid-sentence.
+    setInterval(function () {
+      var el = document.getElementById('elapsed');
+      if (el) el.textContent = hms(secSince(el.getAttribute('data-start')));
+    }, 1000);
     window.addEventListener('online', function(){ refresh(); flush(); });
     document.addEventListener('visibilitychange', function () {
       if (document.hidden) { holding=false; releaseMic(); }
