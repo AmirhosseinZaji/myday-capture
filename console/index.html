@@ -43,14 +43,20 @@
     --acad:#5e5ce6; --dog:#ff9500; --ai:#32ade6;
     --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.05);
     --ring-track:rgba(120,120,128,.14);
+    --seg-on:#fff;          /* the selected segment, which must read as raised */
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --bg:#000; --surface:#1c1c1e; --fg:#fff; --dim:#98989d; --faint:#48484a;
+      --bg:#000; --surface:#1c1c1e; --fg:#fff; --dim:#98989d; --faint:#6c6c70;
       --line:rgba(84,84,88,.5); --sunk:#2c2c2e;
+      /* #48484a on #1c1c1e is about 1.8:1. Unticked task boxes and the dash on
+         an unused timer were both drawn in it and were close to invisible. */
       --go:#30d158; --stop:#ff453a; --warn:#ff9f0a; --accent:#0a84ff;
       --acad:#7d7aff; --dog:#ff9f0a; --ai:#64d2ff;
       --shadow:none; --ring-track:rgba(120,120,128,.22);
+      /* In dark, --surface is DARKER than the --sunk track, so reusing it made
+         the selected segment look like a hole punched in the control. */
+      --seg-on:#48484a;
     }
   }
 
@@ -91,8 +97,8 @@
   header h1 { font-size:23px; font-weight:700; margin:0; letter-spacing:-.03em; }
   header .date { color:var(--dim); font-size:14px; font-weight:500; margin-left:auto; }
   .qmark {
-    width:26px; height:26px; border-radius:50%; border:0; background:var(--sunk);
-    color:var(--dim); font-size:14px; font-weight:700; flex:none; line-height:1;
+    width:34px; height:34px; border-radius:50%; border:0; background:var(--sunk);
+    color:var(--dim); font-size:15px; font-weight:700; flex:none; line-height:1;
   }
   .status { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--dim); margin-top:3px; }
   .status .led { width:6px; height:6px; border-radius:50%; background:var(--go); flex:none; }
@@ -316,36 +322,113 @@
     display:none; flex-direction:column; background:var(--bg);
   }
   #esheet.on { display:flex; }
-  #esheet .ehead {
+  .ehead {
     flex:none; display:flex; align-items:center; gap:10px;
     padding:calc(env(safe-area-inset-top) + 8px) 16px 10px;
     border-bottom:.5px solid var(--line);
   }
-  #esheet .ehead b { flex:1; text-align:center; font-size:15px; font-weight:600; }
-  #esheet .ehead button {
-    flex:none; border:0; border-radius:11px; padding:9px 15px;
-    font-size:15px; font-weight:600;
+  .ehead b { flex:1; text-align:center; font-size:15px; font-weight:600; }
+  /* 44pt is Apple's floor for a tap target, and Save is the button that commits a
+     time correction. It was the smallest control on the screen. */
+  .ehead button {
+    flex:none; border:0; border-radius:11px; padding:12px 16px;
+    font-size:15px; font-weight:600; min-height:44px;
   }
-  #esheet .ehead .cancel { background:var(--sunk); color:var(--fg); }
-  #esheet .ehead .save   { background:var(--accent); color:#fff; }
-  #esheet .ehead button:active { opacity:.6; }
+  .ehead .cancel { background:var(--sunk); color:var(--fg); }
+  .ehead .save   { background:var(--accent); color:#fff; }
+  .ehead button:active { opacity:.6; }
   /* 16px is a floor, not a preference: iOS zooms the whole page in on any input
      smaller than that, and the zoom does not come back out on blur. */
   #esheet textarea {
     flex:1 1 auto; min-height:0; width:100%; resize:none; border:0; outline:0;
     background:var(--bg); color:var(--fg);
     font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-    padding:14px 16px 20px; -webkit-user-select:text; user-select:text;
+    padding:14px 16px calc(env(safe-area-inset-bottom) + 24px);
+    -webkit-user-select:text; user-select:text;
   }
 
+  /* The timers. Six buttons, always on screen, one per area. */
+  .tgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:0 14px 4px; }
+  .tbtn {
+    display:flex; flex-direction:column; align-items:center; gap:2px;
+    border:1.5px solid var(--line); border-radius:15px; padding:12px 4px 10px;
+    background:var(--surface); color:var(--fg); min-height:82px; justify-content:center;
+    transition:transform .08s ease, background .15s ease, border-color .15s ease;
+  }
+  .tbtn:active { transform:scale(.96); }
+  .tbtn .ic { font-size:22px; line-height:1; }
+  .tbtn .nm { font-size:13px; font-weight:600; }
+  .tbtn .vl { font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
+  .tbtn.zero .vl { color:var(--faint); }
+  /* The running one is unmistakable. Amir has to be able to tell at a glance. */
+  .tbtn.on { background:var(--go); border-color:var(--go); color:#fff; }
+  .tbtn.on .vl { color:rgba(255,255,255,.85); }
+  .thint { font-size:11.5px; color:var(--dim); text-align:center; padding:8px 18px 2px; }
+
+  .addsess {
+    width:100%; border:1.5px dashed var(--line); background:transparent; color:var(--accent);
+    border-radius:15px; padding:14px; font-size:15px; font-weight:600; margin-bottom:14px;
+  }
+  .addsess:active { opacity:.6; }
+
+  /* The session editor sheet.
+     It used to be markup inside the sessions card, which the 20-second poll
+     rebuilds. That is why it opened for a second or two and then disappeared, and
+     why a start time typed as 9:00 snapped back to the original: the edit was
+     destroyed before it could ever be saved. Out here nothing can redraw over it. */
+  #ssheet {
+    position:fixed; left:0; right:0; top:0; z-index:50;
+    display:none; flex-direction:column; background:var(--bg);
+  }
+  #ssheet.on { display:flex; }
+  #ssheet .sbody { flex:1 1 auto; min-height:0; overflow-y:auto; padding:16px 16px 40px; }
+  #ssheet .seg {
+    display:flex; background:var(--sunk); border-radius:12px; padding:3px; margin-bottom:16px;
+  }
+  #ssheet .seg button {
+    flex:1; border:0; background:transparent; color:var(--dim);
+    border-radius:10px; padding:12px; font-size:14px; font-weight:600; min-height:44px;
+  }
+  #ssheet .seg button.on { background:var(--seg-on); color:var(--fg); box-shadow:var(--shadow); }
+  #ssheet .fields { display:flex; gap:10px; }
+  #ssheet .f { flex:1; }
+  #ssheet .f label, #ssheet .alab {
+    display:block; font-size:12px; font-weight:600; color:var(--dim); margin-bottom:6px;
+  }
+  #ssheet .alab { margin-top:18px; }
+  /* 17px, not smaller: iOS zooms the whole page in on any input under 16px. */
+  #ssheet input[type=time] {
+    width:100%; border:1.5px solid var(--line); border-radius:12px; padding:13px;
+    font-size:17px; background:var(--surface); color:var(--fg); font-variant-numeric:tabular-nums;
+  }
+  #ssheet .dur {
+    margin-top:12px; text-align:center; font-size:15px; font-weight:600; color:var(--dim);
+    font-variant-numeric:tabular-nums;
+  }
+  #ssheet .dur.bad  { color:var(--stop); }
+  #ssheet .dur.warn { color:var(--warn); }
+  #ssheet .areas { display:flex; gap:7px; flex-wrap:wrap; }
+  #ssheet .areas button {
+    border:1.5px solid var(--line); background:var(--surface); color:var(--fg);
+    border-radius:12px; padding:10px 13px; font-size:14px; font-weight:600;
+  }
+  #ssheet .areas button.on { background:var(--fg); color:var(--bg); border-color:var(--fg); }
+  #ssheet .del {
+    width:100%; margin-top:26px; border:0; border-radius:13px; padding:14px;
+    background:var(--sunk); color:var(--stop); font-size:15px; font-weight:600;
+  }
+  #ssheet .del.arm { background:var(--stop); color:#fff; }
+
   /* The 15-minute reminder switch, and the banner it raises. */
+  /* The whole row is the target, not just the 31pt switch inside it. */
   .nudgerow {
-    display:flex; align-items:center; gap:12px; padding:14px 18px;
-    border-top:.5px solid var(--line);
+    display:flex; align-items:center; gap:12px; padding:16px 18px;
+    border-top:.5px solid var(--line); min-height:56px;
   }
   .nudgerow .t { flex:1; min-width:0; }
   .nudgerow .t b { display:block; font-size:15px; font-weight:600; }
   .nudgerow .t span { display:block; font-size:12px; color:var(--dim); margin-top:2px; }
+  .nudgerow.bad .t span { color:var(--stop); }
   .sw {
     flex:none; width:51px; height:31px; border-radius:16px; border:0; padding:0;
     background:var(--faint); position:relative; transition:background .18s ease;
@@ -413,6 +496,33 @@
 </nav>
 
 <!--
+  The session editor. Static markup, outside <main>, for the reason written on
+  #ssheet in the stylesheet: it used to live inside the part of the page that
+  redraws every 20 seconds, so it vanished mid-edit and threw the change away.
+-->
+<div id="ssheet">
+  <div class="ehead">
+    <button class="cancel" id="sCancel">Cancel</button>
+    <b id="sTitle">Edit session</b>
+    <button class="save" id="sSave">Save</button>
+  </div>
+  <div class="sbody">
+    <div class="seg" id="sSeg">
+      <button data-sstate="running">Still running</button>
+      <button data-sstate="done" class="on">Finished</button>
+    </div>
+    <div class="fields">
+      <div class="f"><label>Started</label><input type="time" id="sStart" step="60"></div>
+      <div class="f" id="sEndWrap"><label>Ended</label><input type="time" id="sEnd" step="60"></div>
+    </div>
+    <div class="dur" id="sDur">—</div>
+    <label class="alab">Area</label>
+    <div class="areas" id="sAreas"></div>
+    <button class="del" id="sDelete">Delete this session</button>
+  </div>
+</div>
+
+<!--
   The note editor. Static markup, deliberately outside <main>, so that no redraw
   can tear it out from under him mid-sentence. Save and Cancel are explicit
   buttons: the old editor saved on blur, and a blur it never asked for is exactly
@@ -424,14 +534,17 @@
     <b>Edit note</b>
     <button class="save" id="eSave">Save</button>
   </div>
-  <textarea id="eText" enterkeyhint="done" autocapitalize="sentences"></textarea>
+  <!-- autocorrect is OFF on purpose. This box exists to FIX transcripts full of
+       names the project works hard to protect: Bonakdari, Poodi, MHMI, BUSI 654.
+       iOS would rewrite them while he types nearby. -->
+  <textarea id="eText" autocapitalize="sentences" autocorrect="off" spellcheck="false"></textarea>
 </div>
 
 <script>
 (function () {
   'use strict';
 
-  var BUILD = 'c23 · 2026-08-30';
+  var BUILD = 'c27 · 2026-08-30';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -440,6 +553,7 @@
                                    // purpose: same origin, same format, same
                                    // server contract, and qid makes a double
                                    // send by both apps harmless.
+  var SENT_KEY  = 'myday_sent';    // client_ts of the last event the server accepted
   var NUDGE_KEY = 'myday_nudge';   // the 15-minute reminder switch, and when it next fires
   var LOCAL_KEY = 'myday_local2';  // what Amir has done since the last publish
 
@@ -464,8 +578,9 @@
 
   var cfg=null, state=null, local=null, evq=[], tab='today';
   var dueFilter='all', areaFilter='all';
-  var picking=false, showHelp=false, notes=[], editing=null, editArea=null;
-  var editNote=null;                 // the note open in the editor sheet, if any
+  var showHelp=false, notes=[];
+  var editNote=null;                 // the note open in the note sheet, if any
+  var editSess=null;                 // the session open in the session sheet, if any
   var health = { net:null, err:'', lastTry:'' };
 
   // ---------------------------------------------------------------- storage
@@ -544,6 +659,13 @@
     return Math.floor(sec/3600)+'h'+pad(Math.floor(sec/60)%60)+'m'+pad(sec%60)+'s';
   }
 
+  /** "HH:MM" minus n minutes, wrapping past midnight. */
+  function minusMinutes(hhmm, n) {
+    var m = toMin(hhmm); if (m==null) return hhmm;
+    m = (m - n + 24*60) % (24*60);
+    return pad(Math.floor(m/60)) + ':' + pad(m%60);
+  }
+
   function spanMin(a, b) {
     var x = toMin(a), y = toMin(b);
     if (x==null || y==null) return 0;
@@ -584,7 +706,39 @@
   //  which is what made the old screen show two different totals.
 
   function freshLocal() {
-    return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{}, edits:{} };
+    return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{}, edits:{}, seq:1 };
+  }
+
+  /**
+   * Every session row carries an id, and edits are keyed by that id.
+   *
+   * They used to be keyed by start+area, and that quietly broke the app. Delete
+   * a UCW session that started at 09:16, start UCW again inside the same minute,
+   * and the new session inherited the deleted one's key and was filtered straight
+   * back out. The start really happened, the row just never appeared, so the
+   * button looked dead. Only UCW, only that minute, and only until the edits were
+   * cleared, which is exactly the pattern Amir described on 2026-08-30.
+   *
+   * Local ids come from a counter that is saved with the rest of local state, so
+   * a new row can never collide with a deleted one. Filed ids are positional,
+   * which is safe because a fresh publish clears every filed edit anyway.
+   */
+  /**
+   * Roll into a new working day WITHOUT throwing away a session that is still
+   * running. The old code replaced the whole local layer at 05:00, so a session
+   * started at 03:40 and still going simply vanished: the screen said "Not
+   * working", the stop was never sent, and the row on the previous day stayed
+   * open forever. That is the exact failure the Start/Stop button exists to cure.
+   */
+  function rollLocal(prev) {
+    var fresh = freshLocal();
+    if (prev && prev.open) { fresh.open = prev.open; fresh.seq = prev.seq || 1; }
+    return fresh;
+  }
+
+  function nextSessId() {
+    local.seq = (local.seq || 1) + 1;
+    return 'l' + local.seq;
   }
 
   /** The filed session Claude has open, if Amir has not already stopped it here. */
@@ -623,21 +777,44 @@
     return ev;
   }
 
+  /** Tapping a timer: start it, stop it, or switch to it. */
+  function doTimer(area) {
+    var r = running();
+    if (r && r.area === area) { doStop(false); return; }
+    doStart(area);
+  }
+
   function doStart(area) {
     var now = clock();
     // Starting while something runs is a SWITCH: close the old one first, so the
-    // two can never overlap and the totals stay honest.
-    if (running()) doStop(true);
+    // two can never overlap and the totals stay honest. Both halves use the SAME
+    // timestamp. Reading the clock twice meant a tap at 09:59:59 could end the old
+    // session at 10:00 and start the new one at 09:59, counting that minute twice.
+    if (running()) doStop(true, now);
     emit('session_start', { area:area });
-    local.open = { start:now, area:area };
+    local.open = { id:nextSessId(), start:now, area:area };
     local.date = todayISO(); save(LOCAL_KEY, local);
-    picking = false; render(); flush();
+    render(); flush();
   }
 
-  function doStop(silent) {
-    var now = clock();
+  function doStop(silent, at) {
+    var now = at || clock();
+    /* `at` is used when a session is re-opened earlier in the day, so the running
+       one closes where the new one begins. If that point is BEFORE the running
+       session started, spanMin wraps past midnight and banks about 23 hours.
+       Closing it at its own start is the honest answer: it recorded no time. */
+    if (at && local.open && spanMin(local.open.start, at) > 12*60) now = local.open.start;
+    if (at && !local.open && filedOpen() && spanMin(filedOpen().start, at) > 12*60) {
+      now = filedOpen().start;
+    }
     if (local.open) {
-      local.segments.push({ start:local.open.start, end:now, area:local.open.area });
+      var id = local.open.id || nextSessId();
+      // A switch inside one clock minute leaves a row of zero minutes. It records
+      // no work, it clutters the list, and it is never what he meant to keep.
+      if (spanMin(local.open.start, now) > 0) {
+        local.segments.push({ id:id, start:local.open.start, end:now, area:local.open.area });
+      }
+      if (local.edits) delete local.edits[id];   // the row now carries its own truth
       local.open = null;
     } else if (filedOpen()) {
       local.filedEnd = now;
@@ -672,7 +849,11 @@
     var ev = evq[0];
     post({ action:'event', kind:ev.kind, payload:ev.payload, client_ts:ev.client_ts, qid:ev.qid })
       .then(function (r) {
-        if (r && r.ok) { evq.shift(); save(EVQ_KEY, evq); health.net = true; }
+        if (r && r.ok) {
+          // What the Mac has now definitely been told, and when.
+          if (ev.client_ts) save(SENT_KEY, ev.client_ts);
+          evq.shift(); save(EVQ_KEY, evq); health.net = true;
+        }
         else if (r && r.error) { health.net = false; health.err = r.error; }
       })
       .catch(function (e) { health.net = false; health.err = String(e && e.message || e); })
@@ -680,6 +861,41 @@
         flushing = false; render();
         if (evq.length) setTimeout(flush, 1500); else flushNotes();
       });
+  }
+
+  /**
+   * Is it safe to throw away what this phone is still holding?
+   *
+   * Only when nothing is queued, nothing has been sent that the publish predates,
+   * and he is not looking at the very rows in question.
+   */
+  function pendingLayerIsSpent(updated) {
+    if (evq.length) return false;                    // still unsent
+    if (editSess || editNote) return false;          // open on screen right now
+    /* `updated` is Apps Script's clock and `sent` is the iPhone's. Comparing them
+       as strings only means anything if both are on the same timezone, and nothing
+       here can guarantee that. So the comparison is only trusted when the two are
+       already close; when they are far apart the clocks disagree and the safe
+       answer is to keep what the phone is holding rather than throw it away. */
+    var sent = load(SENT_KEY, '');
+    if (sent) {
+      var gap = Math.abs(minutesBetween(sent, String(updated || '')));
+      if (gap > 90) return false;                       // clocks disagree, keep it
+      if (String(updated || '').slice(0,16) < sent.slice(0,16)) return false;
+    }
+    return true;
+  }
+
+  /** Minutes from one "YYYY-MM-DD HH:MM" to another, or 0 if either is unreadable. */
+  function minutesBetween(a, b) {
+    function mins(t) {
+      if (!t || t.length < 16) return null;
+      var d = new Date(Number(t.slice(0,4)), Number(t.slice(5,7))-1, Number(t.slice(8,10)),
+                       Number(t.slice(11,13)), Number(t.slice(14,16)));
+      return isNaN(d.getTime()) ? null : d.getTime()/60000;
+    }
+    var x = mins(a), y = mins(b);
+    return (x==null || y==null) ? 0 : Math.round(y - x);
   }
 
   // ------------------------------------------------------------------- sync
@@ -697,30 +913,36 @@
       var prev = state && state._updated;
       state = s; save(STATE_KEY, s);
 
-      // A fresh publish means Claude has filed everything up to that moment, so
-      // the pending layer for sessions is no longer needed. Dropping it here is
-      // what stops the same hour being counted twice.
-      // A newer publish means Claude has filed everything up to that moment, so
-      // this phone's pending layer is spent. Dropping ALL of it here is what
-      // stops the same hour being counted twice, a corrected session being
-      // overridden by a stale local copy, and a row deleted here staying hidden
-      // forever even after Claude legitimately files it again.
-      if (prev !== s._updated) {
+      /* The pending layer holds what Amir has done here that the Mac has not
+         filed yet. Dropping it at the right moment is what stops an hour being
+         counted twice. Dropping it at the WRONG moment is worse: a stop he made
+         reappears as a running session, a forgotten session he added vanishes,
+         and the totals on screen are wrong exactly when he is reading them.
+
+         The old rule was "any newer publish clears everything". That fires on
+         every fifteen-minute apply run, including ones whose snapshot was taken
+         before his tap ever left the phone. Three conditions now have to hold. */
+      if (prev !== s._updated && pendingLayerIsSpent(s._updated)) {
         local.segments = [];
         local.filedEnd = null;
         local.edits = {};
+        // Same area AND same start. Matching on area alone let an older filed
+        // session in that area swallow the one he had just started here.
         if (local.open && s.today && s.today.open_session &&
-            s.today.open_session.area === local.open.area) local.open = null;
+            s.today.open_session.area  === local.open.area &&
+            s.today.open_session.start === local.open.start) local.open = null;
       }
       if (local.ticked && s.tasks) {
         var live = {}; s.tasks.forEach(function(t){ live[t.id]=true; });
         Object.keys(local.ticked).forEach(function(id){ if (!live[id]) delete local.ticked[id]; });
       }
-      if (local.date !== todayISO()) local = freshLocal();
+      if (local.date !== todayISO()) local = rollLocal(local);
       save(LOCAL_KEY, local);
       // The switch is the server's to state, except while one of his taps is
       // still on its way there.
       if (!nudgeSending && typeof r.nudge === 'boolean') save(NUDGE_KEY, { on: r.nudge });
+      // A reminder that fails silently is worse than none, because he trusts it.
+      nudgeErr = r.nudge_error || '';
       render();
     }).catch(function (e) {
       health.net = false; health.err = String(e && e.message || e);
@@ -783,11 +1005,9 @@
     });
     h += '</div></div><div class="verdict">'+balanceLine(b,total,r)+'</div></div>';
 
-    // --- the timer, always in exactly one of two states ---
+    // --- what is running, stated plainly, above the timers ---
     h += '<div class="card timer '+(r?'on':'off')+'"><div class="head">';
     if (r) {
-      // data-start is what the one-second tick below reads, so the number keeps
-      // moving without redrawing the page around it.
       h += '<span class="dot"></span><div class="what"><b>'+(AREA_IC[r.area]||'•')+' '+
            esc((state.areas&&state.areas[r.area])||r.area)+'</b>'+
            '<span>since '+esc(r.start)+'</span></div>'+
@@ -802,115 +1022,178 @@
     }
     h += '</div>';
 
-    if (r) {
-      h += '<div class="acts stack"><button class="primary stop" data-act="stop">Stop work</button>'+
-           '<div style="display:flex;gap:8px">'+
-           '<button class="ghost" data-act="pick">Switch area</button>'+
-           (r.pending ? '<button class="ghost warn" data-act="undo">Undo start</button>' : '')+
-           '</div></div>';
-      if (picking) h += areaPicker('Switch to');
-    } else {
-      h += areaPicker('Start working on');
-    }
-    // The switch belongs on this card because the thing it is nagging about is
-    // this card. It reads the same whether or not a session is running: the point
-    // is to catch the times the timer says one thing and he is doing another.
-    h += '<div class="nudgerow"><div class="t"><b>Nudge me every 15 minutes</b>'+
-         '<span>'+nudgeStatusLine()+'</span></div>'+
+    // The timers themselves. Tap to start, tap again to stop, tap another to switch.
+    h += timerGrid();
+    h += '<div class="thint">'+(r ? 'Tap the running timer to stop it, or another to switch.'
+                                  : 'Tap a timer to start it.')+'</div>';
+
+    h += '<div class="nudgerow'+(nudgeOn() && nudgeErr ? ' bad' : '')+'">'+
+         '<div class="t"><b>Nudge me every 15 minutes</b>'+
+         '<span>'+esc(nudgeStatusLine())+'</span></div>'+
          '<button class="sw'+(nudgeOn()?' on':'')+'" data-act="nudge" aria-label="Nudge me every 15 minutes"><i></i></button></div>';
     h += '</div>';
 
     // --- sessions, each labelled with where it came from ---
     var rows = sessionRows();
-    if (rows.length) {
-      h += '<h2>Sessions today</h2><div class="sub">Tap any session to fix its times or delete it.</div>'+
-           '<div class="card">';
+    h += '<h2>Sessions today</h2><div class="sub">Tap any session to fix its times, its area, or delete it.</div>';
+    h += '<div class="card">';
+    if (!rows.length) {
+      h += '<div class="hint" style="padding:18px 4px">Nothing logged yet today.</div>';
+    } else {
       rows.forEach(function (s) {
-        if (editing === s.key) { h += sessionEditor(s); return; }
-        h += '<div class="sess'+(s.running?' running':'')+'" data-edit="'+esc(s.key)+'">'+
+        h += '<div class="sess'+(s.running?' running':'')+'" data-edit="'+esc(s.id)+'">'+
              '<span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
              '<div class="b"><b>'+esc((state.areas&&state.areas[s.area])||s.area)+'</b>'+
              '<span>'+esc(s.start)+' → '+(s.end?esc(s.end):'now')+'</span></div>'+
              '<div class="d">'+(s.minutes<1?'just started':hm(s.minutes))+'</div>'+
              '<span class="chev">›</span></div>';
       });
-      h += '</div>';
     }
+    h += '</div>';
+    // Work he did away from the phone still has to reach the record somehow.
+    h += '<button class="addsess" data-act="addsess">＋ Add a session I forgot</button>';
 
     h += '<div class="foot">'+BUILD+' · published '+esc(state._updated||'?')+
          '<br>'+esc(geom())+'</div>';
     el.innerHTML = h;
   }
 
-  function areaPicker(label) {
-    var h = '<div class="picker"><div class="lbl">'+label+'</div><div class="grid">';
+  /**
+   * The timers. Six buttons, always on screen, one per area.
+   *
+   * Tap one to start it. Tap the running one to stop. Tap a different one and it
+   * switches, which closes the first at that moment so two can never overlap.
+   * The old screen hid all of this behind a "Switch area" step, and Amir wanted
+   * the timers themselves in front of him.
+   */
+  function timerGrid() {
+    var r = running();
+    var h = '<div class="tgrid">';
     AREAS.forEach(function (a) {
-      h += '<button data-start="'+a.slug+'"><span class="ic">'+a.ic+'</span>'+a.label+'</button>';
+      var on = r && r.area === a.slug;
+      var m = areaMinutes(a.slug);
+      h += '<button class="tbtn'+(on?' on':'')+(m?'':' zero')+'" data-timer="'+a.slug+'">'+
+             '<span class="ic">'+a.ic+'</span>'+
+             '<span class="nm">'+a.label+'</span>'+
+             '<span class="vl">'+(m ? hm(m) : (on ? 'running' : '—'))+'</span>'+
+           '</button>';
     });
-    h += '</div>';
-    if (picking) h += '<button class="ghost" style="width:100%;margin-top:9px" data-act="cancelpick">Cancel</button>';
     return h + '</div>';
   }
 
-  /**
-   * Every session for today, from both layers, in clock order.
-   *
-   * `key` is start+area: stable enough to survive a redraw and readable enough
-   * that an edit event tells Claude exactly which row Amir meant. Whether a row
-   * came from the file or from an unsent tap is deliberately NOT shown any more:
-   * it is this app's plumbing, not something Amir should have to reason about.
-   */
-  function sessionRows() {
-    var out = [];
-    ((state.today && state.today.sessions) || []).forEach(function (s) {
-      if (s.open) {
-        var end = (local && local.filedEnd) || null;
-        out.push({ start:s.start, end:end, area:s.area, local:false,
-                   running:!end, minutes: end ? spanMin(s.start,end) : sinceToday(s.start) });
-      } else {
-        out.push({ start:s.start, end:s.end, area:s.area, local:false, minutes:s.minutes });
-      }
-    });
-    (local.segments||[]).forEach(function (s) {
-      out.push({ start:s.start, end:s.end, area:s.area, local:true, minutes:spanMin(s.start,s.end) });
-    });
-    if (local.open) {
-      out.push({ start:local.open.start, end:null, area:local.open.area, local:true,
-                 running:true, minutes:sinceToday(local.open.start) });
-    }
-    // Apply anything Amir has corrected here but Claude has not filed yet.
-    var edits = (local && local.edits) || {};
-    out = out.filter(function (s) {
-      s.key = s.start + '|' + s.area;
-      return edits[s.key] !== 'deleted';
-    });
-    out.forEach(function (s) {
-      var e = edits[s.key];
-      if (!e || e === 'deleted') return;
-      s.start = e.start; s.end = e.end; s.area = e.area;
-      s.minutes = spanMin(e.start, e.end);
-      s.running = false;              // an edited session has an explicit end
-    });
-    return out.sort(function (a,c) { return (toMin(a.start)||0) - (toMin(c.start)||0); }).reverse();
+  /** Minutes into the WORKING day, which starts at 05:00, so 00:10 sorts after 23:00. */
+  function wdMin(hhmm) {
+    var m = toMin(hhmm); if (m == null) return 0;
+    return (m - 5*60 + 24*60) % (24*60);
   }
 
-  /** Inline editor for one session. Native time inputs, so iOS gives its own picker. */
-  function sessionEditor(s) {
-    var h = '<div class="edit" data-editing="'+esc(s.key)+'">';
-    h += '<div class="fields">'+
-         '<div class="f"><label>Started</label><input type="time" id="edStart" value="'+esc(s.start)+'"></div>'+
-         '<div class="f"><label>Ended</label><input type="time" id="edEnd" value="'+
-         esc(s.end||clock())+'"></div></div>';
-    h += '<div class="areas">';
-    AREAS.forEach(function (a) {
-      h += '<button data-earea="'+a.slug+'"'+(a.slug===s.area?' class="on"':'')+'>'+a.ic+' '+a.label+'</button>';
+  /**
+   * A filed row's id is made from what it contains, never from where it sits.
+   *
+   * Positional ids looked stable and were not. A publish that inserts an earlier
+   * session shifts every index, so an edit saved as "f2" would land on whatever
+   * session happened to be second afterwards. Content ids cannot misfire: if the
+   * filed row changes, the id changes, and the stale edit is simply dropped
+   * instead of being applied to the wrong session.
+   */
+  var filedSeen = {};
+  function filedId(sess) {
+    // Two filed rows really can share a start minute and an area, because a fast
+    // switch writes zero-minute rows into the day file. A bare start+area id made
+    // one edit apply to both of them, and one delete remove both.
+    var base = 'f|' + sess.start + '|' + (sess.end || '') + '|' + sess.area;
+    filedSeen[base] = (filedSeen[base] || 0) + 1;
+    return base + '|' + filedSeen[base];
+  }
+
+  function sessionRows() {
+    var out = [];
+    filedSeen = {};
+    var t = (state && state.today) || {};
+    (t.sessions || []).forEach(function (s) {
+      if (s.open) {
+        out.push({ id:filedId(s), start:s.start, end:null, area:s.area, local:false,
+                   running:true, minutes:sinceToday(s.start) });
+      } else {
+        out.push({ id:filedId(s), start:s.start, end:s.end, area:s.area, local:false,
+                   minutes:s.minutes });
+      }
     });
-    h += '</div><div class="btns">'+
-         '<button class="cancel" data-eact="cancel">Cancel</button>'+
-         '<button class="del" data-eact="delete">Delete</button>'+
-         '<button class="save" data-eact="save">Save</button>'+
-         '</div></div>';
-    return h;
+    (local.segments||[]).forEach(function (s, ix) {
+      if (!s.id) s.id = 'lseg' + ix;          // rows saved before ids existed
+      out.push({ id:s.id, start:s.start, end:s.end, area:s.area, local:true,
+                 minutes:spanMin(s.start, s.end) });
+    });
+    if (local.open) {
+      if (!local.open.id) local.open.id = 'lopen';
+      out.push({ id:local.open.id, start:local.open.start, end:null, area:local.open.area,
+                 local:true, running:true, minutes:sinceToday(local.open.start) });
+    }
+
+    /* Corrections to FILED rows live in `local.edits`, because a filed row is the
+       Mac's to own and cannot be changed here. Corrections to LOCAL rows are made
+       on the row itself in saveSessEditor.
+
+       Keeping local rows out of this map matters. When an edit said "still
+       running" and the session was later stopped, the edit kept re-applying and
+       put the end back to null, so a finished session showed as running for the
+       rest of the day and its time counted twice. */
+    var edits = (local && local.edits) || {};
+    out = out.filter(function (s) { return edits[s.id] !== 'deleted'; });
+    out.forEach(function (s) {
+      var e = edits[s.id];
+      if (!e || e === 'deleted') return;
+      s.start = e.start; s.area = e.area;
+      s.end = e.end || null;
+      s.running = !s.end;
+      s.minutes = s.end ? spanMin(s.start, s.end) : sinceToday(s.start);
+    });
+
+    out.sort(function (a,c) { return wdMin(a.start) - wdMin(c.start); });
+
+    /* Exactly one session may be running, and this is where that is guaranteed.
+       The phone's open session and the one the Mac published are separate layers
+       and they can disagree, and a day file can carry more than one row whose end
+       cell was never filled in. Without this, every one of them drew as running
+       and every one of them counted time. The latest start wins; anything open
+       behind it is closed at that moment and marked `guessedEnd`, because that end
+       is this app's inference and must never be sent to the Mac as fact. */
+    var lastOpen = -1;
+    for (var i = 0; i < out.length; i++) if (out[i].running) lastOpen = i;
+    if (lastOpen > -1) {
+      for (var j = 0; j < lastOpen; j++) {
+        if (!out[j].running) continue;
+        out[j].running = false;
+        out[j].end = out[lastOpen].start;
+        out[j].guessedEnd = true;
+        out[j].minutes = spanMin(out[j].start, out[j].end);
+      }
+    }
+
+    /* A stop he made here on the Mac's session is a real recorded time, so it is
+       applied to the FIRST filed open row rather than only to whichever row
+       happens to run last. Applying it only to the last one closed his UCW
+       session at the start of the next session instead of when he stopped it, and
+       counted his break as work. */
+    if (local && local.filedEnd) {
+      for (var k = 0; k < out.length; k++) {
+        if (out[k].local) continue;
+        if (!out[k].running && !out[k].guessedEnd) continue;
+        out[k].running = false;
+        out[k].end = local.filedEnd;
+        out[k].guessedEnd = false;          // this end was recorded, not inferred
+        out[k].minutes = spanMin(out[k].start, out[k].end);
+        break;
+      }
+    }
+    return out.reverse();
+  }
+
+  /** Today's minutes for one area, used on the face of each timer button. */
+  function areaMinutes(slug) {
+    return sessionRows().reduce(function (n, s) {
+      return n + (s.area === slug ? (s.minutes||0) : 0);
+    }, 0);
   }
 
   function lastFinished() {
@@ -1065,7 +1348,13 @@
     // Never redraw while the editor sheet is open. The sheet itself is safe, but
     // a redraw replaces `notes` and rebuilds the list under it, and the save that
     // follows would then be written against a row that no longer matches.
-    if (editNote) return;
+    if (editNote || editSess) return;
+    /* A redraw between touchstart and touchend removes the element the finger
+       landed on, and WebKit then fires no click at all. No haptic, no colour
+       change, no error, and a stop that never happened. The recorder button and
+       both sheets were already protected from this; the timers were not, and they
+       are the controls he uses twenty times a day. */
+    if (touching) { renderPending = true; return; }
     document.getElementById('hTitle').textContent =
       tab==='today' ? 'Time tracking' : tab==='tasks' ? 'Tasks' : 'Talk';
     document.getElementById('hDate').textContent =
@@ -1093,65 +1382,38 @@
   }
 
   // ------------------------------------------------------------ interaction
+  var touching = false, renderPending = false;
+  document.addEventListener('touchstart', function () { touching = true; },
+                            { passive:true, capture:true });
+  ['touchend','touchcancel'].forEach(function (t) {
+    document.addEventListener(t, function () {
+      touching = false;
+      if (renderPending) { renderPending = false; setTimeout(render, 0); }
+    }, { passive:true, capture:true });
+  });
+
   document.addEventListener('click', function (e) {
     var n = e.target.closest('[data-go]');
-    if (n) { tab=n.getAttribute('data-go'); picking=false; document.querySelector('main').scrollTop=0; render(); return; }
+    if (n) { tab=n.getAttribute('data-go'); document.querySelector('main').scrollTop=0; render(); return; }
 
     if (e.target.closest('#hHelp')) { showHelp=!showHelp; render(); return; }
 
-    var st = e.target.closest('[data-start]');
-    if (st) { doStart(st.getAttribute('data-start')); return; }
+    var tb = e.target.closest('[data-timer]');
+    if (tb) { doTimer(tb.getAttribute('data-timer')); return; }
 
     var a = e.target.closest('[data-act]');
     if (a) {
       var act = a.getAttribute('data-act');
-      if (act==='stop')       doStop(false);
-      if (act==='nudge')      { toggleNudge(); render(); return; }
-      if (act==='pick')       { picking=true; render(); }
-      if (act==='cancelpick') { picking=false; render(); }
-      if (act==='undo')       doUndoStart();
+      if (act==='stop')    doStop(false);
+      if (act==='nudge')   { toggleNudge(); render(); return; }
+      if (act==='undo')    doUndoStart();
+      if (act==='addsess') openSessEditor(null);
       return;
     }
 
-    // --- session editing -------------------------------------------------
+    // --- session editing: everything happens in the sheet ----------------
     var ed = e.target.closest('[data-edit]');
-    if (ed) {
-      editing = ed.getAttribute('data-edit');
-      var row = sessionRows().filter(function(s){ return s.key===editing; })[0];
-      editArea = row ? row.area : null;
-      render(); return;
-    }
-    var ea = e.target.closest('[data-earea]');
-    if (ea) {
-      // Change the highlight in place: a full re-render would throw away
-      // whatever he has already typed into the time fields.
-      editArea = ea.getAttribute('data-earea');
-      [].forEach.call(document.querySelectorAll('[data-earea]'), function (b) {
-        b.classList.toggle('on', b.getAttribute('data-earea')===editArea);
-      });
-      return;
-    }
-    var ec = e.target.closest('[data-eact]');
-    if (ec) {
-      var act = ec.getAttribute('data-eact'), key = editing;
-      var was = sessionRows().filter(function(s){ return s.key===key; })[0];
-      if (act === 'cancel') { editing=null; render(); return; }
-      local.edits = local.edits || {};
-      if (act === 'delete') {
-        local.edits[key] = 'deleted';
-        emit('session_delete', { start:was&&was.start, area:was&&was.area });
-      } else {
-        var st = document.getElementById('edStart').value;
-        var en = document.getElementById('edEnd').value;
-        if (!st || !en) return;
-        local.edits[key] = { start:st, end:en, area:editArea || (was&&was.area) };
-        emit('session_edit', { was:{ start:was&&was.start, end:was&&was.end, area:was&&was.area },
-                               now:{ start:st, end:en, area:editArea || (was&&was.area) } });
-      }
-      // An edited or deleted row is no longer the running one.
-      if (was && was.running) { local.open = null; local.filedEnd = local.filedEnd || was.start; }
-      editing=null; save(LOCAL_KEY, local); render(); flush(); return;
-    }
+    if (ed) { openSessEditor(ed.getAttribute('data-edit')); return; }
 
     var df = e.target.closest('[data-due]');
     if (df) { dueFilter=df.getAttribute('data-due'); render(); return; }
@@ -1290,14 +1552,17 @@
         if (blob.size < 1200) { releaseMic(); return; }   // a tap, not speech
         var ts = stamp(), qid = ts+'-'+(queueSeq++);
         var fr = new FileReader();
+        saving = true;                       // holds off any self-update reload
         fr.onloadend = function () {
           enqueueNote({ qid:qid, ts:ts, spoken:'', audio:String(fr.result).split(',')[1],
                         mime:type+';name=note.'+extFor(type) });
+          saving = false;
           flushNotes();
         };
         // If the clip itself is unreadable, still record that something was said.
         fr.onerror = function () {
           enqueueNote({ qid:qid, ts:ts, spoken:'[recording unreadable]', audio:null, mime:null });
+          saving = false;
           flushNotes();
         };
         fr.readAsDataURL(blob);
@@ -1390,6 +1655,18 @@
       row.querySelector('.w').style.transform = 'translateX('+off+'px)';
     }, { passive:true });
 
+    /* iOS fires touchcancel instead of touchend whenever the system claims the
+       gesture: an edge swipe, an incoming call, Control Centre. Without this the
+       note stays dragged halfway across, and the next touch anywhere in the list
+       keeps dragging that same stale row. */
+    host.addEventListener('touchcancel', function () {
+      if (!row) return;
+      var n = row.querySelector('.w') || row.querySelector('.note');
+      row.classList.remove('swiping');
+      if (n) n.style.transform = '';
+      row = null;
+    }, { passive:true });
+
     host.addEventListener('touchend', function () {
       if (!row) return;
       var body = row.querySelector('.w');
@@ -1459,7 +1736,7 @@
     editNote = null;
     document.getElementById('esheet').classList.remove('on');
     document.getElementById('eText').blur();
-    fitViewport();
+    fitSettling();
     render();
   }
 
@@ -1489,7 +1766,7 @@
   state = load(STATE_KEY, null);
   evq   = load(EVQ_KEY, []);
   local = load(LOCAL_KEY, null) || freshLocal();
-  if (local.date !== todayISO()) local = freshLocal();
+  if (local.date !== todayISO()) local = rollLocal(local);
   if (!local.segments) local.segments = [];
   // c18 could not reverse a task tick. Clear its stranded optimistic ticks once
   // when c19 first loads; the server-side event is reconciled independently.
@@ -1506,6 +1783,248 @@
    * rotation. geom() prints the same measurements into the footer, because reading
    * them off a screenshot is the only way this Mac can see an iPhone.
    */
+  /* ----------------------------------------------------- the session editor
+   * One sheet does all four jobs Amir needs: fix a start he set late, fix an end
+   * he forgot to press, move a session to the right area, and add work he did
+   * away from the phone entirely. It is static markup outside every redraw, so it
+   * cannot be torn away mid-edit the way the old inline editor was.
+   */
+  function openSessEditor(id) {
+    var row = id ? sessionRows().filter(function (x) { return x.id === id; })[0] : null;
+    if (id && !row) return;
+
+    editSess = {
+      id: id,
+      isNew: !id,
+      // `guessedEnd` marks an end this app inferred to keep one session running.
+      // Sending it as `was` would let an area-only correction overwrite the real
+      // stop time in the day file with our guess.
+      was: row ? { start:row.start, end:(row.guessedEnd ? null : row.end), area:row.area } : null,
+      area: row ? row.area : 'ucw',
+      // A forgotten session almost always ended a moment ago, so an hour back to
+      // now is the guess that needs the least correcting.
+      start: row ? row.start : minusMinutes(clock(), 60),
+      end: row ? (row.end || '') : clock(),
+      // A row with no end is still running, and editing it must not silently stop it.
+      runningState: row ? !row.end : false
+    };
+
+    document.getElementById('sTitle').textContent = id ? 'Edit session' : 'Add a session';
+    document.getElementById('sDelete').style.display = id ? '' : 'none';
+    disarmDelete();
+    document.getElementById('sStart').value = editSess.start;
+    document.getElementById('sEnd').value = editSess.end || clock();
+    paintSessSheet();
+    document.getElementById('ssheet').classList.add('on');
+    fitSettling();
+  }
+
+  function paintSessSheet() {
+    var run = editSess.runningState;
+    [].forEach.call(document.querySelectorAll('#sSeg button'), function (b) {
+      b.classList.toggle('on', (b.getAttribute('data-sstate') === 'running') === run);
+    });
+    document.getElementById('sEndWrap').style.visibility = run ? 'hidden' : 'visible';
+    document.getElementById('sAreas').innerHTML = AREAS.map(function (a) {
+      return '<button data-sarea="'+a.slug+'"'+(a.slug===editSess.area?' class="on"':'')+'>'+
+             a.ic+' '+a.label+'</button>';
+    }).join('');
+    paintSessDur();
+  }
+
+  /**
+   * How long the session is, shown live, so a wrong time is obvious before it is
+   * saved rather than after.
+   *
+   * The important case is a reversed pair. `spanMin` wraps past midnight, so
+   * 09:00 to 08:00 is not an error to it, it is 23 hours, and 23 hours of UCW
+   * would quietly wreck the day's totals. A genuine session can cross midnight,
+   * so the test is length, not order: anything over twelve hours is a typo, and
+   * Save is refused until it is fixed.
+   */
+  function sessProblem(st, en, run) {
+    if (!st) return 'Needs a start time.';
+    if (run) {
+      // A running session whose start is in the future is a mis-spun wheel, not a
+      // 23-hour session. Without this, setting 16:00 at 15:00 banked 23 hours.
+      if (toMin(st) > nowMin() && sinceToday(st) > 12*60) return 'That start is in the future.';
+      return '';
+    }
+    if (!en) return 'Needs an end time.';
+    // Only a genuine reversal is refused. A thirteen-hour day is real work and
+    // must stay editable, so the test is direction first, then length.
+    if (toMin(en) < toMin(st) && spanMin(st, en) > 12*60) return 'Ends before it starts.';
+    return '';
+  }
+
+  function nowMin() { var d = new Date(); return d.getHours()*60 + d.getMinutes(); }
+
+  /** Anything already on the list that covers the same clock time. */
+  function overlapWith(st, en, ignoreId) {
+    var a1 = wdMin(st), a2 = en ? wdMin(en) : wdMin(clock());
+    if (a2 < a1) a2 += 24*60;
+    var hit = null;
+    sessionRows().forEach(function (r) {
+      if (r.id === ignoreId || hit) return;
+      var b1 = wdMin(r.start), b2 = r.end ? wdMin(r.end) : wdMin(clock());
+      if (b2 < b1) b2 += 24*60;
+      if (a1 < b2 && b1 < a2) hit = r;
+    });
+    return hit;
+  }
+
+  function paintSessDur() {
+    var st = document.getElementById('sStart').value;
+    var en = document.getElementById('sEnd').value;
+    var run = editSess.runningState;
+    var el = document.getElementById('sDur');
+    var save = document.getElementById('sSave');
+    var bad = sessProblem(st, en, run);
+
+    save.disabled = !!bad;
+    save.style.opacity = bad ? '.4' : '';
+    el.classList.toggle('bad', !!bad);
+
+    if (bad) { el.textContent = bad; return; }
+
+    /* An overlap is not refused, because a correction in progress can legitimately
+       overlap for a moment. It is named, because two rows covering the same hour
+       count that hour twice and nothing else on the screen would say so. */
+    var clash = overlapWith(st, run ? null : en, editSess.id);
+    var warn = clash ? ' · overlaps ' + ((state && state.areas && state.areas[clash.area]) || clash.area) +
+                       ' ' + clash.start + '–' + (clash.end || 'now') : '';
+    el.classList.toggle('warn', !!clash);
+
+    if (run) { el.textContent = hm(sinceToday(st)) + ' so far, still running' + warn; return; }
+    var mins = spanMin(st, en);
+    el.textContent = hm(mins) +
+      (mins === 0 ? ' · that is zero minutes' : '') +
+      (toMin(en) < toMin(st) ? ' · crosses midnight' : '') + warn;
+  }
+
+  function closeSessEditor() {
+    editSess = null;
+    document.getElementById('ssheet').classList.remove('on');
+    fitSettling();
+    render();
+  }
+
+  function saveSessEditor() {
+    if (!editSess) return;
+    var st = document.getElementById('sStart').value;
+    var run = editSess.runningState;
+    var en = run ? null : document.getElementById('sEnd').value;
+    // The same test the duration line shows him. Nothing gets past both.
+    if (sessProblem(st, en, run)) { paintSessDur(); return; }
+    var area = editSess.area;
+    var was = editSess.was;
+    local.edits = local.edits || {};
+
+    if (editSess.isNew) {
+      // Work done away from the phone. It goes in as a local segment like any
+      // other, with its own id, and Claude hears about it as an explicit event.
+      var seg = { id:nextSessId(), start:st, end:en, area:area };
+      if (run) {
+        if (running()) doStop(true, st);
+        local.open = { id:seg.id, start:st, area:area };
+      } else {
+        local.segments.push(seg);
+      }
+      emit('session_add', { start:st, end:en, area:area });
+    } else {
+      emit('session_edit', { was:was, now:{ start:st, end:en, area:area } });
+      var wasRunning = was && !was.end;
+      var isFiled = String(editSess.id).charAt(0) === 'f';
+      var openIsThis = local.open && local.open.id === editSess.id;
+
+      if (isFiled) {
+        // A filed row belongs to the Mac, so the correction is recorded beside it.
+        local.edits[editSess.id] = { start:st, end:en, area:area };
+        if (wasRunning && !run) local.filedEnd = en;
+      } else {
+        // A local row is ours to change outright, which is why it never goes into
+        // local.edits: a stale edit there once un-stopped a finished session.
+        if (local.edits) delete local.edits[editSess.id];
+        var seg = (local.segments||[]).filter(function (x) { return x.id === editSess.id; })[0];
+        if (seg) { seg.start = st; seg.end = en; seg.area = area; }
+        if (openIsThis) { local.open.start = st; local.open.area = area; }
+      }
+
+      // Exactly one session runs at a time, before and after this save.
+      if (wasRunning && !run && openIsThis) {
+        local.segments.push({ id:editSess.id, start:st, end:en, area:area });
+        local.open = null;
+      }
+      if (!wasRunning && run) {
+        // Close whatever is running AT THIS SESSION'S START, not at the clock. The
+        // old code closed it at "now", so re-opening a 09:00 session at 15:00 left
+        // an hour sitting inside both rows.
+        if (running()) doStop(true, st);
+        local.segments = (local.segments||[]).filter(function (x) { return x.id !== editSess.id; });
+        // A filed row hidden as deleted cannot lend its id to the replacement:
+        // the replacement inherits the deletion and vanishes with it.
+        var newId = isFiled ? nextSessId() : editSess.id;
+        if (isFiled) local.edits[editSess.id] = 'deleted';
+        local.open = { id:newId, start:st, area:area };
+      }
+    }
+    local.date = todayISO(); save(LOCAL_KEY, local);
+    closeSessEditor(); flush();
+  }
+
+  function deleteSessEditor() {
+    if (!editSess || editSess.isNew) return;
+    var id = editSess.id, was = editSess.was;
+    local.edits = local.edits || {};
+    local.edits[id] = 'deleted';
+    emit('session_delete', { start:was&&was.start, end:was&&was.end, area:was&&was.area });
+    if (local.open && local.open.id === id) local.open = null;
+    local.segments = (local.segments||[]).filter(function (x) { return x.id !== id; });
+    if (was && !was.end && String(id).charAt(0) === 'f') local.filedEnd = was.start;
+    local.date = todayISO(); save(LOCAL_KEY, local);
+    closeSessEditor(); flush();
+  }
+
+  document.getElementById('sCancel').addEventListener('click', closeSessEditor);
+  document.getElementById('sSave').addEventListener('click', saveSessEditor);
+  ['sStart','sEnd'].forEach(function (id) {
+    var el = document.getElementById(id);
+    el.addEventListener('input', paintSessDur);
+    // The iOS time wheel resizes the visible area exactly like the keyboard does.
+    el.addEventListener('focus', fitSettling);
+    el.addEventListener('blur', fitSettling);
+  });
+  document.getElementById('sSeg').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sstate]'); if (!b || !editSess) return;
+    editSess.runningState = b.getAttribute('data-sstate') === 'running';
+    paintSessSheet();
+  });
+  document.getElementById('sAreas').addEventListener('click', function (e) {
+    var b = e.target.closest('[data-sarea]'); if (!b || !editSess) return;
+    editSess.area = b.getAttribute('data-sarea');
+    paintSessSheet();
+  });
+  /* Delete asks once. A mis-tap here loses real work, and there is no undo for it. */
+  var armTimer = null;
+  function disarmDelete() {
+    if (armTimer) { clearTimeout(armTimer); armTimer = null; }
+    var b = document.getElementById('sDelete');
+    b.classList.remove('arm'); b.textContent = 'Delete this session';
+  }
+  document.getElementById('sDelete').addEventListener('click', function () {
+    var b = this;
+    if (!b.classList.contains('arm')) {
+      // The timer is held so that arming one row cannot disarm the next one he
+      // opens four seconds later, which made clearing several rows unreliable.
+      b.classList.add('arm'); b.textContent = 'Tap again to delete';
+      if (armTimer) clearTimeout(armTimer);
+      armTimer = setTimeout(disarmDelete, 4000);
+      return;
+    }
+    disarmDelete();
+    deleteSessEditor();
+  });
+
   /* --------------------------------------------------------------- the nudge
    * The switch only tells the server. Everything else happens off this phone.
    *
@@ -1524,7 +2043,9 @@
   var nudgeSending = false;
 
   function nudgeOn() { var l = load(NUDGE_KEY, null); return !!(l && l.on); }
+  var nudgeErr = '';
   function nudgeStatusLine() {
+    if (nudgeOn() && nudgeErr) return '⚠️ Not sending. ' + nudgeErr;
     return nudgeOn() ? 'On · sent to your ntfy app, even when this is closed'
                      : 'A reminder every 15 minutes, until you switch it off';
   }
@@ -1539,6 +2060,24 @@
       .then(function () { nudgeSending = false; render(); });
   }
 
+  /* iOS fires visualViewport.scroll continuously while the keyboard animates, and
+     writing body.style.height can itself move the visual viewport, so the handler
+     could feed itself. One write per frame settles it. */
+  var fitQueued = false;
+  function fitSoon() {
+    if (fitQueued) return;
+    fitQueued = true;
+    requestAnimationFrame(function () { fitQueued = false; fitViewport(); });
+  }
+  /* The keyboard and the iOS time wheel both animate for about a third of a
+     second, and every height reported during that animation is wrong. Measuring
+     once is what left the tab bar stranded in mid-screen, so every open and every
+     close re-measures until it has settled. */
+  function fitSettling() {
+    fitViewport();
+    [80, 250, 500, 900].forEach(function (ms) { setTimeout(fitViewport, ms); });
+  }
+
   function fitViewport() {
     var vv = window.visualViewport;
     var h = (vv ? Math.round(vv.height) : 0) || window.innerHeight;
@@ -1549,8 +2088,10 @@
     document.body.style.top = top + 'px';
     document.body.style.bottom = 'auto';
     document.body.style.height = h + 'px';
-    var sh = document.getElementById('esheet');
-    if (sh) { sh.style.top = top + 'px'; sh.style.height = h + 'px'; }
+    ['esheet','ssheet'].forEach(function (id) {
+      var sh = document.getElementById(id);
+      if (sh) { sh.style.top = top + 'px'; sh.style.height = h + 'px'; }
+    });
   }
   function envBottom() {
     var d = document.createElement('div');
@@ -1578,9 +2119,14 @@
    * and reloads itself when the server is running something newer. Never while a
    * recording is in progress: that would drop the audio mid-hold.
    */
-  var updating = false;
+  var updating = false, saving = false;
   function checkForUpdate() {
-    if (updating || holding || editNote) return;
+    /* `holding` goes false the instant he lets go, but the audio is not saved for
+       hundreds of milliseconds after that: onstop, then the FileReader, then the
+       localStorage write. A reload inside that window destroys the clip with no
+       trace, which is the exact failure the save-before-send rule exists to
+       prevent. `saving` stays true until the note is on disk. */
+    if (updating || holding || saving || editNote || editSess) return;
     updating = true;
     fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })
       .then(function (r) { return r.ok ? r.text() : null; })
@@ -1619,8 +2165,8 @@
     window.addEventListener('resize', fitViewport);
     window.addEventListener('orientationchange', fitViewport);
     if (window.visualViewport) {
-      visualViewport.addEventListener('resize', fitViewport);
-      visualViewport.addEventListener('scroll', fitViewport);
+      visualViewport.addEventListener('resize', fitSoon);
+      visualViewport.addEventListener('scroll', fitSoon);
     }
     render();                       // cached state paints before any network call
     refresh(); refreshNotes(); flush();
