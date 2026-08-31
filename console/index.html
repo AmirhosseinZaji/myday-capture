@@ -544,7 +544,7 @@
 (function () {
   'use strict';
 
-  var BUILD = 'c27 · 2026-08-30';
+  var BUILD = 'c28 · 2026-08-30';
 
   var CFG_KEY   = 'myday_cfg';
   var STATE_KEY = 'myday_state';
@@ -1239,7 +1239,7 @@
     if (!state) { el.innerHTML = diagnostics(); return; }
     var ticked = local.ticked || {}, all = (state.tasks||[]).slice();
     function matchDue(f,t) {
-      if (f==='all')     return t.when!=='future';
+      if (f==='all')     return true;   // All means all, future included (Amir, 2026-08-30)
       if (f==='overdue') return t.when==='overdue';
       if (f==='today')   return t.when==='today';
       if (f==='nodate')  return !t.due;
