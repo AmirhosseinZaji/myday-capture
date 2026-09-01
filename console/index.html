@@ -367,7 +367,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
     width:min(var(--col) - 48px, calc(100vw - 48px)); box-shadow:var(--shadow-lg);
     border-radius:16px; overflow:hidden}
   .mic{padding:15px 20px}
-  .mic-hint{border-top:0; border-bottom:1px solid var(--line)}
+
 
   /* Two columns where the content genuinely pairs up. */
   .split{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr);
@@ -411,7 +411,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c41-2026-09-01-unrated';
+var BUILD = 'c42-2026-09-01-final';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -1550,7 +1550,7 @@ var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
 var AREA_NAME = {academia:'Academia', ai:'AI Business', dog:'Dog Business',
                  personal:'Personal', overhead:'Overhead'};
 var MIC_HINT = {
-  home:'Say anything. It lands in the inbox.',
+  home:'Say anything. It lands on the Notes page.',
   time:'Say your working blocks, or a session you forgot.',
   focus:'Say how focused you were and when.',
   goals:'Say this week’s goals out loud.',
