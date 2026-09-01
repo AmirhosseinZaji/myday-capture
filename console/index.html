@@ -136,8 +136,10 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 /* ── month strip ────────────────────────────────────────────────────────── */
 .strip{display:flex; gap:3px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none}
 .strip::-webkit-scrollbar{display:none}
-.strip .d{flex:0 0 auto; width:26px; text-align:center; cursor:pointer}
-.strip .d svg{display:block; width:26px; height:24px}
+.strip .d{flex:0 0 auto; width:34px; text-align:center; cursor:pointer;
+  border-radius:8px; padding:2px 0; transition:background .16s}
+.strip .d:hover{background:var(--surface-2)}
+.strip .d svg{display:block; width:34px; height:auto}
 .strip .d .dl{font-size:9px; color:var(--ink-3); margin-top:2px}
 .strip .d.sel .dl{color:var(--ink); font-weight:700}
 
@@ -357,7 +359,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c30-2026-08-31-triangle';
+var BUILD = 'c31-2026-09-01-fixes';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -425,6 +427,14 @@ function nowISO(){
          sg+pad(Math.floor(a/60))+':'+pad(a%60);
 }
 function hhmm(d){ d = d||new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function localStamp(iso){
+  /* Postgres hands timestamps back in UTC. Printing one raw told Amir his day
+     had updated at 07:12 when his clock said 00:12. */
+  var d = new Date(iso);
+  if(isNaN(d)) return String(iso).replace('T',' ').slice(0,16);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+
+         pad(d.getHours())+':'+pad(d.getMinutes());
+}
 function hm(m){
   if(m===null||m===undefined) return '·';
   m = Math.max(0, Math.round(m));
@@ -595,7 +605,7 @@ function triScores(today, week, onDate){
     consistency:consistency, focus:focus, goals:goals,
     area: Math.round((consistency*focus + focus*goals + goals*consistency)/3 * 10000)/10000,
     weakest: weakest,
-    advice: ADVICE[weakest],
+    advice: adviceFor(weakest, today, week),
     worked_minutes: today.closed_minutes||0,
     focus_score: today.focus,
     goals_set: !!(week && week.goals && week.goals.length)
@@ -604,8 +614,15 @@ function triScores(today, week, onDate){
 var ADVICE = {
   consistency:'Consistency is the short corner. Get more hours in.',
   focus:'Focus is the short corner. Make it quiet and work on one thing.',
-  goals:'Goals is the short corner. Move this week’s goals, not just hours.'
+  focus_unrated:'Focus is the short corner, but only because nothing is rated. Score your sessions.',
+  goals:'Goals is the short corner. Move this week’s goals, not just hours.',
+  goals_unset:'Goals is the short corner. No goals are set for this week yet.'
 };
+function adviceFor(weakest, today, week){
+  if(weakest === 'focus' && today.focus == null) return ADVICE.focus_unrated;
+  if(weakest === 'goals' && !(week && week.goals && week.goals.length)) return ADVICE.goals_unset;
+  return ADVICE[weakest];
+}
 </script>
 <script>
 /* ═══════════════════════════════════════════════ the triangle, drawn ═════ */
@@ -724,7 +741,10 @@ function pageHome(v){
 
   h += '<div class="card"><div class="tri-wrap">' + triSVG(tri, {size:230, r:74}) +
        '<div class="tri-score"><div class="n">'+pct(tri.area)+'<sup>%</sup></div>' +
-       '<div class="cap">Today’s score</div></div></div>';
+       '<div class="cap">Today’s score</div>' +
+       '<p class="tiny muted" style="margin:9px auto 0;max-width:300px">Each corner is scored ' +
+       'against what today needs: hours towards 10, focus out of 10, and goals against the pace ' +
+       'this week has to keep. The score is the area they enclose.</p></div></div>';
   h += '<div class="advice"><span class="pip" style="background:'+
        CORNERS.filter(function(c){return c.k===tri.weakest;})[0].hex+'"></span>' +
        '<span><b>'+esc(tri.advice.split('.')[0])+'.</b> '+esc(tri.advice.split('. ').slice(1).join('. '))+'</span></div>';
@@ -777,7 +797,7 @@ function stripHTML(v){
   return '<div class="strip">' + v.month.map(function(d){
     var t = {consistency:d.consistency, focus:d.focus, goals:d.goals};
     return '<button class="d' + (d.date === v.today.date ? ' sel' : '') + '" data-day="'+d.date+'" ' +
-      'title="'+d.date+' · '+pct(d.area)+'%">' + triSVG(t, {size:26, r:9, labels:false}) +
+      'title="'+d.date+' · '+pct(d.area)+'%">' + triSVG(t, {size:34, r:13, labels:false}) +
       '<div class="dl">'+esc(d.weekday[0])+'</div></button>';
   }).join('') + '</div>';
 }
@@ -843,12 +863,14 @@ function splitBar(label, got, target, colour){
 }
 function sessionRow(s){
   var f = s.focus;
-  return '<div class="item">' +
-    '<button class="fscore'+(f==null?' none':'')+'" data-rate="'+esc(s.start)+'" ' +
+  var badge = s.open
+    ? '<span class="fscore none" style="border-style:solid;color:var(--focus)">now</span>'
+    : '<button class="fscore'+(f==null?' none':'')+'" data-rate="'+esc(s.start)+'" ' +
       'style="background:'+focusBg(f)+';color:'+focusColour(f)+'"'+
       ' aria-label="'+(f==null?'Rate this session':'Focus '+f+' out of 10')+'">' +
-      (f==null?'rate':f) + '</button>' +
-    '<div class="grow"><div class="t">'+esc(s.task)+'</div>' +
+      (f==null?'rate':f) + '</button>';
+  return '<div class="item">' + badge +
+    '<div class="grow"><div class="t" dir="auto">'+esc(s.task)+'</div>' +
     '<div class="s">'+esc(s.start)+' – '+esc(s.end||'now')+' · '+esc(s.area_label||s.area)+
       (s.pending?' · saving':'')+'</div></div>' +
     '<div class="dur">'+(s.open ? 'running' : hm(s.minutes))+'</div></div>';
@@ -879,10 +901,15 @@ function timelineHTML(t){
     var y = (toM(b.s) - lo) * PX, hgt = Math.max(20, (toM(b.e) - toM(b.s)) * PX - 3);
     var col = b.k === 'actual' ? areaColour(b.area) : 'var(--ink-3)';
     var bg  = b.k === 'actual' ? 'color-mix(in srgb,'+col+' 13%,#fff)' : 'var(--surface-2)';
+    // Under about 34px there is room for one line only, so the time and the
+    // label share it instead of the label spilling past the block's edge.
+    var tight = hgt < 34;
     return '<div class="blk '+b.k+'" style="top:'+y+'px;height:'+hgt+'px;background:'+bg+
-      ';border-color:color-mix(in srgb,'+col+' 30%,transparent);color:var(--ink)">' +
-      '<div class="bt" style="color:'+col+'">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
-      '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(b.label)+'</div></div>';
+      ';border-color:color-mix(in srgb,'+col+' 30%,transparent);color:var(--ink)' +
+      (tight ? ';display:flex;align-items:center;gap:6px;padding-top:0;padding-bottom:0' : '') + '">' +
+      '<div class="bt" style="color:'+col+';flex:0 0 auto">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
+      '<div dir="auto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' +
+      esc(b.label)+'</div></div>';
   }).join('');
 
   return '<div class="spread tiny muted" style="margin-bottom:8px;padding-left:46px">' +
@@ -904,7 +931,8 @@ function pageFocus(v){
   if(t.unscored.length){
     h += '<div class="card" style="border-color:color-mix(in srgb,var(--consistency) 34%,transparent);' +
       'background:var(--consistency-soft)"><h2 style="color:var(--consistency)">' +
-      t.unscored.length + ' session' + (t.unscored.length>1?'s':'') + ' still need a score</h2>' +
+      (t.unscored.length === 1 ? 'One session still needs a score'
+        : t.unscored.length + ' sessions still need a score') + '</h2>' +
       '<div class="stack">' + t.unscored.map(function(s){
         return '<button class="btn wide" data-rate="'+esc(s.start)+'" style="justify-content:space-between">' +
           '<span>'+esc(s.start)+' – '+esc(s.end)+' · '+esc(s.area_label||s.area)+'</span>' +
@@ -983,7 +1011,7 @@ function pageGoals(v){
       return '<div class="goal'+(g.done?' done':'')+'"><div class="top">' +
         '<button class="tick'+(g.done||g.percent>=100?' on':'')+'" data-goaltick="'+i+'" ' +
         'aria-label="Mark done">'+((g.done||g.percent>=100)?'✓':'')+'</button>' +
-        '<span class="txt">'+esc(g.title)+
+        '<span class="txt" dir="auto">'+esc(g.title)+
           (g.bucket?' <span class="pill" style="background:var(--goals-soft);color:var(--goals)">'+
             esc(g.bucket)+'</span>':'')+'</span>' +
         '<span class="pct">'+(g.done?100:(g.percent||0))+'%</span></div>' +
@@ -1001,8 +1029,8 @@ function pageGoals(v){
         '<div class="tiny muted">'+esc(x.start)+' to '+esc(x.end)+'</div></div>' +
         '<div class="row" style="gap:14px">' +
         '<span class="small"><b>'+x.hit+'</b><span class="muted"> / '+x.total+'</span></span>' +
-        '<span style="width:34px">'+triSVG({consistency:x.consistency,focus:x.focus,goals:x.goals},
-          {size:34, r:12, labels:false})+'</span></div></div>';
+        '<span style="width:44px">'+triSVG({consistency:x.consistency,focus:x.focus,goals:x.goals},
+          {size:44, r:17, labels:false})+'</span></div></div>';
     }).join('') + '</div>' +
       '<div class="spread small" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
       '<span class="muted">Hit rate</span><span style="font-weight:700">' +
@@ -1065,7 +1093,7 @@ function pageTasks(v){
               : esc(t.due)) : '<span class="muted">no date</span>';
         return '<div class="tk" data-taskrow="'+esc(t.id)+'">' +
           '<button class="box" data-tick="'+esc(t.id)+'" aria-label="Tick '+esc(t.title)+'"></button>' +
-          '<div class="grow"><div class="t">'+esc(t.title)+'</div>' +
+          '<div class="grow"><div class="t" dir="auto">'+esc(t.title)+'</div>' +
           '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
             (t.priority==='high'?' · <span style="color:var(--bad)">HIGH</span>':'')+'</div></div></div>';
       }).join('') + '</div>';
@@ -1084,7 +1112,7 @@ function pageNotes(v){
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Waiting for Claude</h2>' +
     (NOTES.length ? NOTES.map(function(n){
-      return '<div class="item"><div class="grow"><div style="line-height:1.45">'+esc(n.text)+'</div>' +
+      return '<div class="item"><div class="grow"><div dir="auto" style="line-height:1.45">'+esc(n.text)+'</div>' +
         '<div class="s">'+esc(String(n.client_ts).replace('T',' ').slice(0,16))+
         (n.page?' · from '+esc(n.page):'')+'</div></div></div>';
     }).join('') : emptyBox('📥','Nothing waiting','Everything you have said has been filed.')) + '</div>';
@@ -1470,7 +1498,7 @@ async function refresh(){
   if(!CFG) return;
   try{
     var st = await getState();
-    if(st){ RAW = st.blob; UPDATED = String(st.updated_at).replace('T',' ').slice(0,16); }
+    if(st){ RAW = st.blob; UPDATED = localStamp(st.updated_at); }
   }catch(e){
     if(!RAW) toast('Cannot reach the database. Showing nothing rather than something wrong.');
   }
