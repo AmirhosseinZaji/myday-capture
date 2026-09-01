@@ -105,6 +105,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tri-dot{stroke:#fff; stroke-width:2.5}
 .tri-label{font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase}
 .tri-val{font-family:"Instrument Serif",Georgia,serif; font-size:19px}
+.tri-unit{font-size:8.5px; letter-spacing:.05em; text-transform:uppercase}
 .tri-score{text-align:center; margin-top:2px}
 .tri-score .n{font-family:"Instrument Serif",Georgia,serif; font-size:56px; line-height:1;
   letter-spacing:-.02em}
@@ -412,7 +413,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c43-2026-09-01-ghost';
+var BUILD = 'c44-2026-09-01-labels';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -861,9 +862,9 @@ function adviceFor(weakest, today, week, corners, unknown){
    The fill is three wedges, each a gradient between the two corners it touches,
    so the colour itself says which corner is short. */
 var CORNERS = [
-  {k:'consistency', label:'Consistency', ang:-90,  col:'var(--consistency)', hex:'#C2703D'},
-  {k:'focus',       label:'Focus',       ang:30,   col:'var(--focus)',       hex:'#3F7D6E'},
-  {k:'goals',       label:'Goals pace', ang:150,  col:'var(--goals)',       hex:'#6B5CA5'}
+  {k:'consistency', label:'Consistency', unit:'of 10h',  ang:-90, col:'var(--consistency)', hex:'#C2703D'},
+  {k:'focus',       label:'Focus',       unit:'of 10',   ang:30,  col:'var(--focus)',       hex:'#3F7D6E'},
+  {k:'goals',       label:'Goals',       unit:'of pace', ang:150, col:'var(--goals)',       hex:'#6B5CA5'}
 ];
 function ptAt(ang, r, cx, cy){
   var a = ang * Math.PI / 180;
@@ -920,10 +921,15 @@ function triSVG(tri, opts){
       text += '<text class="tri-label" x="'+p[0]+'" y="'+(+p[1]+dy)+'" text-anchor="'+anchor+
               '" fill="'+c.hex+'">'+c.label+'</text>' +
               '<text class="tri-val" x="'+p[0]+'" y="'+(+p[1]+dy+17)+'" text-anchor="'+anchor+
-              '" fill="var(--ink)">'+pct(tri[c.k])+'%</text>';
+              '" fill="var(--ink)">'+pct(tri[c.k])+'%</text>' +
+              // What the percentage is measured against, which the Goals corner
+              // in particular needs: it is progress against pace, while the tile
+              // beside it shows raw progress.
+              '<text class="tri-unit" x="'+p[0]+'" y="'+(+p[1]+dy+29)+'" text-anchor="'+anchor+
+              '" fill="var(--ink-3)">'+c.unit+'</text>';
     });
   }
-  var padTop = labels ? 34 : 8, padBot = labels ? 46 : 8;
+  var padTop = labels ? 34 : 8, padBot = labels ? 58 : 8;
   var vbY = cy - R - padTop, vbH = R * 1.5 + padTop + padBot;
   return '<svg class="tri-svg" viewBox="0 '+vbY.toFixed(1)+' '+S+' '+vbH.toFixed(1)+'" role="img" aria-label="'+
     'Triangle. Consistency '+pct(tri.consistency)+' percent, focus '+pct(tri.focus)+
@@ -1019,8 +1025,7 @@ function pageHome(v){
       ? (v.week && v.week.total ? Math.round(v.week.progress) : 0)
       : pct(tri[c.k]);
     return '<button class="corner" data-go="'+ (c.k==='consistency'?'time':c.k) +'">' +
-      '<span class="lab" style="color:'+c.hex+'">'+
-        (c.k === 'goals' ? 'Goals' : c.label)+'</span>' +
+      '<span class="lab" style="color:'+c.hex+'">'+c.label+'</span>' +
       '<span class="val">'+esc(val)+'</span>' +
       '<span class="bar"><i style="background:'+c.hex+'" data-w="'+barPct+'"></i></span>' +
       '<span class="sub">'+esc(sub)+'</span></button>';
