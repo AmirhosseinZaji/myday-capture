@@ -413,7 +413,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c44-2026-09-01-labels';
+var BUILD = 'c45-2026-09-01-stale';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -1628,14 +1628,18 @@ function render(){
   if(strip) strip.scrollLeft = strip.scrollWidth;
   askForMissingScore();
 }
+function ago(m){ return m < 90 ? m + ' minutes' : Math.round(m/60) + ' hours'; }
 function staleHTML(){
-  var m = staleMinutes();
-  if(m == null || m < 10) return '';
+  var fetched = staleMinutes(), published = publishAgeMinutes();
+  var why = null;
+  if(published != null && published > 40)
+    why = 'Your Mac last published ' + ago(published) + ' ago, so it is probably asleep.';
+  else if(fetched != null && fetched > 10)
+    why = 'This phone last reached your data ' + ago(fetched) + ' ago.';
+  if(!why) return '';
   return '<div class="card" style="border-color:color-mix(in srgb,var(--consistency) 35%,transparent);' +
     'background:var(--consistency-soft)"><div class="small" style="color:var(--consistency)">' +
-    '<b>This is not live.</b> The last update from your Mac was ' +
-    (m < 90 ? m + ' minutes' : Math.round(m/60) + ' hours') + ' ago. ' +
-    'The numbers below are from then.</div></div>';
+    '<b>This is not live.</b> ' + esc(why) + ' The numbers below are from then.</div></div>';
 }
 function syncBar(){
   var b = document.getElementById('topbar');
@@ -2008,6 +2012,15 @@ function staleMinutes(){
   /* Once a blob has loaded, every later fetch failure used to be silent, so a
      phone that had been offline all day looked exactly like a fresh one. */
   return LAST_OK ? Math.floor((Date.now() - LAST_OK) / 60000) : null;
+}
+function publishAgeMinutes(){
+  /* How old the DATA is, which is a different question from how old the fetch
+     is. If the Mac sleeps overnight while the phone stays online, every fetch
+     succeeds and the phone happily shows yesterday. The job publishes every
+     fifteen minutes, so anything much past that means the Mac is not awake. */
+  if(!UPDATED) return null;
+  var t = Date.parse(UPDATED.replace(' ', 'T'));
+  return isNaN(t) ? null : Math.floor((Date.now() - t) / 60000);
 }
 
 /* The page reloads itself when the deployed build differs from the one running,
