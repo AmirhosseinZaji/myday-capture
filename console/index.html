@@ -363,7 +363,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c33-2026-09-01-hardened';
+var BUILD = 'c34-2026-09-01-advice';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -860,8 +860,7 @@ function pageHome(v){
        'of the full triangle the three corners fill.</p></div></div>';
   h += '<div class="advice"><span class="pip" style="background:'+
        CORNERS.filter(function(c){return c.k===tri.weakest;})[0].hex+'"></span>' +
-       '<span><b>'+esc(tri.advice.slice(0, tri.advice.indexOf('. ') + 1))+'</b> ' +
-       esc(tri.advice.slice(tri.advice.indexOf('. ') + 2))+'</span></div>';
+       '<span>'+adviceHTML(tri.advice)+'</span></div>';
   h += '</div>';
 
   h += '<div class="grid3">' + CORNERS.map(function(c){
@@ -911,6 +910,14 @@ function pageHome(v){
          statLine('Goals', v.week && v.week.total ? v.week.hit + ' of ' + v.week.total + ' hit' : 'none set') +
        '</div></div></div>';
   return h;
+}
+function adviceHTML(text){
+  /* Bold the first sentence, plain the rest. indexOf returned -1 on a
+     single-sentence message and the slices then ate its first letter:
+     "No goals are set…" was rendered as "o goals are set…". */
+  var i = text.indexOf('. ');
+  if(i < 0) return '<b>'+esc(text)+'</b>';
+  return '<b>'+esc(text.slice(0, i + 1))+'</b> '+esc(text.slice(i + 2));
 }
 function statLine(k, val){
   return '<div class="spread small"><span class="muted">'+esc(k)+'</span>' +
