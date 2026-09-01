@@ -454,7 +454,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c49-2026-09-01-parity';
+var BUILD = 'c50-2026-09-01-sheet';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -1216,6 +1216,7 @@ function openSessEditor(sess){
 
 function paintSessEditor(){
   var e = EDIT, bad = sessProblem(e.start, e.running ? null : e.end, e.running);
+  var open = !!(SHEET && SHEET.classList.contains('on'));
   var mins = e.running ? minsSince(e.start) : minsBetween(e.start, e.end);
   openSheet(
     '<h3>' + (e.isNew ? 'Add a session' : 'Edit this session') + '</h3>' +
@@ -1247,6 +1248,7 @@ function paintSessEditor(){
       '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + '>' +
         (e.isNew ? 'Add it' : 'Save') + '</button>' +
     '</div>');
+  if(open && SHEET) SHEET.classList.add('on');   // no slide-in on a repaint
   setTimeout(function(){
     ['sStart','sEnd'].forEach(function(id){
       var n = document.getElementById(id);
@@ -1949,6 +1951,9 @@ function openSheet(html, opts){
     return;
   }
   closeSheet(true);
+  // Remove any sheet still sliding out. It keeps its ids for 340ms, so
+  // getElementById returns the OLD button and every repaint reads stale state.
+  document.querySelectorAll('.sheet').forEach(function(n){ n.remove(); });
   SHEET = el('<div class="sheet"><div class="grab"></div>' + html + '</div>');
   SHEET.dataset.mandatory = opts.mandatory ? '1' : '';
   document.body.appendChild(SHEET);
