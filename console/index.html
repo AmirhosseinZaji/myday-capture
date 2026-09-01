@@ -411,7 +411,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c40-2026-09-01-fixes3';
+var BUILD = 'c41-2026-09-01-unrated';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -802,7 +802,7 @@ function triScores(today, week, onDate){
   // Unknown is not zero. Ten hours of work must never read as a nought-per-cent
   // day just because the sessions have not been rated yet.
   var unknown = [];
-  if(today.focus == null && worked > 0) unknown.push('focus');
+  if(today.focus == null) unknown.push('focus');
   if(!hasGoals) unknown.push('goals');
 
   var corners = {consistency:consistency, focus:focus, goals:goals};
