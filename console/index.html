@@ -176,6 +176,8 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .fscore.live{background:var(--focus-soft); border:1px solid var(--focus); color:var(--focus);
   font-family:Inter,sans-serif; font-size:10px; font-weight:700}
 .dur{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-2); white-space:nowrap}
+.editbtn{width:30px; height:30px; flex:0 0 auto; border-radius:9px; border:1px solid var(--line);
+  color:var(--ink-3); font-size:13px; display:grid; place-items:center; margin-left:2px}
 
 /* ── buttons ────────────────────────────────────────────────────────────── */
 .btn{
@@ -264,6 +266,13 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .sheet h3{font-size:19px; margin-bottom:6px}
 
 /* ── the 1 to 10 focus picker ───────────────────────────────────────────── */
+.seg{display:grid; grid-template-columns:1fr 1fr; gap:4px; background:var(--surface-2);
+  border:1px solid var(--line); border-radius:12px; padding:4px}
+.seg button{padding:9px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
+.seg button.on{background:var(--surface); color:var(--ink); box-shadow:var(--shadow)}
+.sheet label{display:flex; flex-direction:column; gap:5px; min-width:0}
+.sheet input[type=time]{padding:11px 12px; border:1px solid var(--line); border-radius:11px;
+  background:var(--surface); font-variant-numeric:tabular-nums; width:100%}
 .scale{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:18px 0 4px}
 .scale button{
   aspect-ratio:1; border-radius:13px; border:1px solid var(--line); background:var(--surface);
@@ -337,6 +346,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   display:grid;place-items:center;background:var(--surface);transition:.18s;margin-top:1px}
 .tk .box.on{background:var(--ink);border-color:var(--ink);color:#fff;font-size:12px}
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
+.chips-wrap + .chips-wrap{margin-top:-6px}
 
 /* ── misc ───────────────────────────────────────────────────────────────── */
 .empty{text-align:center; padding:44px 20px; color:var(--ink-3)}
@@ -444,7 +454,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c48-2026-09-01-chart';
+var BUILD = 'c49-2026-09-01-parity';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -673,6 +683,13 @@ function prunePend(st){
       return !sessions.some(function(x){ return x.start === p.start && !x.open; });
     if(e.kind === 'session_focus')
       return !sessions.some(function(x){ return x.start === p.start && x.focus != null; });
+    if(e.kind === 'session_add')
+      return !sessions.some(function(x){ return x.start === p.start && x.area === p.area; });
+    if(e.kind === 'session_edit')
+      return !sessions.some(function(x){
+        return x.start === (p.now||{}).start && x.area === (p.now||{}).area; });
+    if(e.kind === 'session_delete')
+      return sessions.some(function(x){ return x.start === p.start && x.area === p.area; });
     if(e.kind === 'goals_set'){
       // Matched on the titles themselves. Comparing counts deleted the overlay
       // the moment three goals were replaced by three different ones.
@@ -721,11 +738,40 @@ function derive(){
           break;
         }
       }
+    } else if(e.kind === 'session_add'){
+      if(!t.sessions.some(function(x){ return x.start === p.start && x.area === p.area; })){
+        t.sessions.push({start:p.start, end:p.end || null, minutes:p.end ? minsBetween(p.start, p.end) : null,
+          focus:null, area:p.area, area_label:(v.areas||{})[p.area]||p.area,
+          bucket:({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[p.area]||null,
+          task:(v.areas||{})[p.area]||p.area, notes:'', open:!p.end, pending:true});
+      }
+    } else if(e.kind === 'session_edit'){
+      var w = p.was || {}, n2 = p.now || {};
+      t.sessions.forEach(function(x){
+        if(x.start === w.start && x.area === w.area){
+          x.start = n2.start || x.start;
+          x.end = n2.end || null;
+          x.open = !n2.end;
+          x.minutes = n2.end ? minsBetween(x.start, n2.end) : null;
+          if(n2.area){ x.area = n2.area; x.area_label = (v.areas||{})[n2.area]||n2.area;
+            x.bucket = ({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[n2.area]||null;
+            x.task = (v.areas||{})[n2.area]||n2.area; }
+          x.pending = true;
+        }
+      });
+    } else if(e.kind === 'session_delete'){
+      t.sessions = t.sessions.filter(function(x){
+        return !(x.start === p.start && x.area === p.area);
+      });
     } else if(e.kind === 'session_focus'){
       var m = t.sessions.filter(function(s){ return s.start === p.start; })[0];
       if(m){ m.focus = p.focus; m.pending = true; }
     } else if(e.kind === 'task_tick'){
-      v.tasks = v.tasks.filter(function(x){ return x.id !== p.id; });
+      // The task STAYS in the list, marked, so it can be un-ticked. Removing it
+      // outright left no way to undo a mis-tap, and CLAUDE.md's undo rule then
+      // had nothing to act on.
+      var hit = v.tasks.filter(function(x){ return x.id === p.id; })[0];
+      if(hit) hit.pending_tick = true;
     } else if(e.kind === 'goals_set'){
       v.week = v.week || {key:'', start:'', end:'', goals:[], progress:0, hit:0, total:0};
       // Carry the bucket and the progress of a goal whose wording did not
@@ -1131,6 +1177,87 @@ function stripHTML(v){
       '<div class="dl">'+esc(d.weekday[0])+'</div></button>';
   }).join('') + '</div></div>';
 }
+/* ═════════════════════════════════════ the session editor ═══════════════ */
+/* Correcting a session, adding one done away from the phone, and deleting one.
+   The old console had all three and the rebuild dropped them, which left a
+   forgotten stop or a mis-tapped area with no way back except a voice note. */
+var EDIT = null;
+
+function minusMinutes(hhmm, n){
+  var p = hhmm.split(':'), m = (+p[0]) * 60 + (+p[1]) - n;
+  if(m < 0) m += 24 * 60;
+  return pad(Math.floor(m / 60)) + ':' + pad(m % 60);
+}
+function toMin(hhmm){ var p = (hhmm||'0:0').split(':'); return (+p[0]) * 60 + (+p[1]); }
+
+function sessProblem(st, en, running){
+  if(!st) return 'It needs a start time.';
+  if(running){
+    // A start in the future is a mis-spun wheel, not a 23-hour session.
+    var now = new Date().getHours() * 60 + new Date().getMinutes();
+    if(toMin(st) > now && (now + 1440 - toMin(st)) > 12 * 60) return 'That start is in the future.';
+    return '';
+  }
+  if(!en) return 'It needs an end time.';
+  // A real session can cross midnight, so the test is length, not order.
+  // 09:00 to 08:00 is 23 hours, and 23 hours would wreck the day's totals.
+  if(toMin(en) < toMin(st) && minsBetween(st, en) > 12 * 60) return 'It ends before it starts.';
+  if(minsBetween(st, en) > 14 * 60) return 'That is longer than fourteen hours.';
+  return '';
+}
+
+function openSessEditor(sess){
+  EDIT = sess
+    ? {was:{start:sess.start, end:sess.open ? null : sess.end, area:sess.area},
+       start:sess.start, end:sess.end || hhmm(), area:sess.area, running:!!sess.open, isNew:false}
+    : {was:null, start:minusMinutes(hhmm(), 60), end:hhmm(), area:'ai', running:false, isNew:true};
+  paintSessEditor();
+}
+
+function paintSessEditor(){
+  var e = EDIT, bad = sessProblem(e.start, e.running ? null : e.end, e.running);
+  var mins = e.running ? minsSince(e.start) : minsBetween(e.start, e.end);
+  openSheet(
+    '<h3>' + (e.isNew ? 'Add a session' : 'Edit this session') + '</h3>' +
+    '<p class="small muted">' + (e.isNew
+      ? 'Work you did away from the phone. Claude files it like any other session.'
+      : 'Correcting this sends the change to Claude, who fixes the day file.') + '</p>' +
+    '<div class="seg" style="margin-top:16px">' +
+      '<button data-sstate="running"' + (e.running ? ' class="on"' : '') + '>Still running</button>' +
+      '<button data-sstate="done"' + (e.running ? '' : ' class="on"') + '>Finished</button>' +
+    '</div>' +
+    '<div class="row" style="gap:12px;margin-top:14px">' +
+      '<label class="grow"><span class="tiny muted">Start</span>' +
+        '<input type="time" id="sStart" value="' + esc(e.start) + '"></label>' +
+      '<label class="grow" style="' + (e.running ? 'visibility:hidden' : '') + '">' +
+        '<span class="tiny muted">End</span>' +
+        '<input type="time" id="sEnd" value="' + esc(e.end || hhmm()) + '"></label>' +
+    '</div>' +
+    '<div class="tiny" style="margin-top:8px;color:' + (bad ? 'var(--bad)' : 'var(--ink-3)') + '">' +
+      esc(bad || (hm(mins) + (mins === 0 ? ' · that is zero minutes' : '') +
+        (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : ''))) + '</div>' +
+    '<div class="tiny muted" style="margin:16px 0 8px">Area</div>' +
+    '<div class="grid2">' + AREAS.map(function(a){
+      return '<button class="btn' + (a[0] === e.area ? ' primary' : '') + '" data-sarea="' + a[0] +
+        '" style="justify-content:flex-start"><span style="width:9px;height:9px;border-radius:50%;' +
+        'background:' + areaColour(a[0]) + '"></span>' + esc(a[1]) + '</button>';
+    }).join('') + '</div>' +
+    '<div class="row" style="gap:10px;margin-top:18px">' +
+      (e.isNew ? '' : '<button class="btn" id="sessDelete" style="color:var(--bad)">Delete</button>') +
+      '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + '>' +
+        (e.isNew ? 'Add it' : 'Save') + '</button>' +
+    '</div>');
+  setTimeout(function(){
+    ['sStart','sEnd'].forEach(function(id){
+      var n = document.getElementById(id);
+      if(n) n.addEventListener('change', function(){
+        EDIT[id === 'sStart' ? 'start' : 'end'] = n.value;
+        paintSessEditor();
+      });
+    });
+  }, 30);
+}
+
 function shortfallLine(t){
   // The app knows the gap, so it names it instead of saying "get more hours in".
   var w = t.work_minutes != null ? t.work_minutes : (t.closed_minutes || 0);
@@ -1192,9 +1319,11 @@ function pageTime(v){
        timelineHTML(t) + '</div>';
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
-       (t.sessions.length ? t.sessions.map(sessionRow).join('')
+       (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
         : emptyBox('⏱', 'No sessions yet today',
-            'Press Start a session when you begin.')) + '</div>';
+            'Press Start a session when you begin.')) +
+       '<button class="btn wide" id="addSess" style="margin:14px 16px 16px;width:calc(100% - 32px)">' +
+       '＋ Add a session I forgot</button></div>';
   return h;
 }
 function splitBar(label, got, target, colour){
@@ -1211,7 +1340,7 @@ function rateRow(u){
     '<div class="tiny muted">'+esc(u.area_label||u.area)+' · '+hm(u.minutes)+'</div></div>' +
     '<button class="btn" data-rate="'+esc(u.start)+'" style="padding:9px 16px">Rate it</button></div>';
 }
-function sessionRow(s, day){
+function sessionRow(s, day, edit){
   var f = s.focus;
   var dayAttr = day ? 'data-rateday="'+esc(day)+'" ' : '';
   var badge = s.open
@@ -1228,7 +1357,9 @@ function sessionRow(s, day){
       // The area is only repeated when the task line is something else.
       (s.task && s.task !== (s.area_label||s.area) ? ' · '+esc(s.area_label||s.area) : '') +
       (s.pending?' · saving':'')+'</div></div>' +
-    '<div class="dur">'+(s.open ? 'running' : hm(s.minutes))+'</div></div>';
+    '<div class="dur">'+(s.open ? 'running' : hm(s.minutes))+'</div>' +
+    (edit ? '<button class="editbtn" data-editsess="'+esc(s.start)+'" ' +
+            'aria-label="Edit this session">✎</button>' : '') + '</div>';
 }
 function timelineHTML(t){
   var blocks = [];
@@ -1508,53 +1639,98 @@ function hitRate(weeks){
 
 /* ═══════════════════════════════════════════════════════════════ tasks ═══ */
 var TASK_FILTER = 'all';
+var AREA_FILTER = 'all';
 function pageTasks(v){
   var all = v.tasks || [];
-  var counts = {
-    all: all.length,
-    overdue: all.filter(function(t){ return t.when === 'overdue'; }).length,
-    today: all.filter(function(t){ return t.when === 'today'; }).length,
-    none: all.filter(function(t){ return t.when === 'none'; }).length,
-    later: all.filter(function(t){ return t.when === 'future'; }).length
-  };
-  var chips = [['all','All'],['overdue','Overdue'],['today','Today'],['none','No date'],['later','Later']];
-  var h = '<div class="chips-wrap"><div class="chips">' + chips.map(function(c){
+  var ticked = {};
+  PEND.forEach(function(e){ if(e.kind === 'task_tick') ticked[(e.payload||{}).id] = 1; });
+
+  function matchDue(f, t){
+    return f === 'all' ? true
+         : f === 'later' ? t.when === 'future'
+         : f === 'none' ? !t.due
+         : t.when === f;
+  }
+  function matchArea(f, t){ return f === 'all' || t.area === f; }
+
+  var dues = [['all','All'],['overdue','Overdue'],['today','Today'],['none','No date'],['later','Later']];
+  // Every area Amir actually has open work in, so the row does not carry five
+  // chips reading zero. `overhead` is never a task area.
+  var areas = [['all','All areas']].concat(
+    Object.keys(v.areas || {})
+      .filter(function(k){ return k !== 'overhead' && all.some(function(t){ return t.area === k; }); })
+      .map(function(k){ return [k, v.areas[k]]; })
+  );
+
+  // Each chip counts what you would see if you tapped it, so the two rows agree
+  // with each other rather than each counting the whole list.
+  var h = '<div class="chips-wrap"><div class="chips" aria-label="Due date">' + dues.map(function(c){
+    var n = all.filter(function(t){ return matchDue(c[0], t) && matchArea(AREA_FILTER, t); }).length;
     return '<button class="chip'+(TASK_FILTER===c[0]?' on':'')+'" data-filter="'+c[0]+'">' +
-      esc(c[1]) + ' <span style="opacity:.6">'+counts[c[0]]+'</span></button>';
+      esc(c[1]) + ' <span style="opacity:.6">'+n+'</span></button>';
   }).join('') + '</div></div>';
 
-  var list = all.filter(function(t){
-    return TASK_FILTER === 'all' ? true
-         : TASK_FILTER === 'later' ? t.when === 'future'
-         : t.when === TASK_FILTER;
-  });
-  if(!list.length) return h + '<div class="card">' + (TASK_FILTER === 'all'
-    ? emptyBox('🎙','No tasks yet',
-        'Hold the microphone and say a task and where it belongs.')
-    : emptyBox('🔍','Nothing in this filter','Try another one.')) + '</div>';
+  h += '<div class="chips-wrap"><div class="chips" aria-label="Area">' + areas.map(function(c){
+    var n = all.filter(function(t){ return matchDue(TASK_FILTER, t) && matchArea(c[0], t); }).length;
+    return '<button class="chip'+(AREA_FILTER===c[0]?' on':'')+'" data-areafilter="'+c[0]+'">' +
+      esc(c[1]) + ' <span style="opacity:.6">'+n+'</span></button>';
+  }).join('') + '</div></div>';
 
-  // One card per list, exactly as the task tables in chat are grouped.
+  var list = all.filter(function(t){ return matchDue(TASK_FILTER, t) && matchArea(AREA_FILTER, t); });
+  if(!list.length) return h + '<div class="card">' +
+    (TASK_FILTER === 'all' && AREA_FILTER === 'all'
+      ? emptyBox('🎙','No tasks yet','Hold the bar below and say a task and where it belongs.')
+      : emptyBox('🔍','Nothing in this filter','Try another one.')) + '</div>';
+
   var groups = {};
   list.forEach(function(t){
     var k = t.area_label + ' — ' + t.section;
     (groups[k] = groups[k] || []).push(t);
   });
-  Object.keys(groups).forEach(function(k){
-    h += '<div class="card flush"><h2 style="padding:16px 16px 4px;margin:0">'+esc(k)+'</h2>' +
-      groups[k].map(function(t){
-        var due = t.due ? (t.when === 'overdue'
+  // The most overdue list first. Alphabetical order buried the thing that was
+  // three weeks late under a list that was not late at all.
+  var order = Object.keys(groups).sort(function(a, b){
+    var worst = function(k){
+      return Math.max.apply(null, groups[k].map(function(t){ return t.overdue_days || 0; }));
+    };
+    return worst(b) - worst(a) || (a < b ? -1 : 1);
+  });
+
+  order.forEach(function(k){
+    var rows = groups[k].slice().sort(function(a, b){
+      if(!a.due && !b.due) return 0;
+      if(!a.due) return 1;
+      if(!b.due) return -1;
+      return a.due < b.due ? -1 : 1;
+    });
+    var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
+    h += '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
+      '<h2 style="margin:0">'+esc(k)+'</h2>' +
+      '<span class="tiny muted">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
+      rows.map(function(t){
+        var on = !!ticked[t.id];
+        var due = t.due
+          ? (t.when === 'overdue'
               ? '<span style="color:var(--bad);font-weight:600">'+t.overdue_days+
                 ' day'+(t.overdue_days===1?'':'s')+' overdue</span>'
-              : t.when === 'today' ? '<span style="color:var(--consistency);font-weight:600">today</span>'
-              : '<span class="muted">due '+esc(t.due)+'</span>')
-              : '<span class="muted">no date</span>';
-        return '<div class="tk" data-taskrow="'+esc(t.id)+'">' +
-          '<button class="box" data-tick="'+esc(t.id)+'" aria-label="Tick '+esc(t.title)+'"></button>' +
+              : t.when === 'today'
+                ? '<span style="color:var(--consistency);font-weight:600">due today</span>'
+                : '<span class="muted">due '+esc(t.due)+'</span>')
+          : '<span class="muted">no date</span>';
+        return '<div class="tk'+(on?' ticked':'')+'">' +
+          '<button class="box'+(on?' on':'')+'" data-tick="'+esc(t.id)+'" ' +
+          'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
+          (on?'✓':'')+'</button>' +
           '<div class="grow"><div class="t" dir="auto">'+esc(t.title)+'</div>' +
           '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
-            (t.priority==='high'?' · <span style="color:var(--bad)">HIGH</span>':'')+'</div></div></div>';
+            (t.priority==='high'?' · <span style="color:var(--bad)">HIGH</span>':'')+
+            (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
+          '</div></div></div>';
       }).join('') + '</div>';
   });
+
+  h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking sends it to Claude, who ' +
+       'files it properly at your Mac. Tap it again to undo before that happens.</p>';
   return h;
 }
 
@@ -1569,14 +1745,20 @@ function pageNotes(v){
   var h = '<div class="card"><h2>How this works</h2>' +
     '<p class="small dim prose">Hold the microphone on any page and talk. What you say is written down ' +
     'and tagged with the page you were on, so a note recorded on Goals is read as a goal and one ' +
-    'recorded on Tasks is read as a task. A note leaves this list once Claude has filed it.' +
+    'recorded on Tasks is read as a task. A note leaves this list once Claude has filed it. ' +
+    'Until then you can fix a word the transcriber got wrong, or throw the note away.' +
     '</p></div>';
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Waiting for Claude</h2>' +
     (NOTES.length ? NOTES.map(function(n){
-      return '<div class="item"><div class="grow"><div dir="auto" style="line-height:1.45">'+esc(n.text)+'</div>' +
-        '<div class="s">'+esc(String(n.client_ts).replace('T',' ').slice(0,16))+
-        (n.page?' · from '+esc(n.page):'')+'</div></div></div>';
+      return '<div class="item"><div class="grow">' +
+        '<div dir="auto" style="line-height:1.45">'+esc(n.text)+'</div>' +
+        '<div class="s">'+esc(localStamp(n.client_ts))+
+        (n.page?' · from '+esc(n.page):'')+'</div></div>' +
+        '<button class="editbtn" data-noteact="edit" data-id="'+esc(n.id)+'" ' +
+        'aria-label="Edit this note">✎</button>' +
+        '<button class="editbtn" data-noteact="delete" data-id="'+esc(n.id)+'" ' +
+        'aria-label="Delete this note">✕</button></div>';
     }).join('') : emptyBox('◍','Nothing waiting',
         'Hold the bar below and talk. What you say appears here until Claude files it.')) +
     '</div>';
@@ -1590,6 +1772,10 @@ function pageNotes(v){
       'They will be sent as soon as you are back online.</p></div>';
   }
   return h;
+}
+async function patchNote(id, fields){
+  return api('/rest/v1/entries?id=eq.' + encodeURIComponent(id),
+    {method:'PATCH', headers:{Prefer:'return=minimal'}, body:fields});
 }
 async function refreshNotes(){
   try{
@@ -1809,13 +1995,15 @@ function askFocus(sessionStart, mins, mandatory, forDay){
 /* ── all taps, in one place ─────────────────────────────────────────────── */
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
-    '[data-filter],[data-goaltick],[data-day],[data-hist],#startBtn,#stopBtn,#saveGoals,' +
-    '#editGoals,#reloadBtn');
+    '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
+    '[data-noteact],#startBtn,#stopBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
+    '#sessSave,#sessDelete,[data-sarea],[data-sstate]');
   if(!t) return;
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go){ TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
   if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; render(); return; }
+  if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; render(); return; }
 
   if(t.id === 'startBtn'){ askArea(); return; }
   if(t.dataset.area){
@@ -1857,6 +2045,89 @@ document.addEventListener('click', async function(ev){
     }, 190);
     return;
   }
+  if(t.dataset.noteact){
+    var id = t.dataset.id;
+    var note = (NOTES||[]).filter(function(x){ return String(x.id) === String(id); })[0];
+    if(t.dataset.noteact === 'delete'){
+      if(!t.dataset.armed){
+        t.dataset.armed = '1'; t.textContent = '✓?';
+        setTimeout(function(){ if(t){ t.dataset.armed = ''; t.textContent = '✕'; } }, 4000);
+        return;
+      }
+      try{
+        // Marked discarded, never deleted: the text stays in the table, it just
+        // stops being pulled. Same discipline as clearing a filed note.
+        await patchNote(id, {status:'discarded'});
+        NOTES = NOTES.filter(function(x){ return String(x.id) !== String(id); });
+        render(); toast('Deleted.');
+      }catch(e){ toast('Could not delete that. Check your connection.'); }
+      return;
+    }
+    openSheet('<h3>Edit this note</h3>' +
+      '<p class="small muted">Fixing a word the transcriber got wrong, before Claude files it.</p>' +
+      '<textarea id="noteText" rows="4" style="width:100%;margin-top:14px;padding:13px;' +
+      'border:1px solid var(--line);border-radius:11px;background:var(--surface);resize:vertical">' +
+      esc(note ? note.text : '') + '</textarea>' +
+      '<button class="btn wide primary" id="noteSave" data-id="'+esc(id)+'" ' +
+      'style="margin-top:12px">Save</button>');
+    setTimeout(function(){
+      var b = document.getElementById('noteSave');
+      if(!b) return;
+      b.onclick = async function(){
+        var v2 = (document.getElementById('noteText')||{}).value || '';
+        if(!v2.trim()) return;
+        try{
+          await patchNote(id, {text:v2.trim()});
+          await refreshNotes(); closeSheet(true); render(); toast('Saved.');
+        }catch(e){ toast('Could not save that. Check your connection.'); }
+      };
+    }, 40);
+    return;
+  }
+  if(t.dataset.sstate){
+    EDIT.running = t.dataset.sstate === 'running';
+    paintSessEditor();
+    return;
+  }
+  if(t.dataset.sarea){
+    EDIT.area = t.dataset.sarea;
+    paintSessEditor();
+    return;
+  }
+  if(t.id === 'addSess'){ openSessEditor(null); return; }
+  if(t.dataset.editsess){
+    var pool = VIEW.today.sessions || [];
+    var row = pool.filter(function(x){ return x.start === t.dataset.editsess; })[0];
+    if(row) openSessEditor(row);
+    return;
+  }
+  if(t.id === 'sessSave'){
+    var e = EDIT, en = e.running ? null : e.end;
+    if(sessProblem(e.start, en, e.running)) return;
+    closeSheet(true);
+    if(e.isNew) await record('session_add', {start:e.start, end:en, area:e.area, day:VIEW.today.date});
+    else await record('session_edit', {was:e.was, now:{start:e.start, end:en, area:e.area},
+                                       day:VIEW.today.date});
+    toast(e.isNew ? 'Session added.' : 'Correction sent.');
+    render();
+    return;
+  }
+  if(t.id === 'sessDelete'){
+    if(!t.dataset.armed){
+      // One tap arms it, the next deletes. A single tap next to Save is too
+      // easy to hit by accident on a phone.
+      t.dataset.armed = '1';
+      t.textContent = 'Really delete?';
+      setTimeout(function(){ if(t){ t.dataset.armed = ''; t.textContent = 'Delete'; } }, 4000);
+      return;
+    }
+    var w = EDIT.was || {};
+    closeSheet(true);
+    await record('session_delete', {start:w.start, end:w.end, area:w.area, day:VIEW.today.date});
+    toast('Session deleted.');
+    render();
+    return;
+  }
   if(t.dataset.rate){
     // A rate button on a past day carries that day, so the Mac files the score
     // into the right file instead of onto whatever happens to be unrated today.
@@ -1868,11 +2139,26 @@ document.addEventListener('click', async function(ev){
     return;
   }
   if(t.dataset.tick){
-    var task = (VIEW.tasks||[]).filter(function(x){ return x.id === t.dataset.tick; })[0];
-    t.classList.add('on'); t.textContent = '✓';
-    var row = t.closest('.tk'); if(row) row.classList.add('ticked');
+    var id = t.dataset.tick;
+    if(t.dataset.ticked){
+      // Undo, before Claude has filed it. The pending tick is dropped outright
+      // rather than cancelled by a second event, because two events for one
+      // mistake is how a repeating task gets its date rolled forward twice.
+      var wasSent = false;
+      PEND = PEND.filter(function(e){
+        if(e.kind === 'task_tick' && (e.payload||{}).id === id){ wasSent = wasSent || e.sent; return false; }
+        return true;
+      });
+      savePend();
+      if(wasSent) await record('task_untick', {id:id});
+      render();
+      toast('Undone.');
+      return;
+    }
+    var task = (VIEW.tasks||[]).filter(function(x){ return x.id === id; })[0];
     await record('task_tick', task ? {id:task.id, title:task.title, area:task.area,
-                                      section:task.section} : {id:t.dataset.tick});
+                                      section:task.section} : {id:id});
+    render();
     toast('Ticked. Claude will file it the next time you are at your Mac.');
     return;
   }
