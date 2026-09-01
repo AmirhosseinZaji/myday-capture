@@ -413,7 +413,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c45-2026-09-01-stale';
+var BUILD = 'c46-2026-09-01-weeks';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -1386,7 +1386,7 @@ function pageGoals(v){
     var elapsed = weekElapsed(w, v.today.date);
     h += '<div class="card"><div class="spread" style="align-items:flex-end;margin-bottom:14px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+w.progress+'<span style="font-size:22px">%</span></div>' +
-      '<div class="small muted">'+esc(w.key)+' · day '+elapsed+' of 7</div></div>' +
+      '<div class="small muted">Week of '+esc(prettyDate(w.start))+' · day '+elapsed+' of 7</div></div>' +
       '<div style="text-align:right"><div style="font-weight:700;font-size:19px">'+w.hit+' / '+w.total+'</div>' +
       '<div class="tiny muted">done</div></div></div>' +
       '<div class="bar" style="height:8px;position:relative;overflow:visible">' +
@@ -1422,7 +1422,7 @@ function pageGoals(v){
   h += '<div class="card"><h2>Every week so far</h2>' +
     (past.length ? '<div class="stack" style="gap:0;divide:0">' + past.map(function(x){
       return '<div class="spread" style="padding:11px 0">' +
-        '<div><div style="font-weight:600">'+esc(x.key)+'</div>' +
+        '<div><div style="font-weight:600">Week of '+esc(prettyDate(x.start))+'</div>' +
         '<div class="tiny muted">'+esc(x.start)+' to '+esc(x.end)+'</div></div>' +
         '<div class="row" style="gap:14px">' +
         '<span class="small"><b>'+x.hit+'</b><span class="muted"> / '+x.total+'</span></span>' +
@@ -1430,7 +1430,7 @@ function pageGoals(v){
           {size:44, r:17, labels:false})+'</span></div></div>';
     }).join('') + '</div>' +
       '<div class="spread small" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
-      '<span class="muted">Hit rate</span><span style="font-weight:700">' +
+      '<span class="muted">Finish rate</span><span style="font-weight:700">' +
       hitRate(past) + '</span></div>'
      : emptyBox('🏁','No finished weeks yet','This fills in every Sunday.')) + '</div>';
   return h;
@@ -1439,6 +1439,12 @@ function goalInput(i){
   return '<input class="setup-in" data-draft="'+i+'" placeholder="Goal '+(i+1)+
     (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);' +
     'border-radius:11px;background:var(--surface)">';
+}
+function prettyDate(iso){
+  var d = new Date(iso + 'T00:00:00');
+  if(isNaN(d)) return iso;
+  return d.getDate() + ' ' + ['January','February','March','April','May','June','July',
+    'August','September','October','November','December'][d.getMonth()];
 }
 function weekElapsed(w, onDate){
   var monday = new Date(w.start + 'T00:00:00'), d = new Date(onDate + 'T00:00:00');
@@ -1559,7 +1565,7 @@ var MIC_HINT = {
   home:'Say anything. It lands on the Notes page.',
   time:'Say your working blocks, or a session you forgot.',
   focus:'Say how focused you were and when.',
-  goals:'Say this week’s goals out loud.',
+  goals:'Say this week’s goals.',
   tasks:'Say a task and where it belongs.',
   notes:'Say anything at all.'
 };
