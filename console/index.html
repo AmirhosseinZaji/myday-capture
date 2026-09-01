@@ -2,2201 +2,1506 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1">
 <title>myday</title>
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<!--
-  NOT black-translucent. On a Home Screen app iOS draws a black-translucent page
-  from the top of the screen but sizes the web view as though the status bar still
-  occupied its space, so the page ends about one status-bar height above the bottom
-  of the screen. On a 440x956 iPhone that is 62pt of screen the page cannot paint,
-  which is why the tab bar sat visibly high no matter what padding it had: the bar
-  was flush with the bottom of the page, and the page was not flush with the screen.
--->
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="myday">
+<meta name="theme-color" content="#FBFAF9">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-
-<!--
-  myday console: the visual half of a_myday.
-
-  THE MODEL, in one paragraph. The Mac is the source of truth: Claude publishes a
-  state blob (tasks, today's sessions, focus balance) and this page renders it.
-  The page never edits tasks/ or days/. Everything Amir taps here is an EVENT
-  ("started ucw", "stopped", "ticked X") that queues up and is reconciled by
-  Claude at the Mac. So the screen always shows two layers: what Claude has
-  filed, and what Amir has done since that hasn't been filed yet. Every pending
-  thing is labelled as pending. That distinction is the whole design.
-
-  Renders from localStorage first and refreshes in the background, so opening the
-  app is instant on bad signal and works with none. Events and voice notes are
-  saved to localStorage BEFORE any network call and removed only once the server
-  confirms: the save-before-send ordering the capture app learned the hard way on
-  2026-08-11.
--->
-
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
 <style>
-  :root {
-    --bg:#f2f2f7; --surface:#fff; --fg:#000; --dim:#8a8a8e; --faint:#c7c7cc;
-    --line:rgba(60,60,67,.10); --sunk:#ececf1;
-    --go:#34c759; --stop:#ff3b30; --warn:#ff9500; --accent:#007aff;
-    --acad:#5e5ce6; --dog:#ff9500; --ai:#32ade6;
-    --shadow:0 1px 2px rgba(0,0,0,.04), 0 6px 20px rgba(0,0,0,.05);
-    --ring-track:rgba(120,120,128,.14);
-    --seg-on:#fff;          /* the selected segment, which must read as raised */
-  }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg:#000; --surface:#1c1c1e; --fg:#fff; --dim:#98989d; --faint:#6c6c70;
-      --line:rgba(84,84,88,.5); --sunk:#2c2c2e;
-      /* #48484a on #1c1c1e is about 1.8:1. Unticked task boxes and the dash on
-         an unused timer were both drawn in it and were close to invisible. */
-      --go:#30d158; --stop:#ff453a; --warn:#ff9f0a; --accent:#0a84ff;
-      --acad:#7d7aff; --dog:#ff9f0a; --ai:#64d2ff;
-      --shadow:none; --ring-track:rgba(120,120,128,.22);
-      /* In dark, --surface is DARKER than the --sunk track, so reusing it made
-         the selected segment look like a hole punched in the control. */
-      --seg-on:#48484a;
-    }
-  }
+/* ─────────────────────────────────────────────────────────────────────────
+   myday — light and calm.
 
-  * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
-  html { -webkit-text-size-adjust:100%; text-size-adjust:100%; }
-  html,body { margin:0; padding:0; }
-  /* The app owns the whole visible viewport and only <main> scrolls. The tab bar
-     used to be position:fixed, which on iOS is measured against Safari's toolbar
-     state: on Tasks the page was long enough to scroll, the toolbar minimised and
-     the bar landed correctly, but on Time and Talk the page never scrolled, the
-     full-height toolbar stayed put and the bar sat visibly too high. A flex column
-     of 100dvh puts the bar at the bottom of what is actually on screen, the same
-     on all three tabs, and stops the layout jumping while scrolling. */
-  html { height:100%; }
-  body {
-    /* position:fixed with inset:0 pins the app to the initial containing block,
-       which with viewport-fit=cover is the whole screen. 100dvh was leaving a
-       strip of dead page below the tab bar on the Home Screen app, which is why
-       the bar kept looking like it was floating too high no matter how much
-       padding came off it. inset:0 cannot come up short the way dvh can. */
-    position:fixed; inset:0;
-    display:flex; flex-direction:column; overflow:hidden;
-    background:var(--bg); color:var(--fg);
-    font:17px/1.45 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-    -webkit-user-select:none; user-select:none; overscroll-behavior-y:none;
-  }
-  button { font-family:inherit; touch-action:manipulation; }
+   The whole site is built around one idea: consistency, focus and goals only
+   work together. Those three are the triangle, they own the three accent
+   colours below, and every screen uses the same colour for the same corner so
+   the meaning never has to be re-learned.
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  /* paper and ink */
+  --bg:#FBFAF9; --surface:#FFFFFF; --surface-2:#F6F4F1;
+  --line:#EAE6E1; --line-soft:#F2EFEB;
+  --ink:#1C1917; --ink-2:#57534E; --ink-3:#8C8681;
 
-  header {
-    flex:none; position:relative; z-index:20;
-    padding:calc(env(safe-area-inset-top) + 6px) 20px 10px;
-    background:color-mix(in srgb, var(--bg) 82%, transparent);
-    -webkit-backdrop-filter:saturate(180%) blur(20px);
-    backdrop-filter:saturate(180%) blur(20px);
-    border-bottom:.5px solid var(--line);
-  }
-  .htop { display:flex; align-items:center; gap:10px; }
-  header h1 { font-size:23px; font-weight:700; margin:0; letter-spacing:-.03em; }
-  header .date { color:var(--dim); font-size:14px; font-weight:500; margin-left:auto; }
-  .qmark {
-    width:34px; height:34px; border-radius:50%; border:0; background:var(--sunk);
-    color:var(--dim); font-size:15px; font-weight:700; flex:none; line-height:1;
-  }
-  .status { display:flex; align-items:center; gap:5px; font-size:11.5px; color:var(--dim); margin-top:3px; }
-  .status .led { width:6px; height:6px; border-radius:50%; background:var(--go); flex:none; }
-  .status.bad .led { background:var(--stop); }
-  .status.warn .led { background:var(--warn); }
+  /* the three corners. same colour, same meaning, everywhere. */
+  --consistency:#C2703D; --consistency-soft:#FBF0E8;
+  --focus:#3F7D6E;       --focus-soft:#EAF3F0;
+  --goals:#6B5CA5;       --goals-soft:#F0EDF7;
 
-  main {
-    flex:1 1 auto; min-height:0; overflow-y:auto; -webkit-overflow-scrolling:touch;
-    overscroll-behavior:contain; padding:4px 20px 24px; max-width:640px; width:100%; margin:0 auto;
-  }
-  section { display:none; animation:fade .22s ease both; }
-  section.on { display:block; }
-  @keyframes fade { from { opacity:0; transform:translateY(6px);} to { opacity:1; transform:none; } }
+  --good:#3F7D6E; --warn:#C2703D; --bad:#B0413E;
 
-  nav {
-    flex:none; position:relative; z-index:30; display:flex; align-items:stretch;
-    background:var(--bg);
-    border-top:.5px solid var(--line);
-    /* No safe-area reservation at all. Amir wants the row on the bottom edge, and
-       env() here is what kept lifting it. Keeping env() out also means this file
-       renders identically on a desktop browser and on the phone, so the layout can
-       actually be checked before it ships. */
-    padding-bottom:8px;
-  }
-  /* Never smaller than 56px: an earlier build let these collapse on iOS until
-     they could not be hit. */
-  nav button {
-    flex:1 1 0; min-height:66px; border:0; background:none; color:var(--dim);
-    font-size:12.5px; font-weight:600; line-height:1.1;
-    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:5px;
-    padding:8px 4px 0;
-  }
-  nav button .ic { font-size:31px; line-height:1; font-weight:400; }
-  nav button.on { color:var(--accent); }
-  nav button:active { opacity:.55; }
-  nav button .badge {
-    position:absolute; transform:translate(16px,-14px); background:var(--warn); color:#fff;
-    font-size:10px; font-weight:700; min-width:16px; height:16px; border-radius:8px;
-    display:flex; align-items:center; justify-content:center; padding:0 4px;
-  }
+  --r:16px; --r-sm:10px; --r-lg:22px;
+  --shadow:0 1px 2px rgba(28,25,23,.04), 0 8px 24px -12px rgba(28,25,23,.10);
+  --shadow-lg:0 2px 4px rgba(28,25,23,.05), 0 18px 48px -20px rgba(28,25,23,.18);
+  --ease:cubic-bezier(.22,.61,.36,1);
+  --safe-b:env(safe-area-inset-bottom,0px);
+  --safe-t:env(safe-area-inset-top,0px);
+}
+*,*::before,*::after{box-sizing:border-box}
+html,body{margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--bg); color:var(--ink);
+  font-family:Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+  font-size:15px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; text-rendering:optimizeLegibility;
+  overscroll-behavior-y:none;
+}
+h1,h2,h3{margin:0; font-weight:600; letter-spacing:-.015em}
+p{margin:0}
+button{font:inherit; color:inherit; background:none; border:0; padding:0; cursor:pointer;
+  -webkit-tap-highlight-color:transparent}
+input,textarea{font:inherit; color:inherit}
+.serif{font-family:"Instrument Serif",Georgia,"Times New Roman",serif; font-weight:400; letter-spacing:0}
 
-  .card { background:var(--surface); border-radius:18px; padding:18px; box-shadow:var(--shadow); margin-bottom:14px; }
-  h2 { font-size:13px; font-weight:600; color:var(--dim); margin:24px 4px 10px; }
-  .sub { font-size:12.5px; color:var(--dim); margin:-6px 4px 10px; line-height:1.45; }
+/* ── layout ─────────────────────────────────────────────────────────────── */
+#app{min-height:100dvh; display:flex; flex-direction:column}
+.topbar{
+  position:sticky; top:0; z-index:40; padding:calc(var(--safe-t) + 14px) 20px 12px;
+  background:color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter:saturate(180%) blur(14px); -webkit-backdrop-filter:saturate(180%) blur(14px);
+  border-bottom:1px solid transparent; transition:border-color .2s;
+  display:flex; align-items:baseline; gap:12px;
+}
+.topbar.scrolled{border-bottom-color:var(--line)}
+.topbar h1{font-size:19px}
+.topbar .date{margin-left:auto; font-size:13px; color:var(--ink-3); white-space:nowrap}
+main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; width:100%; margin:0 auto}
+.page{display:none}
+.page.on{display:block; animation:rise .36s var(--ease) both}
+@keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
 
-  /* ring */
-  .ringwrap { display:flex; align-items:center; gap:16px; }
-  .ring { width:142px; height:142px; flex:none; position:relative; }
-  .ring svg { transform:rotate(-90deg); display:block; }
-  .ring .mid { position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; }
-  .ring .mid .v { font-size:23px; font-weight:700; letter-spacing:-.04em; font-variant-numeric:tabular-nums; }
-  .ring .mid .l { font-size:10px; color:var(--dim); font-weight:500; margin-top:1px; max-width:92px;
-                  overflow:hidden; text-overflow:ellipsis; white-space:nowrap; text-align:center; }
-  .ring.live .mid .v { color:var(--go); }
-  .legend { flex:1; min-width:0; display:flex; flex-direction:column; gap:11px; }
-  .legend .row { display:flex; align-items:center; gap:9px; }
-  .legend .sw { width:9px; height:9px; border-radius:3px; flex:none; }
-  .legend .nm { font-size:14px; font-weight:500; flex:1; }
-  .legend .vl { font-size:14px; font-weight:600; font-variant-numeric:tabular-nums; }
-  .legend .row.zero .nm, .legend .row.zero .vl { color:var(--dim); }
-  .verdict { margin-top:16px; padding-top:14px; border-top:.5px solid var(--line);
-             font-size:13.5px; line-height:1.5; color:var(--dim); }
-  .verdict b { color:var(--fg); font-weight:600; }
+/* ── cards ──────────────────────────────────────────────────────────────── */
+.card{
+  background:var(--surface); border:1px solid var(--line); border-radius:var(--r);
+  padding:18px; margin:14px 0; box-shadow:var(--shadow);
+}
+.card.flush{padding:0; overflow:hidden}
+.card h2{font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
+  color:var(--ink-3); margin-bottom:14px}
+.row{display:flex; align-items:center; gap:12px}
+.spread{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.muted{color:var(--ink-3)}
+.dim{color:var(--ink-2)}
+.tiny{font-size:12px}
+.small{font-size:13px}
+.stack{display:flex; flex-direction:column; gap:10px}
+.grid2{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
 
-  /* the timer card: the one thing that has to be unambiguous */
-  .timer { padding:0; overflow:hidden; }
-  .timer .head { display:flex; align-items:center; gap:12px; padding:18px; }
-  .timer.on .head { border-left:4px solid var(--go); padding-left:14px; }
-  .timer.off .head { border-left:4px solid var(--faint); padding-left:14px; }
-  .timer .dot { width:9px; height:9px; border-radius:50%; background:var(--go); flex:none;
-                animation:pulse 2.2s ease-in-out infinite; }
-  @keyframes pulse { 0%,100%{opacity:1; transform:scale(1)} 50%{opacity:.3; transform:scale(.82)} }
-  .timer .what { flex:1; min-width:0; }
-  .timer .what b { display:block; font-size:17px; font-weight:600; letter-spacing:-.01em; }
-  .timer .what span { font-size:12.5px; color:var(--dim); display:block; margin-top:2px; }
-  .timer .el { font-size:23px; font-weight:700; font-variant-numeric:tabular-nums; letter-spacing:-.03em; }
-  .timer .acts { display:flex; gap:8px; padding:0 18px 18px; }
-  .timer .acts.stack { flex-direction:column; }
+/* ── the triangle ───────────────────────────────────────────────────────── */
+.tri-wrap{display:flex; flex-direction:column; align-items:center; padding:6px 0 0}
+.tri-svg{width:100%; max-width:330px; height:auto; overflow:visible}
+.tri-guide{fill:none; stroke:var(--line); stroke-width:1}
+.tri-ring{fill:none; stroke:var(--line-soft); stroke-width:1}
+.tri-axis{stroke:var(--line); stroke-width:1}
+.tri-shape-g{animation:triIn .75s var(--ease) both}
+@keyframes triIn{from{transform:scale(.2); opacity:0} to{transform:scale(1); opacity:1}}
+.tri-dot{stroke:#fff; stroke-width:2.5}
+.tri-label{font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase}
+.tri-val{font-family:"Instrument Serif",Georgia,serif; font-size:19px}
+.tri-score{text-align:center; margin-top:2px}
+.tri-score .n{font-family:"Instrument Serif",Georgia,serif; font-size:56px; line-height:1;
+  letter-spacing:-.02em}
+.tri-score .n sup{font-size:22px; vertical-align:top; margin-left:2px; color:var(--ink-3)}
+.tri-score .cap{font-size:12px; letter-spacing:.09em; text-transform:uppercase; color:var(--ink-3);
+  margin-top:6px}
+.advice{
+  margin-top:16px; padding:13px 15px; border-radius:var(--r-sm); font-size:13.5px;
+  background:var(--surface-2); border:1px solid var(--line-soft); color:var(--ink-2);
+  display:flex; gap:9px; align-items:flex-start;
+}
+.advice b{color:var(--ink); font-weight:600}
+.advice .pip{width:8px; height:8px; border-radius:50%; margin-top:6px; flex:0 0 auto}
 
-  button.primary {
-    width:100%; border:0; border-radius:14px; padding:16px; font-size:17px; font-weight:600;
-    color:#fff; letter-spacing:-.01em; display:flex; align-items:center; justify-content:center; gap:7px;
-    transition:transform .12s ease, opacity .12s ease;
-  }
-  button.primary:active { transform:scale(.975); opacity:.85; }
-  button.primary.stop { background:var(--stop); }
-  button.ghost {
-    flex:1; border:0; border-radius:14px; padding:13px; font-size:15px; font-weight:600;
-    background:var(--sunk); color:var(--fg);
-  }
-  button.ghost:active { opacity:.6; }
-  button.ghost.warn { color:var(--warn); }
+/* ── corner stats ───────────────────────────────────────────────────────── */
+.corner{
+  border:1px solid var(--line); border-radius:var(--r-sm); padding:12px 13px; background:var(--surface);
+  display:flex; flex-direction:column; gap:7px; text-align:left;
+  transition:transform .2s var(--ease), box-shadow .2s var(--ease);
+}
+.corner:active{transform:scale(.975)}
+.corner .lab{font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase}
+.corner .val{font-family:"Instrument Serif",Georgia,serif; font-size:28px; line-height:1}
+.corner .sub{font-size:11.5px; color:var(--ink-3)}
+.bar{height:4px; border-radius:3px; background:var(--line); overflow:hidden}
+.bar > i{display:block; height:100%; border-radius:3px; width:0;
+  transform-origin:left center; animation:growBar .9s var(--ease) both}
+@keyframes growBar{from{transform:scaleX(0)} to{transform:scaleX(1)}}
 
-  .picker { padding:0 18px 18px; }
-  .picker .lbl { font-size:13px; font-weight:600; color:var(--dim); margin-bottom:10px; }
-  .grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; }
-  .grid button {
-    background:var(--sunk); border:0; border-radius:14px; color:var(--fg);
-    padding:14px 6px 12px; display:flex; flex-direction:column; align-items:center; gap:6px;
-    font-size:13px; font-weight:600; min-height:78px; transition:transform .12s ease;
-  }
-  .grid button:active { transform:scale(.95); }
-  .grid button .ic { font-size:24px; line-height:1; }
+/* ── month strip ────────────────────────────────────────────────────────── */
+.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none}
+.strip::-webkit-scrollbar{display:none}
+.strip .d{flex:0 0 auto; width:26px; text-align:center; cursor:pointer}
+.strip .d svg{display:block; width:26px; height:24px}
+.strip .d .dl{font-size:9px; color:var(--ink-3); margin-top:2px}
+.strip .d.sel .dl{color:var(--ink); font-weight:700}
 
-  .pill { display:inline-flex; align-items:center; gap:4px; font-size:11px; font-weight:600;
-          padding:3px 8px; border-radius:999px; background:var(--sunk); color:var(--dim); }
-  .pill.pend { background:rgba(255,149,0,.16); color:var(--warn); }
-  .pill.filed { background:rgba(52,199,89,.16); color:var(--go); }
+/* ── session / list rows ────────────────────────────────────────────────── */
+.item{display:flex; gap:12px; align-items:center; padding:13px 16px; border-bottom:1px solid var(--line-soft)}
+.item:last-child{border-bottom:0}
+.item .grow{flex:1; min-width:0}
+.item .t{font-weight:500; overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.item .s{font-size:12px; color:var(--ink-3); margin-top:2px}
+.pill{font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap}
+.fscore{
+  width:34px; height:34px; flex:0 0 auto; border-radius:10px; display:grid; place-items:center;
+  font-family:"Instrument Serif",Georgia,serif; font-size:17px; border:1px solid transparent;
+}
+.fscore.none{border:1px dashed var(--line); color:var(--ink-3); font-family:Inter,sans-serif;
+  font-size:11px; font-weight:600}
+.dur{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-2); white-space:nowrap}
 
-  /* sessions */
-  .sess { display:flex; align-items:center; gap:12px; padding:12px 0; border-bottom:.5px solid var(--line); }
-  .sess:last-child { border-bottom:0; padding-bottom:0; }
-  .sess:first-child { padding-top:0; }
-  .sess .ic { font-size:19px; width:26px; text-align:center; flex:none; }
-  .sess .b { flex:1; min-width:0; }
-  .sess .b b { font-size:15px; font-weight:500; display:block; }
-  .sess .b span { font-size:12.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
-  .sess .d { font-size:15px; font-weight:600; font-variant-numeric:tabular-nums; text-align:right; }
-  .sess.running .d { color:var(--go); }
-  .sess .chev { color:var(--faint); font-size:17px; flex:none; margin-left:2px; }
-  .sess:active { opacity:.55; }
+/* ── buttons ────────────────────────────────────────────────────────────── */
+.btn{
+  display:inline-flex; align-items:center; justify-content:center; gap:8px;
+  padding:13px 20px; border-radius:12px; font-weight:600; font-size:14.5px;
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  transition:transform .16s var(--ease), background .16s, box-shadow .16s;
+}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--ink); color:#fff; border-color:var(--ink)}
+.btn.stop{background:var(--bad); color:#fff; border-color:var(--bad)}
+.btn.wide{width:100%}
+.btn[disabled]{opacity:.45; pointer-events:none}
 
-  /* editing a session: native time inputs, because a wrong entry has to be
-     fixable on the phone. Not being able to correct 17h56m is what made the
-     whole screen untrustworthy. */
-  .edit { background:var(--sunk); border-radius:14px; padding:14px; margin:10px 0; }
-  .edit .fields { display:flex; gap:10px; margin-bottom:12px; }
-  .edit .f { flex:1; }
-  .edit .f label { display:block; font-size:11.5px; font-weight:600; color:var(--dim); margin-bottom:5px; }
-  .edit input[type=time] {
-    width:100%; border:0; border-radius:10px; padding:11px 10px; font-size:17px;
-    font-family:inherit; background:var(--surface); color:var(--fg);
-    font-variant-numeric:tabular-nums; -webkit-appearance:none; min-height:44px;
-  }
-  .edit .areas { display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; }
-  .edit .areas button {
-    border:0; border-radius:999px; padding:8px 12px; font-size:13px; font-weight:600;
-    background:var(--surface); color:var(--dim);
-  }
-  .edit .areas button.on { background:var(--fg); color:var(--bg); }
-  .edit .btns { display:flex; gap:8px; }
-  .edit .btns button { flex:1; border:0; border-radius:11px; padding:12px; font-size:15px; font-weight:600; }
-  .edit .save { background:var(--accent); color:#fff; }
-  .edit .cancel { background:var(--surface); color:var(--fg); }
-  .edit .del { background:var(--surface); color:var(--stop); }
+/* ── the big start/stop ─────────────────────────────────────────────────── */
+.runner{
+  border-radius:var(--r-lg); padding:20px; border:1px solid var(--line);
+  background:var(--surface); box-shadow:var(--shadow); margin:14px 0;
+}
+.runner.live{border-color:color-mix(in srgb,var(--focus) 40%,var(--line)); background:var(--focus-soft)}
+.runner .clock{font-family:"Instrument Serif",Georgia,serif; font-size:44px; line-height:1;
+  font-variant-numeric:tabular-nums}
+.livedot{width:8px;height:8px;border-radius:50%;background:var(--focus);
+  animation:pulse 2s var(--ease) infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
 
-  /* tasks */
-  .chips { display:flex; gap:8px; overflow-x:auto; padding:4px 20px 8px; margin:0 -20px; scrollbar-width:none; }
-  .chips + .chips { padding-top:2px; padding-bottom:10px; }
-  .chips::-webkit-scrollbar { display:none; }
-  .chips button { border:0; background:var(--surface); color:var(--dim); white-space:nowrap;
-                  border-radius:999px; padding:8px 15px; font-size:14px; font-weight:600;
-                  box-shadow:var(--shadow); flex:none; }
-  .chips button.on { background:var(--fg); color:var(--bg); }
-  .chips button .ct { opacity:.5; margin-left:4px; font-weight:500; }
-  .grp { margin-bottom:22px; }
-  .grp .hd { display:flex; align-items:baseline; gap:8px; margin:0 4px 8px; }
-  .grp .hd b { font-size:15px; font-weight:600; }
-  .grp .hd span { font-size:13px; color:var(--dim); }
-  .grp .body { background:var(--surface); border-radius:18px; box-shadow:var(--shadow); overflow:hidden; }
-  .task { display:flex; gap:13px; align-items:flex-start; padding:14px 16px; border-bottom:.5px solid var(--line); }
-  .task:last-child { border-bottom:0; }
-  .task:active { background:var(--bg); }
-  .task .box { width:23px; height:23px; border:2px solid var(--faint); border-radius:7px; flex:none;
-               margin-top:1px; display:flex; align-items:center; justify-content:center;
-               font-size:14px; color:#fff; transition:background .15s, border-color .15s; }
-  .task.on .box { background:var(--go); border-color:var(--go); }
-  .task.on .tt { text-decoration:line-through; color:var(--dim); }
-  .task .c { flex:1; min-width:0; }
-  .task .tt { font-size:15.5px; line-height:1.35; }
-  .task .mt { font-size:12.5px; color:var(--dim); margin-top:4px; display:flex; gap:9px;
-              flex-wrap:wrap; align-items:center; }
-  .task .mt .od { color:var(--stop); font-weight:600; }
+/* ── nav ────────────────────────────────────────────────────────────────── */
+.nav{
+  position:fixed; left:0; right:0; bottom:0; z-index:50;
+  padding:8px 10px calc(8px + var(--safe-b)); display:flex; gap:2px;
+  background:color-mix(in srgb, var(--bg) 90%, transparent);
+  backdrop-filter:saturate(180%) blur(16px); -webkit-backdrop-filter:saturate(180%) blur(16px);
+  border-top:1px solid var(--line);
+}
+.nav button{
+  flex:1; display:flex; flex-direction:column; align-items:center; gap:3px;
+  padding:6px 2px; border-radius:11px; color:var(--ink-3); font-size:10px; font-weight:600;
+  letter-spacing:.02em; transition:color .18s, background .18s;
+}
+.nav button .ic{font-size:17px; line-height:1}
+.nav button.on{color:var(--ink); background:var(--surface-2)}
 
-  /* talk */
-  .rec {
-    width:100%; border:0; border-radius:20px; padding:30px 16px; color:#fff;
-    font-size:19px; font-weight:700; letter-spacing:.02em; background:var(--go);
-    display:flex; flex-direction:column; align-items:center; gap:6px; min-height:150px;
-    justify-content:center; transition:background .18s ease, transform .12s ease;
-    /* touch-action:none, NOT manipulation. With manipulation iOS may decide a
-       slight finger movement is a scroll, claim the gesture and fire
-       pointercancel, which ends the recording while the finger is still down.
-       That is exactly what made the button flash red and drop back to green
-       mid-hold. The capture app has always had none; do not relax it. */
-    touch-action:none; user-select:none; -webkit-user-select:none;
-  }
-  .rec small { font-size:12.5px; font-weight:500; opacity:.85; letter-spacing:0; }
-  .rec.arming { background:var(--faint); }
-  .rec.live { background:var(--stop); transform:scale(1.01); }
-  .rec:disabled { background:var(--faint); }
-  /* Swipe a note left to reveal Edit and Delete, same gesture as the capture
-     app. A misheard word has to be fixable where it is noticed. */
-  .note { position:relative; overflow:hidden; border-bottom:.5px solid var(--line); }
-  .note:last-child { border-bottom:0; }
-  .note .w {
-    position:relative; z-index:1; background:var(--surface); padding:13px 2px;
-    transition:transform .18s ease;
-  }
-  .note.swiping .w { transition:none; }
-  .note.open .w { transform:translateX(-160px); }
-  .note .w p { margin:0; font-size:15px; line-height:1.4; word-wrap:break-word; }
-  .note .w span { font-size:11.5px; color:var(--dim); display:block; margin-top:4px; }
-  .note .actions { position:absolute; top:0; right:0; bottom:0; display:flex; z-index:0; }
-  .note .actions button {
-    border:0; width:80px; color:#fff; font-size:14px; font-weight:600;
-  }
-  .note .actions .e { background:var(--accent); }
-  .note .actions .d { background:var(--stop); }
+/* ── the microphone, on every page ──────────────────────────────────────── */
+/* The microphone is a bar, not a floating blob. A floating button parks itself
+   on top of whatever control happens to scroll under it, and it did exactly
+   that to the Start button. As part of the fixed chrome it can never cover
+   anything, and main's bottom padding accounts for its height. */
+.micwrap{position:fixed; left:0; right:0; bottom:calc(62px + var(--safe-b)); z-index:60}
+.mic{
+  display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+  padding:14px 20px; background:var(--ink); color:#fff; font-size:14.5px; font-weight:600;
+  border-top:1px solid rgba(255,255,255,.08);
+  transition:background .18s var(--ease), padding .18s var(--ease);
+  touch-action:none; user-select:none; -webkit-user-select:none;
+}
+.mic .ring{width:11px; height:11px; border-radius:50%; background:#fff; opacity:.85}
+.mic:active,.mic.rec{background:var(--bad); padding:18px 20px}
+.mic.rec .ring{animation:ripple 1.1s var(--ease) infinite}
+@keyframes ripple{0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(.55);opacity:.5}}
+.mic-hint{
+  position:absolute; left:0; right:0; bottom:100%; padding:7px 20px;
+  background:var(--surface-2); border-top:1px solid var(--line); color:var(--ink-2);
+  font-size:12px; text-align:center;
+  transition:opacity .2s var(--ease);
+}
 
-  /* Editing a note happens in a full-screen sheet, never in place. In-place
-     editing had two faults and both of them bit. It fought the keyboard for the
-     scrap of room left under the record button and the tab bar, and it lived
-     inside the markup that the 20s poll redraws, so a poll landing mid-sentence
-     tore the box out and threw the typing away. This is the same fault that once
-     killed recordings mid-hold, which is why the record button is static markup.
-     The sheet is static too, and its height comes from fitViewport(), so it
-     follows the keyboard instead of guessing. */
-  #esheet {
-    position:fixed; left:0; right:0; top:0; z-index:50;
-    display:none; flex-direction:column; background:var(--bg);
-  }
-  #esheet.on { display:flex; }
-  .ehead {
-    flex:none; display:flex; align-items:center; gap:10px;
-    padding:calc(env(safe-area-inset-top) + 8px) 16px 10px;
-    border-bottom:.5px solid var(--line);
-  }
-  .ehead b { flex:1; text-align:center; font-size:15px; font-weight:600; }
-  /* 44pt is Apple's floor for a tap target, and Save is the button that commits a
-     time correction. It was the smallest control on the screen. */
-  .ehead button {
-    flex:none; border:0; border-radius:11px; padding:12px 16px;
-    font-size:15px; font-weight:600; min-height:44px;
-  }
-  .ehead .cancel { background:var(--sunk); color:var(--fg); }
-  .ehead .save   { background:var(--accent); color:#fff; }
-  .ehead button:active { opacity:.6; }
-  /* 16px is a floor, not a preference: iOS zooms the whole page in on any input
-     smaller than that, and the zoom does not come back out on blur. */
-  #esheet textarea {
-    flex:1 1 auto; min-height:0; width:100%; resize:none; border:0; outline:0;
-    background:var(--bg); color:var(--fg);
-    font:16px/1.5 -apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-    padding:14px 16px calc(env(safe-area-inset-bottom) + 24px);
-    -webkit-user-select:text; user-select:text;
-  }
+/* ── sheet (focus prompt, editors) ──────────────────────────────────────── */
+.scrim{position:fixed; inset:0; z-index:80; background:rgba(28,25,23,.34);
+  opacity:0; pointer-events:none; transition:opacity .26s var(--ease)}
+.scrim.on{opacity:1; pointer-events:auto}
+.sheet{
+  position:fixed; left:0; right:0; bottom:0; z-index:90;
+  background:var(--surface); border-radius:22px 22px 0 0; padding:22px 20px calc(24px + var(--safe-b));
+  transform:translateY(102%); transition:transform .34s var(--ease);
+  box-shadow:0 -12px 44px -16px rgba(28,25,23,.28); max-height:88dvh; overflow-y:auto;
+}
+.sheet.on{transform:none}
+.sheet .grab{width:38px; height:4px; border-radius:3px; background:var(--line);
+  margin:-8px auto 16px}
+.sheet h3{font-size:19px; margin-bottom:6px}
 
-  /* The timers. Six buttons, always on screen, one per area. */
-  .tgrid { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; padding:0 14px 4px; }
-  .tbtn {
-    display:flex; flex-direction:column; align-items:center; gap:2px;
-    border:1.5px solid var(--line); border-radius:15px; padding:12px 4px 10px;
-    background:var(--surface); color:var(--fg); min-height:82px; justify-content:center;
-    transition:transform .08s ease, background .15s ease, border-color .15s ease;
-  }
-  .tbtn:active { transform:scale(.96); }
-  .tbtn .ic { font-size:22px; line-height:1; }
-  .tbtn .nm { font-size:13px; font-weight:600; }
-  .tbtn .vl { font-size:11.5px; color:var(--dim); font-variant-numeric:tabular-nums; }
-  .tbtn.zero .vl { color:var(--faint); }
-  /* The running one is unmistakable. Amir has to be able to tell at a glance. */
-  .tbtn.on { background:var(--go); border-color:var(--go); color:#fff; }
-  .tbtn.on .vl { color:rgba(255,255,255,.85); }
-  .thint { font-size:11.5px; color:var(--dim); text-align:center; padding:8px 18px 2px; }
+/* ── the 1 to 10 focus picker ───────────────────────────────────────────── */
+.scale{display:grid; grid-template-columns:repeat(5,1fr); gap:8px; margin:18px 0 4px}
+.scale button{
+  aspect-ratio:1; border-radius:13px; border:1px solid var(--line); background:var(--surface);
+  font-family:"Instrument Serif",Georgia,serif; font-size:22px; color:var(--ink-2);
+  transition:transform .14s var(--ease), background .14s, color .14s, border-color .14s;
+}
+.scale button:active{transform:scale(.92)}
+.scale button.on{background:var(--focus); border-color:var(--focus); color:#fff}
+.scale-ends{display:flex; justify-content:space-between; font-size:11.5px; color:var(--ink-3);
+  margin-top:9px}
 
-  .addsess {
-    width:100%; border:1.5px dashed var(--line); background:transparent; color:var(--accent);
-    border-radius:15px; padding:14px; font-size:15px; font-weight:600; margin-bottom:14px;
-  }
-  .addsess:active { opacity:.6; }
+/* ── goals ──────────────────────────────────────────────────────────────── */
+.goal{padding:15px 16px; border-bottom:1px solid var(--line-soft)}
+.goal:last-child{border-bottom:0}
+.goal .top{display:flex; gap:11px; align-items:flex-start}
+.goal .tick{
+  width:22px;height:22px;border-radius:7px;border:1.5px solid var(--line);flex:0 0 auto;
+  display:grid;place-items:center;font-size:12px;color:#fff;background:var(--surface);
+  transition:.18s var(--ease); margin-top:1px;
+}
+.goal .tick.on{background:var(--goals); border-color:var(--goals)}
+.goal .txt{flex:1; font-weight:500; line-height:1.4}
+.goal.done .txt{color:var(--ink-3); text-decoration:line-through}
+.goal .pct{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-3); font-weight:600}
+.slider{width:100%; margin:12px 0 0; accent-color:var(--goals)}
+.nag{
+  background:var(--goals-soft); border:1px solid color-mix(in srgb,var(--goals) 26%,transparent);
+  border-radius:var(--r); padding:17px; margin:14px 0;
+}
+.nag h3{color:var(--goals); font-size:15px; margin-bottom:6px}
 
-  /* The session editor sheet.
-     It used to be markup inside the sessions card, which the 20-second poll
-     rebuilds. That is why it opened for a second or two and then disappeared, and
-     why a start time typed as 9:00 snapped back to the original: the edit was
-     destroyed before it could ever be saved. Out here nothing can redraw over it. */
-  #ssheet {
-    position:fixed; left:0; right:0; top:0; z-index:50;
-    display:none; flex-direction:column; background:var(--bg);
-  }
-  #ssheet.on { display:flex; }
-  #ssheet .sbody { flex:1 1 auto; min-height:0; overflow-y:auto; padding:16px 16px 40px; }
-  #ssheet .seg {
-    display:flex; background:var(--sunk); border-radius:12px; padding:3px; margin-bottom:16px;
-  }
-  #ssheet .seg button {
-    flex:1; border:0; background:transparent; color:var(--dim);
-    border-radius:10px; padding:12px; font-size:14px; font-weight:600; min-height:44px;
-  }
-  #ssheet .seg button.on { background:var(--seg-on); color:var(--fg); box-shadow:var(--shadow); }
-  #ssheet .fields { display:flex; gap:10px; }
-  #ssheet .f { flex:1; }
-  #ssheet .f label, #ssheet .alab {
-    display:block; font-size:12px; font-weight:600; color:var(--dim); margin-bottom:6px;
-  }
-  #ssheet .alab { margin-top:18px; }
-  /* 17px, not smaller: iOS zooms the whole page in on any input under 16px. */
-  #ssheet input[type=time] {
-    width:100%; border:1.5px solid var(--line); border-radius:12px; padding:13px;
-    font-size:17px; background:var(--surface); color:var(--fg); font-variant-numeric:tabular-nums;
-  }
-  #ssheet .dur {
-    margin-top:12px; text-align:center; font-size:15px; font-weight:600; color:var(--dim);
-    font-variant-numeric:tabular-nums;
-  }
-  #ssheet .dur.bad  { color:var(--stop); }
-  #ssheet .dur.warn { color:var(--warn); }
-  #ssheet .areas { display:flex; gap:7px; flex-wrap:wrap; }
-  #ssheet .areas button {
-    border:1.5px solid var(--line); background:var(--surface); color:var(--fg);
-    border-radius:12px; padding:10px 13px; font-size:14px; font-weight:600;
-  }
-  #ssheet .areas button.on { background:var(--fg); color:var(--bg); border-color:var(--fg); }
-  #ssheet .del {
-    width:100%; margin-top:26px; border:0; border-radius:13px; padding:14px;
-    background:var(--sunk); color:var(--stop); font-size:15px; font-weight:600;
-  }
-  #ssheet .del.arm { background:var(--stop); color:#fff; }
+/* ── calendar timeline ──────────────────────────────────────────────────── */
+.timeline{position:relative; margin:6px 0 4px; padding-left:46px}
+.timeline .hr{position:absolute; left:0; width:100%; border-top:1px solid var(--line-soft)}
+.timeline .hrlab{position:absolute; left:0; font-size:10.5px; color:var(--ink-3);
+  transform:translateY(-50%); font-variant-numeric:tabular-nums}
+.blk{
+  position:absolute; left:46px; right:2px; border-radius:9px; padding:5px 9px; overflow:hidden;
+  font-size:12px; font-weight:500; border:1px solid transparent;
+}
+.blk .bt{font-size:10px; opacity:.75; font-weight:600}
+.blk.actual{right:52%}
+.blk.planned{left:52%}
 
-  /* The 15-minute reminder switch, and the banner it raises. */
-  /* The whole row is the target, not just the 31pt switch inside it. */
-  .nudgerow {
-    display:flex; align-items:center; gap:12px; padding:16px 18px;
-    border-top:.5px solid var(--line); min-height:56px;
-  }
-  .nudgerow .t { flex:1; min-width:0; }
-  .nudgerow .t b { display:block; font-size:15px; font-weight:600; }
-  .nudgerow .t span { display:block; font-size:12px; color:var(--dim); margin-top:2px; }
-  .nudgerow.bad .t span { color:var(--stop); }
-  .sw {
-    flex:none; width:51px; height:31px; border-radius:16px; border:0; padding:0;
-    background:var(--faint); position:relative; transition:background .18s ease;
-  }
-  .sw.on { background:var(--go); }
-  .sw i {
-    position:absolute; top:2px; left:2px; width:27px; height:27px; border-radius:50%;
-    background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .18s ease;
-  }
-  .sw.on i { transform:translateX(20px); }
+/* ── task rows ──────────────────────────────────────────────────────────── */
+.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 0 12px; scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{
+  flex:0 0 auto; padding:7px 13px; border-radius:99px; border:1px solid var(--line);
+  background:var(--surface); font-size:12.5px; font-weight:600; color:var(--ink-2);
+}
+.chip.on{background:var(--ink); color:#fff; border-color:var(--ink)}
+.tk{display:flex; gap:12px; align-items:flex-start; padding:13px 16px;
+  border-bottom:1px solid var(--line-soft)}
+.tk:last-child{border-bottom:0}
+.tk .box{width:21px;height:21px;border-radius:7px;border:1.5px solid var(--line);flex:0 0 auto;
+  display:grid;place-items:center;background:var(--surface);transition:.18s;margin-top:1px}
+.tk .box.on{background:var(--ink);border-color:var(--ink);color:#fff;font-size:12px}
+.tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 
-  /* diagnostics + misc */
-  .diag .r { display:flex; gap:11px; padding:11px 0; border-bottom:.5px solid var(--line); align-items:flex-start; }
-  .diag .r:last-child { border-bottom:0; padding-bottom:0; }
-  .diag .r .s { font-size:15px; width:20px; flex:none; text-align:center; }
-  .diag .r .t b { display:block; font-weight:600; font-size:14.5px; }
-  .diag .r .t span { color:var(--dim); font-size:13px; line-height:1.45; display:block; margin-top:2px; }
-  code { font:12.5px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; background:var(--bg);
-         padding:2px 6px; border-radius:5px; word-break:break-all; }
-  .hint { color:var(--dim); font-size:13.5px; line-height:1.55; text-align:center; padding:26px 10px; }
-  .hint b { color:var(--fg); }
-  .foot { text-align:center; color:var(--faint); font-size:11px; padding:6px 0 2px; }
-  .help p { margin:0 0 11px; font-size:14px; line-height:1.5; color:var(--dim); }
-  .help p:last-child { margin-bottom:0; }
-  .help b { color:var(--fg); }
+/* ── misc ───────────────────────────────────────────────────────────────── */
+.empty{text-align:center; padding:34px 20px; color:var(--ink-3)}
+.empty .ico{font-size:30px; margin-bottom:10px; opacity:.5}
+.toast{
+  position:fixed; left:50%; bottom:calc(150px + var(--safe-b)); z-index:100;
+  transform:translate(-50%,10px); background:var(--ink); color:#fff;
+  padding:11px 17px; border-radius:12px; font-size:13.5px; font-weight:500;
+  opacity:0; pointer-events:none; transition:.24s var(--ease); box-shadow:var(--shadow-lg);
+  max-width:calc(100vw - 40px); text-align:center;
+}
+.toast.on{opacity:1; transform:translate(-50%,0)}
+.skel{background:linear-gradient(90deg,var(--surface-2) 25%,var(--line-soft) 50%,var(--surface-2) 75%);
+  background-size:200% 100%; animation:sk 1.4s linear infinite; border-radius:8px}
+@keyframes sk{from{background-position:200% 0} to{background-position:-200% 0}}
+.setup{max-width:420px; margin:60px auto; padding:0 22px; text-align:center}
+.setup input{width:100%; padding:13px; border:1px solid var(--line); border-radius:11px;
+  margin:10px 0; background:var(--surface)}
+
+/* ── desktop ────────────────────────────────────────────────────────────── */
+@media (min-width:860px){
+  main{max-width:900px; padding-bottom:130px; padding-top:8px}
+  .nav{
+    position:sticky; top:0; bottom:auto; border-top:0; border-bottom:1px solid var(--line);
+    max-width:900px; margin:0 auto; padding:10px 20px; gap:6px; background:transparent;
+    backdrop-filter:none; -webkit-backdrop-filter:none;
+  }
+  .nav button{flex:0 0 auto; flex-direction:row; gap:7px; font-size:13px; padding:8px 14px}
+  .nav button .ic{font-size:15px}
+  .micwrap{bottom:0}
+  .mic{border-radius:0}
+  .grid3{grid-template-columns:repeat(3,1fr)}
+  .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:460px;
+    border-radius:22px; bottom:32px}
+  .sheet.on{transform:translate(-50%,0)}
+  .toast{bottom:120px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001s !important; transition-duration:.001s !important}
+}
 </style>
 </head>
-
 <body>
-
-<header>
-  <div class="htop">
-    <h1 id="hTitle">Today</h1>
-    <button class="qmark" id="hHelp" aria-label="How this works">?</button>
-    <span class="date" id="hDate"></span>
-  </div>
-  <div class="status" id="hStatus"><span class="led"></span><span id="hStatusT">starting…</span></div>
-</header>
-
-<main>
-  <section id="s-today" class="on"></section>
-  <section id="s-tasks"></section>
-
-  <!--
-    The record button is STATIC markup and is never re-rendered. The notes list
-    below it is the only part that redraws. Rebuilding this button while a
-    recording was in progress tore the live one out of the DOM, taking its
-    pointer capture with it, and the hold silently died on the next 20s poll.
-  -->
-  <section id="s-talk">
-    <div style="padding:8px 0 4px">
-      <button class="rec" id="rec"><span id="recLabel">HOLD &amp; TALK</span><small id="recSub">let go to send</small></button>
-    </div>
-    <div class="sub" style="text-align:center;margin:12px 4px 0">
-      Notes stay listed until Claude files them at the Mac.
-    </div>
-    <div id="notes"></div>
-  </section>
-</main>
-
-<nav>
-  <button data-go="today" class="on"><span class="ic">⏱️</span>Time</button>
-  <button data-go="tasks"><span class="ic">☑</span>Tasks</button>
-  <button data-go="talk"><span class="ic">🎙</span>Talk</button>
-</nav>
-
-<!--
-  The session editor. Static markup, outside <main>, for the reason written on
-  #ssheet in the stylesheet: it used to live inside the part of the page that
-  redraws every 20 seconds, so it vanished mid-edit and threw the change away.
--->
-<div id="ssheet">
-  <div class="ehead">
-    <button class="cancel" id="sCancel">Cancel</button>
-    <b id="sTitle">Edit session</b>
-    <button class="save" id="sSave">Save</button>
-  </div>
-  <div class="sbody">
-    <div class="seg" id="sSeg">
-      <button data-sstate="running">Still running</button>
-      <button data-sstate="done" class="on">Finished</button>
-    </div>
-    <div class="fields">
-      <div class="f"><label>Started</label><input type="time" id="sStart" step="60"></div>
-      <div class="f" id="sEndWrap"><label>Ended</label><input type="time" id="sEnd" step="60"></div>
-    </div>
-    <div class="dur" id="sDur">—</div>
-    <label class="alab">Area</label>
-    <div class="areas" id="sAreas"></div>
-    <button class="del" id="sDelete">Delete this session</button>
-  </div>
-</div>
-
-<!--
-  The note editor. Static markup, deliberately outside <main>, so that no redraw
-  can tear it out from under him mid-sentence. Save and Cancel are explicit
-  buttons: the old editor saved on blur, and a blur it never asked for is exactly
-  what made editing feel random.
--->
-<div id="esheet">
-  <div class="ehead">
-    <button class="cancel" id="eCancel">Cancel</button>
-    <b>Edit note</b>
-    <button class="save" id="eSave">Save</button>
-  </div>
-  <!-- autocorrect is OFF on purpose. This box exists to FIX transcripts full of
-       names the project works hard to protect: Bonakdari, Poodi, MHMI, BUSI 654.
-       iOS would rewrite them while he types nearby. -->
-  <textarea id="eText" autocapitalize="sentences" autocorrect="off" spellcheck="false"></textarea>
-</div>
-
+<div id="app"></div>
+<div class="scrim" id="scrim"></div>
+<div class="toast" id="toast"></div>
 <script>
-(function () {
-  'use strict';
+/* ═════════════════════════════════════════════════════════════════════════
+   myday console.
 
-  var BUILD = 'c28 · 2026-08-30';
+   The site never writes to the markdown files. It renders a blob the Mac
+   publishes, and it records what Amir taps as events. Claude files those back
+   into tasks/ and days/ by hand. That boundary is what makes the markdown
+   trustworthy, and it is the same contract the voice notes have always had.
+   ═════════════════════════════════════════════════════════════════════════ */
+'use strict';
 
-  var CFG_KEY   = 'myday_cfg';
-  var STATE_KEY = 'myday_state';
-  var EVQ_KEY   = 'myday_evq';     // start/stop/tick events, saved before sending
-  var NOTEQ_KEY = 'myday_queue';   // voice notes. SHARED with the capture app on
-                                   // purpose: same origin, same format, same
-                                   // server contract, and qid makes a double
-                                   // send by both apps harmless.
-  var SENT_KEY  = 'myday_sent';    // client_ts of the last event the server accepted
-  var NUDGE_KEY = 'myday_nudge';   // the 15-minute reminder switch, and when it next fires
-  var LOCAL_KEY = 'myday_local2';  // what Amir has done since the last publish
+/* Bump on every deploy. The page compares this against the copy the server has
+   and reloads itself when they differ, because a phone with the app already
+   open would otherwise keep showing yesterday's build forever. Shipping correct
+   code with a stale BUILD looks exactly like the deploy failing. */
+var BUILD = 'c30-2026-08-31-triangle';
 
-  var POLL_MS = 20000;
-  var MAX_AUDIO_BYTES = 4500000;
-
-  var AREAS = [
-    { slug:'ucw',      label:'UCW',      ic:'🎓' },
-    { slug:'ai',       label:'AI',       ic:'🤖' },
-    { slug:'dog',      label:'Dog',      ic:'🐕' },
-    { slug:'research', label:'Research', ic:'🔬' },
-    { slug:'personal', label:'Personal', ic:'🏠' },
-    { slug:'overhead', label:'Overhead', ic:'🚚' }
-  ];
-  var AREA_IC = {}; AREAS.forEach(function (a) { AREA_IC[a.slug] = a.ic; });
-  var BUCKET_OF = { ucw:'academia', research:'academia', dog:'dog', ai:'ai' };
-  var BUCKETS = [
-    { k:'academia', n:'Academia', c:'var(--acad)' },
-    { k:'dog',      n:'Dog',      c:'var(--dog)'  },
-    { k:'ai',       n:'AI',       c:'var(--ai)'   }
-  ];
-
-  var cfg=null, state=null, local=null, evq=[], tab='today';
-  var dueFilter='all', areaFilter='all';
-  var showHelp=false, notes=[];
-  var editNote=null;                 // the note open in the note sheet, if any
-  var editSess=null;                 // the session open in the session sheet, if any
-  var health = { net:null, err:'', lastTry:'' };
-
-  // ---------------------------------------------------------------- storage
-  function load(k, d) { try { var v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch(e){ return d; } }
-  function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-
-  function readConfig() {
-    var h = location.hash.replace(/^#/, '');
-    if (h) {
-      var p = {};
-      h.split('&').forEach(function (kv) {
-        var i = kv.indexOf('='); if (i>0) p[kv.slice(0,i)] = decodeURIComponent(kv.slice(i+1));
-      });
-      var url = p.e || (p.d ? 'https://script.google.com/macros/s/'+p.d+'/exec' : '');
-      if (url && p.k) { var c={url:url, token:p.k}; save(CFG_KEY,c); return c; }
+/* ── config ─────────────────────────────────────────────────────────────── */
+/* The Supabase URL and the publishable key ride in the #fragment, exactly as the
+   Apps Script token used to. A fragment is never sent to a server and never
+   committed, so the public repo holds no key. It must stay in the address bar:
+   iOS gives a Home Screen web app its own storage, so an icon saved without the
+   fragment opens to "Not linked yet" no matter what Safari has. */
+var CFG = null;
+function loadCfg(){
+  var h = location.hash.replace(/^#/,'');
+  if(h){
+    var p = new URLSearchParams(h), u = p.get('u'), k = p.get('k');
+    if(u && k){
+      CFG = {url:u.replace(/\/+$/,''), key:k};
+      try{ localStorage.setItem('myday_cfg2', JSON.stringify(CFG)); }catch(e){}
+      return CFG;
     }
-    return load(CFG_KEY, null);
   }
+  try{ CFG = JSON.parse(localStorage.getItem('myday_cfg2')||'null'); }catch(e){ CFG = null; }
+  return CFG;
+}
 
-  // ---------------------------------------------------------------- helpers
-  function esc(t) {
-    return String(t==null?'':t).replace(/[&<>"]/g, function(c){
-      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];
-    });
-  }
-  function pad(n){ return (n<10?'0':'')+n; }
-  function stamp() {
-    var d=new Date();
-    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+
-           pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds());
-  }
-  function clock(){ var d=new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
-  function hm(m) {
-    if (m==null) return '—';
-    m = Math.max(0, Math.round(m));
-    return Math.floor(m/60)+'h'+pad(m%60)+'m';
-  }
-  /**
-   * The WORKING day, not the calendar day. Amir's day ends when he sleeps, and
-   * CLAUDE.md puts the boundary at 05:00. Without this the screen would reset
-   * itself at midnight while he was still mid-session, and a session started at
-   * 23:00 would look like it belonged to a day that had already ended.
-   */
-  function todayISO() {
-    var d = new Date();
-    if (d.getHours() < 5) d.setDate(d.getDate() - 1);
-    return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
-  }
+/* ── api ────────────────────────────────────────────────────────────────── */
+function hdrs(extra){
+  var h = {apikey:CFG.key, Authorization:'Bearer '+CFG.key, 'Content-Type':'application/json'};
+  for(var k in (extra||{})) h[k] = extra[k];
+  return h;
+}
+async function api(path, opts){
+  opts = opts || {};
+  var r = await fetch(CFG.url + path, {
+    method: opts.method || 'GET',
+    headers: hdrs(opts.headers),
+    cache: 'no-store',
+    body: opts.body ? JSON.stringify(opts.body) : undefined
+  });
+  if(!r.ok) throw new Error(path + ' → ' + r.status + ' ' + (await r.text()).slice(0,160));
+  var txt = await r.text();
+  return txt ? JSON.parse(txt) : null;
+}
+async function getState(){
+  var rows = await api('/rest/v1/state?id=eq.1&select=blob,updated_at');
+  return rows && rows[0] ? rows[0] : null;
+}
+async function postEvent(kind, payload, qid, ts){
+  return api('/rest/v1/events', {
+    method:'POST', headers:{Prefer:'return=minimal'},
+    body:[{kind:kind, payload:payload||{}, qid:qid, client_ts:ts||nowISO()}]
+  });
+}
+async function postEntry(text, page, ts){
+  return api('/rest/v1/entries', {
+    method:'POST', headers:{Prefer:'return=minimal'},
+    body:[{text:text, page:page||null, client_ts:ts||nowISO()}]
+  });
+}
 
-  function toMin(hhmm) {
-    var m = /^(\d{1,2}):(\d{2})/.exec(hhmm||''); return m ? (+m[1])*60 + (+m[2]) : null;
-  }
-  /** Minutes from an "HH:MM" earlier today until now. Amir's day rolls over at
-      05:00, not midnight, so a start in the future is really yesterday's. */
-  function sinceToday(hhmm) {
-    var s = toMin(hhmm); if (s==null) return 0;
-    var d = new Date(), now = d.getHours()*60 + d.getMinutes();
-    return now >= s ? now - s : (24*60 - s) + now;
-  }
-  /**
-   * The running timer is the one number on this screen that has to prove it is
-   * moving. Minutes alone left Amir watching a still number, unsure the start had
-   * registered at all, so this counts in seconds. The start he is measured from
-   * is only ever HH:MM, so the reading can sit up to 59 seconds behind the moment
-   * he actually pressed the button. It still ticks once a second, which is the
-   * point of it.
-   */
-  function secSince(hhmm) {
-    var m = toMin(hhmm); if (m==null) return 0;
-    var st = m*60, d = new Date();
-    var now = d.getHours()*3600 + d.getMinutes()*60 + d.getSeconds();
-    return now >= st ? now - st : (24*3600 - st) + now;
-  }
-  function hms(sec) {
-    sec = Math.max(0, Math.round(sec));
-    return Math.floor(sec/3600)+'h'+pad(Math.floor(sec/60)%60)+'m'+pad(sec%60)+'s';
-  }
+/* ── time ───────────────────────────────────────────────────────────────── */
+function pad(n){ return (n<10?'0':'') + n; }
+function nowISO(){
+  var d = new Date(), off = -d.getTimezoneOffset(),
+      sg = off>=0?'+':'-', a = Math.abs(off);
+  return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+'T'+
+         pad(d.getHours())+':'+pad(d.getMinutes())+':'+pad(d.getSeconds())+
+         sg+pad(Math.floor(a/60))+':'+pad(a%60);
+}
+function hhmm(d){ d = d||new Date(); return pad(d.getHours())+':'+pad(d.getMinutes()); }
+function hm(m){
+  if(m===null||m===undefined) return '·';
+  m = Math.max(0, Math.round(m));
+  return Math.floor(m/60)+'h'+pad(m%60)+'m';
+}
+function hmShort(m){
+  if(!m) return '0h';
+  var h = Math.floor(m/60), r = m%60;
+  return h ? (r ? h+'h'+pad(r) : h+'h') : r+'m';
+}
+function minsSince(hhmmStr){
+  if(!hhmmStr) return 0;
+  var p = hhmmStr.split(':'), n = new Date();
+  var start = p[0]*60 + (+p[1]), now = n.getHours()*60 + n.getMinutes();
+  if(now < start) now += 24*60;          // the session ran past midnight
+  return now - start;
+}
+function pct(x){ return Math.round((x||0)*100); }
 
-  /** "HH:MM" minus n minutes, wrapping past midnight. */
-  function minusMinutes(hhmm, n) {
-    var m = toMin(hhmm); if (m==null) return hhmm;
-    m = (m - n + 24*60) % (24*60);
-    return pad(Math.floor(m/60)) + ':' + pad(m%60);
+/* ── pending events: the optimistic overlay ─────────────────────────────── */
+/* The Mac files taps every 15 minutes, so between a tap and the next publish
+   the blob does not know about it. Without this overlay Amir presses Start and
+   the screen sits there insisting nothing is running. Each pending event is
+   saved to localStorage BEFORE it is sent, so losing signal mid-tap costs
+   nothing, and it is dropped once the published state has clearly caught up. */
+var PEND = [];
+function loadPend(){ try{ PEND = JSON.parse(localStorage.getItem('myday_pending')||'[]'); }
+                     catch(e){ PEND = []; } }
+function savePend(){ try{ localStorage.setItem('myday_pending', JSON.stringify(PEND)); }catch(e){} }
+function newQid(){
+  return 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2,9);
+}
+async function record(kind, payload){
+  var ev = {qid:newQid(), kind:kind, payload:payload||{}, ts:nowISO(),
+            at:hhmm(), sent:false};
+  PEND.push(ev); savePend(); render();
+  try{
+    await postEvent(kind, payload, ev.qid, ev.ts);
+    ev.sent = true; savePend();
+  }catch(e){
+    toast('Saved on this phone. It will send when you are back online.');
   }
+  return ev;
+}
+async function flushPend(){
+  for(var i=0;i<PEND.length;i++){
+    var e = PEND[i];
+    if(e.sent) continue;
+    try{ await postEvent(e.kind, e.payload, e.qid, e.ts); e.sent = true; savePend(); }
+    catch(err){ break; }
+  }
+}
+function prunePend(st){
+  /* Session events are filed by the scheduled job, so anything older than the
+     publish time has been accounted for. Task ticks wait for Claude instead, so
+     they are only dropped once the task has actually left the list. */
+  var gen = (st && st.generated_at) || '';
+  var live = {}; (st ? st.tasks : []).forEach(function(t){ live[t.id]=1; });
+  PEND = PEND.filter(function(e){
+    if(!e.sent) return true;
+    if(e.kind === 'task_tick') return !!live[(e.payload||{}).id];
+    var stamp = e.ts.slice(0,10) + ' ' + e.ts.slice(11,16);
+    return stamp > gen;
+  });
+  savePend();
+}
 
-  function spanMin(a, b) {
-    var x = toMin(a), y = toMin(b);
-    if (x==null || y==null) return 0;
-    return y >= x ? y - x : (24*60 - x) + y;
-  }
+/* ── derived view: published state + what has not landed yet ────────────── */
+var RAW = null, VIEW = null, UPDATED = null;
 
-  // ---------------------------------------------------------------- network
-  function get(action, params) {
-    var q = 'action='+action+'&token='+encodeURIComponent(cfg.token);
-    for (var k in params) q += '&'+k+'='+encodeURIComponent(params[k]);
-    return fetch(cfg.url+'?'+q, {method:'GET'}).then(function(r){ return r.json(); });
-  }
-  function post(body) {
-    var b = { token: cfg.token };
-    for (var k in body) b[k] = body[k];
-    // text/plain keeps this a "simple" request, so the browser skips the CORS
-    // preflight that Apps Script cannot answer.
-    return fetch(cfg.url, { method:'POST', headers:{'Content-Type':'text/plain'},
-                            body: JSON.stringify(b), redirect:'follow' })
-           .then(function(r){ return r.json(); });
-  }
+function derive(){
+  if(!RAW){ VIEW = null; return; }
+  var v = JSON.parse(JSON.stringify(RAW));
+  var t = v.today;
 
-  // ============================================================= the model
-  //
-  //  filed        what Claude has written into days/<today>.md
-  //  pending      what Amir has done on the phone since the last publish
-  //
-  //  local = {
-  //    date,
-  //    open:      {start, area} | null      a session started here, still running
-  //    segments:  [{start, end, area}]      sessions started AND stopped here
-  //    filedEnd:  "HH:MM" | null            he stopped the session Claude had open
-  //    ticked:    {taskId: true}
-  //  }
-  //
-  //  Exactly one session can be running at a time, and it is either the filed
-  //  one (if he has not stopped it) or the local one. They can never both count,
-  //  which is what made the old screen show two different totals.
-
-  function freshLocal() {
-    return { date:todayISO(), open:null, segments:[], filedEnd:null, ticked:{}, edits:{}, seq:1 };
-  }
-
-  /**
-   * Every session row carries an id, and edits are keyed by that id.
-   *
-   * They used to be keyed by start+area, and that quietly broke the app. Delete
-   * a UCW session that started at 09:16, start UCW again inside the same minute,
-   * and the new session inherited the deleted one's key and was filtered straight
-   * back out. The start really happened, the row just never appeared, so the
-   * button looked dead. Only UCW, only that minute, and only until the edits were
-   * cleared, which is exactly the pattern Amir described on 2026-08-30.
-   *
-   * Local ids come from a counter that is saved with the rest of local state, so
-   * a new row can never collide with a deleted one. Filed ids are positional,
-   * which is safe because a fresh publish clears every filed edit anyway.
-   */
-  /**
-   * Roll into a new working day WITHOUT throwing away a session that is still
-   * running. The old code replaced the whole local layer at 05:00, so a session
-   * started at 03:40 and still going simply vanished: the screen said "Not
-   * working", the stop was never sent, and the row on the previous day stayed
-   * open forever. That is the exact failure the Start/Stop button exists to cure.
-   */
-  function rollLocal(prev) {
-    var fresh = freshLocal();
-    if (prev && prev.open) { fresh.open = prev.open; fresh.seq = prev.seq || 1; }
-    return fresh;
-  }
-
-  function nextSessId() {
-    local.seq = (local.seq || 1) + 1;
-    return 'l' + local.seq;
-  }
-
-  /** The filed session Claude has open, if Amir has not already stopped it here. */
-  function filedOpen() {
-    var s = state && state.today && state.today.open_session;
-    if (!s) return null;
-    if (local && local.filedEnd) return null;   // he stopped it from the phone
-    return s;
-  }
-  /** The single running session, whichever layer it comes from, after edits. */
-  function running() {
-    var rows = sessionRows();
-    for (var i=0; i<rows.length; i++) if (rows[i].running) return rows[i];
-    return null;
-  }
-  // The big number and the buckets are both derived from the SAME list the user
-  // is looking at, so they can never disagree with it. Two independent sums were
-  // what let the ring say one thing and the rows another.
-  function workedMinutes() {
-    return sessionRows().reduce(function (n, s) { return n + (s.minutes||0); }, 0);
-  }
-  function liveBuckets() {
-    var out = { academia:0, dog:0, ai:0 };
-    sessionRows().forEach(function (s) {
-      var k = BUCKET_OF[s.area];
-      if (k) out[k] += (s.minutes||0);
-    });
-    return out;
-  }
-
-  // ----------------------------------------------------------------- events
-  function emit(kind, payload) {
-    var ev = { qid:'e'+Date.now()+'-'+Math.random().toString(36).slice(2,8),
-               kind:kind, payload:payload||{}, client_ts:stamp() };
-    evq.push(ev); save(EVQ_KEY, evq);
-    return ev;
-  }
-
-  /** Tapping a timer: start it, stop it, or switch to it. */
-  function doTimer(area) {
-    var r = running();
-    if (r && r.area === area) { doStop(false); return; }
-    doStart(area);
-  }
-
-  function doStart(area) {
-    var now = clock();
-    // Starting while something runs is a SWITCH: close the old one first, so the
-    // two can never overlap and the totals stay honest. Both halves use the SAME
-    // timestamp. Reading the clock twice meant a tap at 09:59:59 could end the old
-    // session at 10:00 and start the new one at 09:59, counting that minute twice.
-    if (running()) doStop(true, now);
-    emit('session_start', { area:area });
-    local.open = { id:nextSessId(), start:now, area:area };
-    local.date = todayISO(); save(LOCAL_KEY, local);
-    render(); flush();
-  }
-
-  function doStop(silent, at) {
-    var now = at || clock();
-    /* `at` is used when a session is re-opened earlier in the day, so the running
-       one closes where the new one begins. If that point is BEFORE the running
-       session started, spanMin wraps past midnight and banks about 23 hours.
-       Closing it at its own start is the honest answer: it recorded no time. */
-    if (at && local.open && spanMin(local.open.start, at) > 12*60) now = local.open.start;
-    if (at && !local.open && filedOpen() && spanMin(filedOpen().start, at) > 12*60) {
-      now = filedOpen().start;
-    }
-    if (local.open) {
-      var id = local.open.id || nextSessId();
-      // A switch inside one clock minute leaves a row of zero minutes. It records
-      // no work, it clutters the list, and it is never what he meant to keep.
-      if (spanMin(local.open.start, now) > 0) {
-        local.segments.push({ id:id, start:local.open.start, end:now, area:local.open.area });
+  PEND.forEach(function(e){
+    var p = e.payload || {};
+    if(e.kind === 'session_start'){
+      if(!t.sessions.some(function(s){ return s.open; })){
+        t.sessions.push({start:e.at, end:null, minutes:null, focus:null,
+          area:p.area||'ai', area_label:(v.areas||{})[p.area]||p.area,
+          bucket:({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[p.area]||null,
+          task:(v.areas||{})[p.area]||p.area, notes:'', open:true, pending:true});
       }
-      if (local.edits) delete local.edits[id];   // the row now carries its own truth
-      local.open = null;
-    } else if (filedOpen()) {
-      local.filedEnd = now;
-    } else { return; }
-    emit('session_stop', {});
-    local.date = todayISO(); save(LOCAL_KEY, local);
-    if (!silent) { render(); flush(); }
-  }
-
-  /**
-   * Undo a start he did not mean. If the event is still queued it is simply
-   * dropped and the server never hears about it; if it has already gone, a
-   * `session_cancel` tells Claude to ignore the previous start.
-   */
-  function doUndoStart() {
-    if (!local.open) return;
-    var i = -1;
-    for (var j = evq.length-1; j >= 0; j--) {
-      if (evq[j].kind === 'session_start') { i = j; break; }
-    }
-    if (i > -1) { evq.splice(i,1); save(EVQ_KEY, evq); }
-    else { emit('session_cancel', { start: local.open.start, area: local.open.area }); }
-    local.open = null; save(LOCAL_KEY, local);
-    render(); flush();
-  }
-
-  var flushing = false;
-  function flush() {
-    if (flushing || !cfg) return;
-    if (!evq.length) { flushNotes(); return; }
-    flushing = true;
-    var ev = evq[0];
-    post({ action:'event', kind:ev.kind, payload:ev.payload, client_ts:ev.client_ts, qid:ev.qid })
-      .then(function (r) {
-        if (r && r.ok) {
-          // What the Mac has now definitely been told, and when.
-          if (ev.client_ts) save(SENT_KEY, ev.client_ts);
-          evq.shift(); save(EVQ_KEY, evq); health.net = true;
+    } else if(e.kind === 'session_stop'){
+      for(var i=t.sessions.length-1;i>=0;i--){
+        if(t.sessions[i].open){
+          var s = t.sessions[i];
+          s.end = e.at; s.open = false; s.pending = true;
+          s.minutes = minsBetween(s.start, s.end);
+          if(p.focus) s.focus = p.focus;
+          break;
         }
-        else if (r && r.error) { health.net = false; health.err = r.error; }
-      })
-      .catch(function (e) { health.net = false; health.err = String(e && e.message || e); })
-      .then(function () {
-        flushing = false; render();
-        if (evq.length) setTimeout(flush, 1500); else flushNotes();
-      });
-  }
-
-  /**
-   * Is it safe to throw away what this phone is still holding?
-   *
-   * Only when nothing is queued, nothing has been sent that the publish predates,
-   * and he is not looking at the very rows in question.
-   */
-  function pendingLayerIsSpent(updated) {
-    if (evq.length) return false;                    // still unsent
-    if (editSess || editNote) return false;          // open on screen right now
-    /* `updated` is Apps Script's clock and `sent` is the iPhone's. Comparing them
-       as strings only means anything if both are on the same timezone, and nothing
-       here can guarantee that. So the comparison is only trusted when the two are
-       already close; when they are far apart the clocks disagree and the safe
-       answer is to keep what the phone is holding rather than throw it away. */
-    var sent = load(SENT_KEY, '');
-    if (sent) {
-      var gap = Math.abs(minutesBetween(sent, String(updated || '')));
-      if (gap > 90) return false;                       // clocks disagree, keep it
-      if (String(updated || '').slice(0,16) < sent.slice(0,16)) return false;
-    }
-    return true;
-  }
-
-  /** Minutes from one "YYYY-MM-DD HH:MM" to another, or 0 if either is unreadable. */
-  function minutesBetween(a, b) {
-    function mins(t) {
-      if (!t || t.length < 16) return null;
-      var d = new Date(Number(t.slice(0,4)), Number(t.slice(5,7))-1, Number(t.slice(8,10)),
-                       Number(t.slice(11,13)), Number(t.slice(14,16)));
-      return isNaN(d.getTime()) ? null : d.getTime()/60000;
-    }
-    var x = mins(a), y = mins(b);
-    return (x==null || y==null) ? 0 : Math.round(y - x);
-  }
-
-  // ------------------------------------------------------------------- sync
-  function refresh() {
-    if (!cfg) return;
-    health.lastTry = clock();
-    get('state').then(function (r) {
-      if (!r)      { health.net=false; health.err='no response'; render(); return; }
-      if (!r.ok)   { health.net=false; health.err=r.error||'server refused'; render(); return; }
-      health.net = true; health.err = '';
-      if (!r.state){ state=null; render(); return; }
-
-      var s; try { s = JSON.parse(r.state); } catch(e){ health.err='state unreadable'; render(); return; }
-      s._updated = r.updated || '';
-      var prev = state && state._updated;
-      state = s; save(STATE_KEY, s);
-
-      /* The pending layer holds what Amir has done here that the Mac has not
-         filed yet. Dropping it at the right moment is what stops an hour being
-         counted twice. Dropping it at the WRONG moment is worse: a stop he made
-         reappears as a running session, a forgotten session he added vanishes,
-         and the totals on screen are wrong exactly when he is reading them.
-
-         The old rule was "any newer publish clears everything". That fires on
-         every fifteen-minute apply run, including ones whose snapshot was taken
-         before his tap ever left the phone. Three conditions now have to hold. */
-      if (prev !== s._updated && pendingLayerIsSpent(s._updated)) {
-        local.segments = [];
-        local.filedEnd = null;
-        local.edits = {};
-        // Same area AND same start. Matching on area alone let an older filed
-        // session in that area swallow the one he had just started here.
-        if (local.open && s.today && s.today.open_session &&
-            s.today.open_session.area  === local.open.area &&
-            s.today.open_session.start === local.open.start) local.open = null;
       }
-      if (local.ticked && s.tasks) {
-        var live = {}; s.tasks.forEach(function(t){ live[t.id]=true; });
-        Object.keys(local.ticked).forEach(function(id){ if (!live[id]) delete local.ticked[id]; });
-      }
-      if (local.date !== todayISO()) local = rollLocal(local);
-      save(LOCAL_KEY, local);
-      // The switch is the server's to state, except while one of his taps is
-      // still on its way there.
-      if (!nudgeSending && typeof r.nudge === 'boolean') save(NUDGE_KEY, { on: r.nudge });
-      // A reminder that fails silently is worse than none, because he trusts it.
-      nudgeErr = r.nudge_error || '';
-      render();
-    }).catch(function (e) {
-      health.net = false; health.err = String(e && e.message || e);
-      render();   // cached state stays on screen; only the badge changes
+    } else if(e.kind === 'session_focus'){
+      var m = t.sessions.filter(function(s){ return s.start === p.start; })[0];
+      if(m){ m.focus = p.focus; m.pending = true; }
+    } else if(e.kind === 'task_tick'){
+      v.tasks = v.tasks.filter(function(x){ return x.id !== p.id; });
+    } else if(e.kind === 'goals_set'){
+      v.week = v.week || {key:'', start:'', end:'', goals:[], progress:0, hit:0, total:0};
+      v.week.goals = p.goals || [];
+      v.week.total = v.week.goals.length;
+      v.week.pending = true;
+    } else if(e.kind === 'goal_progress'){
+      if(v.week && v.week.goals[p.index]) v.week.goals[p.index].percent = p.percent;
+      if(v.week) v.week.pending = true;
+    } else if(e.kind === 'plan_set'){
+      t.plan = p.blocks || t.plan;
+    }
+  });
+
+  // Recompute everything the overlay could have changed, so the triangle, the
+  // totals and the balance never disagree with the list right above them.
+  var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0;
+  t.sessions.forEach(function(s){
+    if(s.minutes === null || s.open) return;
+    closed += s.minutes;
+    if(s.area === 'overhead') overhead += s.minutes;
+    if(s.bucket) buckets[s.bucket] += s.minutes;
+  });
+  t.closed_minutes = closed; t.buckets = buckets; t.overhead_minutes = overhead;
+  t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
+  t.unscored = t.sessions.filter(function(s){ return !s.open && s.minutes && s.focus == null; });
+  t.focus = weightedFocus(t.sessions);
+
+  if(v.week && v.week.goals.length){
+    var sum = 0; v.week.goals.forEach(function(g){ sum += (g.done ? 100 : (g.percent||0)); });
+    v.week.progress = Math.round(sum / v.week.goals.length * 10) / 10;
+    v.week.hit = v.week.goals.filter(function(g){ return g.done || g.percent >= 100; }).length;
+    v.week.total = v.week.goals.length;
+  }
+  v.triangle.day = triScores(t, v.week, t.date);
+  VIEW = v;
+}
+function minsBetween(a, b){
+  var x = a.split(':'), y = b.split(':');
+  var m = (y[0]*60 + (+y[1])) - (x[0]*60 + (+x[1]));
+  return m < 0 ? m + 24*60 : m;
+}
+function weightedFocus(sessions){
+  /* Amir's rule: weight each score by how long the session ran. A four-hour
+     session at 10 counts far more than a fifteen-minute session at 2, so a
+     plain average is always wrong. Unrated sessions are left out rather than
+     counted as zero, because unrated is unknown, not bad. */
+  var num = 0, den = 0;
+  sessions.forEach(function(s){
+    if(s.focus == null || !s.minutes) return;
+    num += s.focus * s.minutes; den += s.minutes;
+  });
+  return den ? Math.round(num/den*100)/100 : null;
+}
+function triScores(today, week, onDate){
+  var clamp = function(x){ return Math.max(0, Math.min(1, x)); };
+  var consistency = clamp((today.closed_minutes||0) / 600);
+  var focus = today.focus == null ? 0 : clamp(today.focus / 10);
+  var goals = 0;
+  if(week && week.goals && week.goals.length){
+    var monday = new Date(week.start + 'T00:00:00');
+    var d = new Date(onDate + 'T00:00:00');
+    var elapsed = Math.max(1, Math.min(7, Math.round((d - monday)/86400000) + 1));
+    goals = clamp((week.progress/100) / (elapsed/7));
+  }
+  var corners = {consistency:consistency, focus:focus, goals:goals};
+  var weakest = Object.keys(corners).sort(function(a,b){ return corners[a]-corners[b]; })[0];
+  return {
+    date:onDate,
+    consistency:consistency, focus:focus, goals:goals,
+    area: Math.round((consistency*focus + focus*goals + goals*consistency)/3 * 10000)/10000,
+    weakest: weakest,
+    advice: ADVICE[weakest],
+    worked_minutes: today.closed_minutes||0,
+    focus_score: today.focus,
+    goals_set: !!(week && week.goals && week.goals.length)
+  };
+}
+var ADVICE = {
+  consistency:'Consistency is the short corner. Get more hours in.',
+  focus:'Focus is the short corner. Make it quiet and work on one thing.',
+  goals:'Goals is the short corner. Move this week’s goals, not just hours.'
+};
+</script>
+<script>
+/* ═══════════════════════════════════════════════ the triangle, drawn ═════ */
+/* Three arms leave the centre 120 degrees apart, each as long as its corner's
+   score, and the tips are joined. Consistency sits at the top, focus bottom
+   right, goals bottom left, and those positions never change so the shape is
+   readable at a glance without reading a single label.
+
+   The fill is three wedges, each a gradient between the two corners it touches,
+   so the colour itself says which corner is short. */
+var CORNERS = [
+  {k:'consistency', label:'Consistency', ang:-90,  col:'var(--consistency)', hex:'#C2703D'},
+  {k:'focus',       label:'Focus',       ang:30,   col:'var(--focus)',       hex:'#3F7D6E'},
+  {k:'goals',       label:'Goals',       ang:150,  col:'var(--goals)',       hex:'#6B5CA5'}
+];
+function ptAt(ang, r, cx, cy){
+  var a = ang * Math.PI / 180;
+  return [ (cx + r*Math.cos(a)).toFixed(2), (cy + r*Math.sin(a)).toFixed(2) ];
+}
+function triSVG(tri, opts){
+  opts = opts || {};
+  var S = opts.size || 200, cx = S/2, cy = S/2 + (opts.dy||0), R = opts.r || (S*0.34);
+  var labels = opts.labels !== false, id = 'g' + Math.random().toString(36).slice(2,8);
+
+  var full = CORNERS.map(function(c){ return ptAt(c.ang, R, cx, cy).join(','); }).join(' ');
+  var rings = [0.25,0.5,0.75].map(function(f){
+    return '<polygon class="tri-ring" points="' +
+      CORNERS.map(function(c){ return ptAt(c.ang, R*f, cx, cy).join(','); }).join(' ') + '"/>';
+  }).join('');
+  var axes = CORNERS.map(function(c){
+    var p = ptAt(c.ang, R, cx, cy);
+    return '<line class="tri-axis" x1="'+cx+'" y1="'+cy+'" x2="'+p[0]+'" y2="'+p[1]+'"/>';
+  }).join('');
+
+  var pts = CORNERS.map(function(c){ return ptAt(c.ang, R * (tri[c.k]||0), cx, cy); });
+  var defs = '', wedges = '';
+  for(var i=0;i<3;i++){
+    var a = CORNERS[i], b = CORNERS[(i+1)%3], pa = pts[i], pb = pts[(i+1)%3];
+    var gid = id + 'w' + i;
+    defs += '<linearGradient id="'+gid+'" gradientUnits="userSpaceOnUse" x1="'+pa[0]+'" y1="'+pa[1]+
+            '" x2="'+pb[0]+'" y2="'+pb[1]+'">' +
+            '<stop offset="0" stop-color="'+a.hex+'"/><stop offset="1" stop-color="'+b.hex+'"/></linearGradient>';
+    wedges += '<polygon points="'+cx+','+cy+' '+pa.join(',')+' '+pb.join(',')+
+              '" fill="url(#'+gid+')" opacity="0.17"/>';
+    wedges += '<line x1="'+pa[0]+'" y1="'+pa[1]+'" x2="'+pb[0]+'" y2="'+pb[1]+
+              '" stroke="url(#'+gid+')" stroke-width="2" stroke-linecap="round"/>';
+  }
+  var dots = pts.map(function(p, i){
+    if(!(tri[CORNERS[i].k] > 0)) return '';
+    return '<circle class="tri-dot" cx="'+p[0]+'" cy="'+p[1]+'" r="4.5" fill="'+CORNERS[i].hex+'"/>';
+  }).join('');
+  if(CORNERS.some(function(c){ return !(tri[c.k] > 0); })){
+    dots += '<circle class="tri-dot" cx="'+cx+'" cy="'+cy+'" r="3.5" fill="#B8B2AC"/>';
+  }
+
+  var text = '';
+  if(labels){
+    CORNERS.forEach(function(c, i){
+      var p = ptAt(c.ang, R + (c.ang === -90 ? 20 : 24), cx, cy);
+      var anchor = c.ang === -90 ? 'middle' : (c.ang === 30 ? 'start' : 'end');
+      var dy = c.ang === -90 ? -6 : 4;
+      text += '<text class="tri-label" x="'+p[0]+'" y="'+(+p[1]+dy)+'" text-anchor="'+anchor+
+              '" fill="'+c.hex+'">'+c.label+'</text>' +
+              '<text class="tri-val" x="'+p[0]+'" y="'+(+p[1]+dy+17)+'" text-anchor="'+anchor+
+              '" fill="var(--ink)">'+pct(tri[c.k])+'%</text>';
     });
   }
+  var padTop = labels ? 34 : 8, padBot = labels ? 46 : 8;
+  var vbY = cy - R - padTop, vbH = R * 1.5 + padTop + padBot;
+  return '<svg class="tri-svg" viewBox="0 '+vbY.toFixed(1)+' '+S+' '+vbH.toFixed(1)+'" role="img" aria-label="'+
+    'Triangle. Consistency '+pct(tri.consistency)+' percent, focus '+pct(tri.focus)+
+    ' percent, goals '+pct(tri.goals)+' percent.">' +
+    '<defs>'+defs+'</defs>' + rings +
+    '<polygon class="tri-guide" points="'+full+'"/>' + axes +
+    '<g class="tri-shape-g" style="transform-origin:'+cx+'px '+cy+'px">' + wedges + dots + '</g>' +
+    text + '</svg>';
+}
 
-  // ----------------------------------------------------------------- render
-  function ringSVG(vals, live) {
-    var R=62, SW=14, C=2*Math.PI*R, total=vals.academia+vals.dog+vals.ai;
-    var h='<svg width="142" height="142" viewBox="0 0 142 142">';
-    h+='<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="var(--ring-track)" stroke-width="'+SW+'"/>';
-    if (total>0) {
-      var off=0;
-      BUCKETS.forEach(function (b) {
-        var v=vals[b.k]; if (!v) return;
-        var len=v/total*C;
-        h+='<circle cx="71" cy="71" r="'+R+'" fill="none" stroke="'+b.c+'" stroke-width="'+SW+
-           '" stroke-dasharray="'+len.toFixed(2)+' '+(C-len).toFixed(2)+
-           '" stroke-dashoffset="'+(-off).toFixed(2)+'" stroke-linecap="butt"/>';
-        off+=len;
-      });
-    }
-    h+='</svg>';
-    return '<div class="ring'+(live?' live':'')+'">'+h;
-  }
 
-  function helpCard() {
-    return '<div class="card help">'+
-      '<p><b>Claude on the Mac owns the record.</b> This app shows what has already been written down, '+
-      'and lets you record what you are doing now.</p>'+
-      '<p><b>One session runs at a time.</b> Tap an area to start it. Tapping a different area while '+
-      'one is running <b>switches</b>: the first is stopped at that moment and the new one begins. '+
-      'Nothing ever overlaps.</p>'+
-      '<p><b>Got something wrong? Tap the session and fix it.</b> You can change the start, the end, '+
-      'the area, or delete it outright. Claude picks the correction up at the Mac.</p>'+
-      '<p><b>The big number is just the sessions added up.</b> If it looks wrong, one of the rows '+
-      'below it is wrong — fix that row and the number follows.</p>'+
-      '</div>';
-  }
+/* ═════════════════════════════════════════════════════════ helpers ═══════ */
+function esc(s){
+  return String(s == null ? '' : s).replace(/[&<>"']/g, function(c){
+    return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
+  });
+}
+function el(html){ var d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
+var TOAST_T = null;
+function toast(msg){
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('on');
+  clearTimeout(TOAST_T);
+  TOAST_T = setTimeout(function(){ t.classList.remove('on'); }, 2600);
+}
+function areaColour(a){
+  return a === 'ucw' || a === 'research' ? 'var(--consistency)'
+       : a === 'ai' ? 'var(--goals)'
+       : a === 'dog' ? 'var(--focus)' : 'var(--ink-3)';
+}
+function focusColour(n){
+  if(n == null) return 'var(--ink-3)';
+  return n >= 8 ? 'var(--focus)' : n >= 5 ? 'var(--consistency)' : 'var(--bad)';
+}
+function focusBg(n){
+  if(n == null) return 'transparent';
+  return n >= 8 ? 'var(--focus-soft)' : n >= 5 ? 'var(--consistency-soft)' : '#FBECEC';
+}
+function emptyBox(icon, title, sub){
+  return '<div class="empty"><div class="ico">'+icon+'</div><div style="font-weight:600;color:var(--ink-2)">'+
+    esc(title)+'</div>'+(sub?'<div class="small" style="margin-top:5px">'+esc(sub)+'</div>':'')+'</div>';
+}
 
-  function renderToday() {
-    var el = document.getElementById('s-today');
-    if (!state) { el.innerHTML = (showHelp?helpCard():'') + diagnostics(); return; }
+/* ═════════════════════════════════════════════════════════ home page ═════ */
+function pageHome(v){
+  var t = v.today, tri = v.triangle.day, wtri = v.triangle.week;
+  var h = '';
 
-    var t = state.today || {}, r = running(), mins = workedMinutes();
-    var b = liveBuckets(), total = b.academia+b.dog+b.ai;
-    var h = showHelp ? helpCard() : '';
+  h += '<div class="card"><div class="tri-wrap">' + triSVG(tri, {size:230, r:74}) +
+       '<div class="tri-score"><div class="n">'+pct(tri.area)+'<sup>%</sup></div>' +
+       '<div class="cap">Today’s score</div></div></div>';
+  h += '<div class="advice"><span class="pip" style="background:'+
+       CORNERS.filter(function(c){return c.k===tri.weakest;})[0].hex+'"></span>' +
+       '<span><b>'+esc(tri.advice.split('.')[0])+'.</b> '+esc(tri.advice.split('. ').slice(1).join('. '))+'</span></div>';
+  h += '</div>';
 
-    // --- ring ---
-    h += '<div class="card"><div class="ringwrap">';
-    h += ringSVG(b, !!r) +
-         '<div class="mid"><div class="v">'+hm(mins)+'</div><div class="l">'+
-         (t.target && !/not set/i.test(t.target) ? 'of '+esc(t.target) : 'no target set')+
-         '</div></div></div>';
-    h += '<div class="legend">';
-    BUCKETS.forEach(function (x) {
-      h += '<div class="row'+(b[x.k]?'':' zero')+'"><span class="sw" style="background:'+x.c+'"></span>'+
-           '<span class="nm">'+x.n+'</span><span class="vl">'+hm(b[x.k])+'</span></div>';
-    });
-    h += '</div></div><div class="verdict">'+balanceLine(b,total,r)+'</div></div>';
-
-    // --- what is running, stated plainly, above the timers ---
-    h += '<div class="card timer '+(r?'on':'off')+'"><div class="head">';
-    if (r) {
-      h += '<span class="dot"></span><div class="what"><b>'+(AREA_IC[r.area]||'•')+' '+
-           esc((state.areas&&state.areas[r.area])||r.area)+'</b>'+
-           '<span>since '+esc(r.start)+'</span></div>'+
-           '<div class="el" id="elapsed" data-start="'+esc(r.start)+'">'+
-           hms(secSince(r.start))+'</div>';
+  h += '<div class="grid3">' + CORNERS.map(function(c){
+    var val, sub;
+    if(c.k === 'consistency'){
+      val = hmShort(t.closed_minutes); sub = 'of 10h';
+    } else if(c.k === 'focus'){
+      val = t.focus == null ? '·' : t.focus.toFixed(1); sub = t.focus == null ? 'not rated' : 'out of 10';
     } else {
-      var last = lastFinished();
-      h += '<div class="what"><b>Not working</b><span>'+
-           (last ? 'last: '+(AREA_IC[last.area]||'')+' '+
-                   esc((state.areas&&state.areas[last.area])||last.area)+' until '+esc(last.end)
-                 : 'nothing recorded yet today')+'</span></div>';
+      val = v.week && v.week.total ? v.week.progress + '%' : '·';
+      sub = v.week && v.week.total ? v.week.hit + ' of ' + v.week.total + ' done' : 'no goals';
     }
-    h += '</div>';
+    return '<button class="corner" data-go="'+ (c.k==='consistency'?'time':c.k) +'">' +
+      '<span class="lab" style="color:'+c.hex+'">'+c.label+'</span>' +
+      '<span class="val">'+esc(val)+'</span>' +
+      '<span class="bar"><i style="background:'+c.hex+'" data-w="'+pct(tri[c.k])+'"></i></span>' +
+      '<span class="sub">'+esc(sub)+'</span></button>';
+  }).join('') + '</div>';
 
-    // The timers themselves. Tap to start, tap again to stop, tap another to switch.
-    h += timerGrid();
-    h += '<div class="thint">'+(r ? 'Tap the running timer to stop it, or another to switch.'
-                                  : 'Tap a timer to start it.')+'</div>';
+  h += runnerHTML(v);
 
-    h += '<div class="nudgerow'+(nudgeOn() && nudgeErr ? ' bad' : '')+'">'+
-         '<div class="t"><b>Nudge me every 15 minutes</b>'+
-         '<span>'+esc(nudgeStatusLine())+'</span></div>'+
-         '<button class="sw'+(nudgeOn()?' on':'')+'" data-act="nudge" aria-label="Nudge me every 15 minutes"><i></i></button></div>';
-    h += '</div>';
-
-    // --- sessions, each labelled with where it came from ---
-    var rows = sessionRows();
-    h += '<h2>Sessions today</h2><div class="sub">Tap any session to fix its times, its area, or delete it.</div>';
-    h += '<div class="card">';
-    if (!rows.length) {
-      h += '<div class="hint" style="padding:18px 4px">Nothing logged yet today.</div>';
-    } else {
-      rows.forEach(function (s) {
-        h += '<div class="sess'+(s.running?' running':'')+'" data-edit="'+esc(s.id)+'">'+
-             '<span class="ic">'+(AREA_IC[s.area]||'•')+'</span>'+
-             '<div class="b"><b>'+esc((state.areas&&state.areas[s.area])||s.area)+'</b>'+
-             '<span>'+esc(s.start)+' → '+(s.end?esc(s.end):'now')+'</span></div>'+
-             '<div class="d">'+(s.minutes<1?'just started':hm(s.minutes))+'</div>'+
-             '<span class="chev">›</span></div>';
-      });
-    }
-    h += '</div>';
-    // Work he did away from the phone still has to reach the record somehow.
-    h += '<button class="addsess" data-act="addsess">＋ Add a session I forgot</button>';
-
-    h += '<div class="foot">'+BUILD+' · published '+esc(state._updated||'?')+
-         '<br>'+esc(geom())+'</div>';
-    el.innerHTML = h;
+  if(!v.week || !v.week.total){
+    h += '<div class="nag"><h3>This week has no goals</h3>' +
+         '<p class="small dim">Hours and focus without a goal go the wrong way. Set two or ' +
+         'three for the week and the third corner starts filling.</p>' +
+         '<button class="btn wide primary" style="margin-top:13px" data-go="goals">Set this week’s goals</button></div>';
   }
 
-  /**
-   * The timers. Six buttons, always on screen, one per area.
-   *
-   * Tap one to start it. Tap the running one to stop. Tap a different one and it
-   * switches, which closes the first at that moment so two can never overlap.
-   * The old screen hid all of this behind a "Switch area" step, and Amir wanted
-   * the timers themselves in front of him.
-   */
-  function timerGrid() {
-    var r = running();
-    var h = '<div class="tgrid">';
-    AREAS.forEach(function (a) {
-      var on = r && r.area === a.slug;
-      var m = areaMinutes(a.slug);
-      h += '<button class="tbtn'+(on?' on':'')+(m?'':' zero')+'" data-timer="'+a.slug+'">'+
-             '<span class="ic">'+a.ic+'</span>'+
-             '<span class="nm">'+a.label+'</span>'+
-             '<span class="vl">'+(m ? hm(m) : (on ? 'running' : '—'))+'</span>'+
-           '</button>';
-    });
-    return h + '</div>';
+  h += '<div class="card"><h2>The last 30 days</h2>' + stripHTML(v) + '</div>';
+
+  h += '<div class="card"><h2>This week</h2><div class="row" style="gap:18px">' +
+       '<div style="flex:0 0 108px">' + triSVG(wtri, {size:108, r:34, labels:false}) + '</div>' +
+       '<div class="grow stack" style="gap:8px">' +
+         statLine('Score', pct(wtri.area) + '%') +
+         statLine('Hours', hmShort(wtri.worked_minutes) + ' over ' + wtri.days_elapsed +
+                  (wtri.days_elapsed === 1 ? ' day' : ' days')) +
+         statLine('Focus', wtri.focus_score == null ? 'not rated' : wtri.focus_score.toFixed(1) + ' / 10') +
+         statLine('Goals', v.week && v.week.total ? v.week.hit + ' of ' + v.week.total + ' hit' : 'none set') +
+       '</div></div></div>';
+  return h;
+}
+function statLine(k, val){
+  return '<div class="spread small"><span class="muted">'+esc(k)+'</span>' +
+         '<span style="font-weight:600">'+esc(val)+'</span></div>';
+}
+function stripHTML(v){
+  return '<div class="strip">' + v.month.map(function(d){
+    var t = {consistency:d.consistency, focus:d.focus, goals:d.goals};
+    return '<button class="d' + (d.date === v.today.date ? ' sel' : '') + '" data-day="'+d.date+'" ' +
+      'title="'+d.date+' · '+pct(d.area)+'%">' + triSVG(t, {size:26, r:9, labels:false}) +
+      '<div class="dl">'+esc(d.weekday[0])+'</div></button>';
+  }).join('') + '</div>';
+}
+function runnerHTML(v){
+  var t = v.today, o = t.open_session;
+  if(o){
+    var live = minsSince(o.start);
+    return '<div class="runner live">' +
+      '<div class="row" style="gap:7px"><span class="livedot"></span>' +
+      '<span class="tiny" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--focus)">Working</span></div>' +
+      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'">'+hm(live)+'</div>' +
+      '<div class="small muted">'+esc(o.area_label||o.area)+' · started '+esc(o.start)+'</div>' +
+      '<button class="btn stop wide" id="stopBtn" style="margin-top:14px">Stop and rate it</button></div>';
+  }
+  return '<div class="runner">' +
+    '<div class="tiny muted" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase">Not working</div>' +
+    '<div class="clock">'+hmShort(t.closed_minutes)+'</div>' +
+    '<div class="small muted">logged today · 10h is the floor</div>' +
+    '<button class="btn primary wide" id="startBtn" style="margin-top:14px">Start a session</button></div>';
+}
+</script>
+<script>
+/* ═══════════════════════════════════════════ consistency (the hours) ═════ */
+function pageTime(v){
+  var t = v.today, sp = v.targets.split, b = t.buckets;
+  var h = '';
+
+  h += '<div class="card"><h2>Today</h2>' +
+    '<div class="spread" style="align-items:flex-end;margin-bottom:16px">' +
+      '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.closed_minutes)+'</div>' +
+      '<div class="small muted">of 10h · 12h is a good day</div></div>' +
+      '<div class="serif" style="font-size:26px;color:var(--consistency)">'+
+        pct(Math.min(1,(t.closed_minutes||0)/600))+'%</div>' +
+    '</div>' +
+    '<div class="bar" style="height:8px"><i style="background:var(--consistency)" data-w="'+
+      Math.min(100, Math.round((t.closed_minutes||0)/600*100))+'"></i></div>' +
+    '<div class="stack" style="margin-top:18px">' +
+      splitBar('Academia', b.academia, sp.academia, 'var(--consistency)') +
+      splitBar('AI business', b.ai, sp.ai, 'var(--goals)') +
+      (b.dog ? splitBar('Dog business (paused)', b.dog, 0, 'var(--focus)') : '') +
+      (t.overhead_minutes ? '<div class="spread small"><span class="muted">Overhead</span>' +
+        '<span class="dim">'+hmShort(t.overhead_minutes)+' · counts as work, not in the split</span></div>' : '') +
+    '</div></div>';
+
+  h += runnerHTML(v);
+
+  h += '<div class="card"><div class="spread" style="margin-bottom:14px">' +
+       '<h2 style="margin:0">Plan and what happened</h2>' +
+       '<span class="tiny muted">hold the mic to speak your blocks</span></div>' +
+       timelineHTML(t) + '</div>';
+
+  h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
+       (t.sessions.length ? t.sessions.map(sessionRow).join('')
+        : emptyBox('⏱', 'No sessions yet today', 'Press Start when you begin.')) + '</div>';
+  return h;
+}
+function splitBar(label, got, target, colour){
+  var p = target ? Math.min(100, Math.round(got/target*100)) : 0;
+  return '<div><div class="spread small" style="margin-bottom:5px"><span class="muted">'+esc(label)+'</span>' +
+    '<span style="font-weight:600">'+hmShort(got)+(target?' <span class="muted" style="font-weight:400">of '+
+      hmShort(target)+'</span>':'')+'</span></div>' +
+    '<div class="bar"><i style="background:'+colour+'" data-w="'+p+'"></i></div></div>';
+}
+function sessionRow(s){
+  var f = s.focus;
+  return '<div class="item">' +
+    '<button class="fscore'+(f==null?' none':'')+'" data-rate="'+esc(s.start)+'" ' +
+      'style="background:'+focusBg(f)+';color:'+focusColour(f)+'"'+
+      ' aria-label="'+(f==null?'Rate this session':'Focus '+f+' out of 10')+'">' +
+      (f==null?'rate':f) + '</button>' +
+    '<div class="grow"><div class="t">'+esc(s.task)+'</div>' +
+    '<div class="s">'+esc(s.start)+' – '+esc(s.end||'now')+' · '+esc(s.area_label||s.area)+
+      (s.pending?' · saving':'')+'</div></div>' +
+    '<div class="dur">'+(s.open ? 'running' : hm(s.minutes))+'</div></div>';
+}
+function timelineHTML(t){
+  var blocks = [];
+  (t.plan||[]).forEach(function(p){ blocks.push({k:'planned', s:p.start, e:p.end,
+    label:p.activity.replace(/\*\*/g,''), status:p.status}); });
+  (t.sessions||[]).forEach(function(s){ blocks.push({k:'actual', s:s.start,
+    e:s.end || hhmm(), label:(s.area_label||s.area), area:s.area, open:s.open}); });
+  if(!blocks.length){
+    return emptyBox('🗓', 'Nothing planned yet',
+      'Hold the microphone and say something like “nine to eleven, research paper”.');
+  }
+  var toM = function(x){ var p = x.split(':'); return (+p[0])*60 + (+p[1]); };
+  var lo = Math.min.apply(null, blocks.map(function(b){ return toM(b.s); }));
+  var hi = Math.max.apply(null, blocks.map(function(b){ return Math.max(toM(b.e), toM(b.s)+15); }));
+  lo = Math.floor(lo/60)*60; hi = Math.ceil(hi/60)*60;
+  var PX = 0.85, H = (hi - lo) * PX;
+
+  var lines = '';
+  for(var m = lo; m <= hi; m += 60){
+    var y = (m - lo) * PX;
+    lines += '<div class="hr" style="top:'+y+'px"></div>' +
+             '<div class="hrlab" style="top:'+y+'px">'+pad(Math.floor(m/60)%24)+':00</div>';
+  }
+  var bh = blocks.map(function(b){
+    var y = (toM(b.s) - lo) * PX, hgt = Math.max(20, (toM(b.e) - toM(b.s)) * PX - 3);
+    var col = b.k === 'actual' ? areaColour(b.area) : 'var(--ink-3)';
+    var bg  = b.k === 'actual' ? 'color-mix(in srgb,'+col+' 13%,#fff)' : 'var(--surface-2)';
+    return '<div class="blk '+b.k+'" style="top:'+y+'px;height:'+hgt+'px;background:'+bg+
+      ';border-color:color-mix(in srgb,'+col+' 30%,transparent);color:var(--ink)">' +
+      '<div class="bt" style="color:'+col+'">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
+      '<div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(b.label)+'</div></div>';
+  }).join('');
+
+  return '<div class="spread tiny muted" style="margin-bottom:8px;padding-left:46px">' +
+    '<span>Actual</span><span>Planned</span></div>' +
+    '<div class="timeline" style="height:'+H+'px">'+lines+bh+'</div>';
+}
+
+/* ═══════════════════════════════════════════════════ focus (the scores) ══ */
+function pageFocus(v){
+  var t = v.today, h = '';
+
+  h += '<div class="card"><div class="spread" style="align-items:flex-end">' +
+    '<div><div class="serif" style="font-size:52px;line-height:1;color:'+focusColour(t.focus)+'">' +
+      (t.focus == null ? '·' : t.focus.toFixed(1)) + '</div>' +
+    '<div class="small muted">today, weighted by session length</div></div>' +
+    '<div class="tiny muted" style="text-align:right;max-width:150px">A four hour session at 10 ' +
+      'counts far more than a fifteen minute one at 2.</div></div></div>';
+
+  if(t.unscored.length){
+    h += '<div class="card" style="border-color:color-mix(in srgb,var(--consistency) 34%,transparent);' +
+      'background:var(--consistency-soft)"><h2 style="color:var(--consistency)">' +
+      t.unscored.length + ' session' + (t.unscored.length>1?'s':'') + ' still need a score</h2>' +
+      '<div class="stack">' + t.unscored.map(function(s){
+        return '<button class="btn wide" data-rate="'+esc(s.start)+'" style="justify-content:space-between">' +
+          '<span>'+esc(s.start)+' – '+esc(s.end)+' · '+esc(s.area_label||s.area)+'</span>' +
+          '<span class="muted">'+hm(s.minutes)+'</span></button>';
+      }).join('') + '</div></div>';
   }
 
-  /** Minutes into the WORKING day, which starts at 05:00, so 00:10 sorts after 23:00. */
-  function wdMin(hhmm) {
-    var m = toMin(hhmm); if (m == null) return 0;
-    return (m - 5*60 + 24*60) % (24*60);
-  }
+  h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Today’s sessions</h2>' +
+       (t.sessions.length ? t.sessions.map(sessionRow).join('')
+        : emptyBox('🎯','Nothing to rate yet','A score is asked for the moment you stop a session.')) +
+       '</div>';
 
-  /**
-   * A filed row's id is made from what it contains, never from where it sits.
-   *
-   * Positional ids looked stable and were not. A publish that inserts an earlier
-   * session shifts every index, so an edit saved as "f2" would land on whatever
-   * session happened to be second afterwards. Content ids cannot misfire: if the
-   * filed row changes, the id changes, and the stale edit is simply dropped
-   * instead of being applied to the wrong session.
-   */
-  var filedSeen = {};
-  function filedId(sess) {
-    // Two filed rows really can share a start minute and an area, because a fast
-    // switch writes zero-minute rows into the day file. A bare start+area id made
-    // one edit apply to both of them, and one delete remove both.
-    var base = 'f|' + sess.start + '|' + (sess.end || '') + '|' + sess.area;
-    filedSeen[base] = (filedSeen[base] || 0) + 1;
-    return base + '|' + filedSeen[base];
-  }
-
-  function sessionRows() {
-    var out = [];
-    filedSeen = {};
-    var t = (state && state.today) || {};
-    (t.sessions || []).forEach(function (s) {
-      if (s.open) {
-        out.push({ id:filedId(s), start:s.start, end:null, area:s.area, local:false,
-                   running:true, minutes:sinceToday(s.start) });
-      } else {
-        out.push({ id:filedId(s), start:s.start, end:s.end, area:s.area, local:false,
-                   minutes:s.minutes });
-      }
-    });
-    (local.segments||[]).forEach(function (s, ix) {
-      if (!s.id) s.id = 'lseg' + ix;          // rows saved before ids existed
-      out.push({ id:s.id, start:s.start, end:s.end, area:s.area, local:true,
-                 minutes:spanMin(s.start, s.end) });
-    });
-    if (local.open) {
-      if (!local.open.id) local.open.id = 'lopen';
-      out.push({ id:local.open.id, start:local.open.start, end:null, area:local.open.area,
-                 local:true, running:true, minutes:sinceToday(local.open.start) });
-    }
-
-    /* Corrections to FILED rows live in `local.edits`, because a filed row is the
-       Mac's to own and cannot be changed here. Corrections to LOCAL rows are made
-       on the row itself in saveSessEditor.
-
-       Keeping local rows out of this map matters. When an edit said "still
-       running" and the session was later stopped, the edit kept re-applying and
-       put the end back to null, so a finished session showed as running for the
-       rest of the day and its time counted twice. */
-    var edits = (local && local.edits) || {};
-    out = out.filter(function (s) { return edits[s.id] !== 'deleted'; });
-    out.forEach(function (s) {
-      var e = edits[s.id];
-      if (!e || e === 'deleted') return;
-      s.start = e.start; s.area = e.area;
-      s.end = e.end || null;
-      s.running = !s.end;
-      s.minutes = s.end ? spanMin(s.start, s.end) : sinceToday(s.start);
-    });
-
-    out.sort(function (a,c) { return wdMin(a.start) - wdMin(c.start); });
-
-    /* Exactly one session may be running, and this is where that is guaranteed.
-       The phone's open session and the one the Mac published are separate layers
-       and they can disagree, and a day file can carry more than one row whose end
-       cell was never filled in. Without this, every one of them drew as running
-       and every one of them counted time. The latest start wins; anything open
-       behind it is closed at that moment and marked `guessedEnd`, because that end
-       is this app's inference and must never be sent to the Mac as fact. */
-    var lastOpen = -1;
-    for (var i = 0; i < out.length; i++) if (out[i].running) lastOpen = i;
-    if (lastOpen > -1) {
-      for (var j = 0; j < lastOpen; j++) {
-        if (!out[j].running) continue;
-        out[j].running = false;
-        out[j].end = out[lastOpen].start;
-        out[j].guessedEnd = true;
-        out[j].minutes = spanMin(out[j].start, out[j].end);
-      }
-    }
-
-    /* A stop he made here on the Mac's session is a real recorded time, so it is
-       applied to the FIRST filed open row rather than only to whichever row
-       happens to run last. Applying it only to the last one closed his UCW
-       session at the start of the next session instead of when he stopped it, and
-       counted his break as work. */
-    if (local && local.filedEnd) {
-      for (var k = 0; k < out.length; k++) {
-        if (out[k].local) continue;
-        if (!out[k].running && !out[k].guessedEnd) continue;
-        out[k].running = false;
-        out[k].end = local.filedEnd;
-        out[k].guessedEnd = false;          // this end was recorded, not inferred
-        out[k].minutes = spanMin(out[k].start, out[k].end);
-        break;
-      }
-    }
-    return out.reverse();
-  }
-
-  /** Today's minutes for one area, used on the face of each timer button. */
-  function areaMinutes(slug) {
-    return sessionRows().reduce(function (n, s) {
-      return n + (s.area === slug ? (s.minutes||0) : 0);
-    }, 0);
-  }
-
-  function lastFinished() {
-    var done = sessionRows().filter(function (s) { return s.end; });
-    return done.length ? done[0] : null;
-  }
-
-  function balanceLine(b, total, open) {
-    if (!total) return 'No focused work logged yet today.';
-    var arr = BUCKETS.map(function(x){ return {n:x.n, v:b[x.k]}; })
-                     .sort(function(p,q){ return q.v-p.v; });
-    var lead=arr[0], last=arr[2], gap=lead.v-last.v, even=Math.round(total/3);
-    if (gap < 30) return 'Evenly split, about <b>'+hm(even)+'</b> each. Keep it there.';
-    if (!last.v)  return '<b>'+last.n+' is at zero.</b> '+lead.n+' has '+hm(lead.v)+
-                         '. An even finish needs '+hm(even)+' in each.';
-    return '<b>'+lead.n+' leads '+last.n+' by '+hm(gap)+'.</b> Even would be '+hm(even)+' each.';
-  }
-
-  function diagnostics() {
-    var deployed = !(health.err && /unknown action/i.test(health.err));
-    var rows = [
-      { ok: health.net===true, t:'Connection to the sheet',
-        s: health.net===true ? 'Reached the endpoint at '+esc(health.lastTry)
-         : health.net===false ? 'Failed: '+esc(health.err||'no network') : 'Checking…' },
-      { ok: health.net===true && deployed, t:'Console endpoints deployed',
-        s: health.net!==true ? 'Cannot tell until the connection works'
-         : deployed ? 'Server answers the state call'
-         : 'The Apps Script still runs the old code and needs redeploying.' },
-      { ok:false, t:'First publish from the Mac',
-        s:'Nothing published yet. At the Mac, run <code>python3 scripts/myday_console.py publish</code>.' }
-    ];
-    var h = '<div class="card diag">';
-    rows.forEach(function (r) {
-      h += '<div class="r"><span class="s">'+(r.ok?'✅':'⚪️')+'</span><div class="t"><b>'+
-           r.t+'</b><span>'+r.s+'</span></div></div>';
-    });
-    return h + '</div><div class="hint">This screen fills in the moment the Mac publishes.<br>'+
-               'Nothing is lost in the meantime.</div><div class="foot">'+BUILD+'</div>';
-  }
-
-  function renderTasks() {
-    var el = document.getElementById('s-tasks');
-    if (!state) { el.innerHTML = diagnostics(); return; }
-    var ticked = local.ticked || {}, all = (state.tasks||[]).slice();
-    function matchDue(f,t) {
-      if (f==='all')     return true;   // All means all, future included (Amir, 2026-08-30)
-      if (f==='overdue') return t.when==='overdue';
-      if (f==='today')   return t.when==='today';
-      if (f==='nodate')  return !t.due;
-      if (f==='later')   return t.when==='future';
-      return false;
-    }
-    function matchArea(f,t) { return f==='all' || t.area===f; }
-    function matches(t) { return matchDue(dueFilter,t) && matchArea(areaFilter,t); }
-    var view = all.filter(matches);
-    var dueDefs = [['all','All'],['overdue','Overdue'],['today','Today'],['nodate','No date'],['later','Later']];
-    var areaDefs = [['all','All areas']].concat(
-      AREAS.filter(function(a){return a.slug!=='overhead';})
-           .map(function(a){ return [a.slug, a.ic+' '+a.label]; })
-    );
-
-    var h = '<div class="chips" aria-label="Due date filters">';
-    dueDefs.forEach(function (f) {
-      var n = all.filter(function(t){ return matchDue(f[0],t) && matchArea(areaFilter,t); }).length;
-      h += '<button data-due="'+f[0]+'"'+(dueFilter===f[0]?' class="on"':'')+'>'+f[1]+
-           '<span class="ct">'+n+'</span></button>';
-    });
-    h += '</div><div class="chips" aria-label="Area filters">';
-    areaDefs.forEach(function (f) {
-      var n = all.filter(function(t){ return matchDue(dueFilter,t) && matchArea(f[0],t); }).length;
-      h += '<button data-area="'+f[0]+'"'+(areaFilter===f[0]?' class="on"':'')+'>'+f[1]+
-           '<span class="ct">'+n+'</span></button>';
-    });
-    h += '</div>';
-    h += '<div class="sub" style="margin:6px 4px 14px">Tick something and it is sent to Claude. '+
-         'Tap it again to undo before Claude files it at the Mac.</div>';
-    if (!view.length) { el.innerHTML = h+'<div class="hint">Nothing here.</div>'; return; }
-
-    var groups={}, order=[];
-    view.forEach(function (t) {
-      var key = t.section ? t.area+' · '+t.section : t.area;
-      if (!groups[key]) { groups[key]=[]; order.push(key); }
-      groups[key].push(t);
-    });
-    order.sort(function (a,c) {
-      function worst(k){ return Math.max.apply(null, groups[k].map(function(t){return t.overdue_days||0;})); }
-      return worst(c)-worst(a);
-    });
-    order.forEach(function (key) {
-      var list = groups[key].slice().sort(function (a,c) {
-        if (!a.due && !c.due) return 0;
-        if (!a.due) return 1; if (!c.due) return -1;
-        return a.due < c.due ? -1 : 1;
-      });
-      var f = list[0];
-      var name = (AREA_IC[f.area]||'•')+' '+
-                 (f.section || (state.areas&&state.areas[f.area]) || f.area);
-      var od = list.filter(function(t){ return t.when==='overdue'; }).length;
-      h += '<div class="grp"><div class="hd"><b>'+esc(name)+'</b><span>'+list.length+
-           (od?' · '+od+' overdue':'')+'</span></div><div class="body">';
-      list.forEach(function (t) {
-        var on = !!ticked[t.id];
-        h += '<div class="task'+(on?' on':'')+'" data-tick="'+t.id+'"><div class="box">'+(on?'✓':'')+
-             '</div><div class="c"><div class="tt">'+esc(t.title)+'</div><div class="mt">';
-        if (t.when==='overdue')    h += '<span class="od">'+t.overdue_days+'d overdue</span>';
-        else if (t.when==='today') h += '<span>due today</span>';
-        else if (t.due)            h += '<span>'+esc(t.due)+'</span>';
-        else                       h += '<span>no date</span>';
-        if (t.priority==='high') h += '<span>🔴</span>';
-        if (t.repeat)            h += '<span>🔁 '+esc(t.repeat)+'</span>';
-
-        h += '</div></div></div>';
-      });
-      h += '</div></div>';
-    });
-    el.innerHTML = h;
-  }
-
-  /** Only the notes list. The button above it is static and must never be
-      rebuilt, or an in-progress recording loses its element mid-hold. */
-  function renderTalk() {
-    var el = document.getElementById('notes');
-    if (!el) return;
-    var q = load(NOTEQ_KEY, []);
-    var rows = q.map(function (x) {
-        return { ts:x.ts, text:x.spoken || '(recorded, sending…)', local:true, qid:x.qid };
-      })
-      .concat(notes.map(function (n) {
-        return { ts:n.client_ts||n.server_ts, text:n.text, local:false, id:n.id };
-      }));
-
-    if (!rows.length) {
-      el.innerHTML = '<div class="hint">No notes waiting.<br>Everything you have said has been filed.</div>';
-      return;
-    }
-    var h = '<h2>Waiting for Claude</h2><div class="sub">Swipe a note left to edit or delete it.</div>'+
-            '<div class="card" style="padding:4px 16px">';
-    rows.reverse().forEach(function (n) {
-      // A note still on the phone has no server id yet, so it can only be
-      // dropped locally: there is nothing to edit until it comes back as text.
-      h += '<div class="note" data-id="'+(n.id||'')+'" data-qid="'+esc(n.qid||'')+'">'+
-           '<div class="actions">'+
-           (n.id ? '<button class="e" data-nact="edit">Edit</button>' : '')+
-           '<button class="d" data-nact="delete">Delete</button></div>'+
-           '<div class="w"><p>'+esc(n.text)+'</p><span>'+esc(n.ts||'')+
-           (n.local?' · on this phone':'')+'</span></div></div>';
-    });
-    el.innerHTML = h + '</div>';
-  }
-
-  function render() {
-    // Never redraw while the editor sheet is open. The sheet itself is safe, but
-    // a redraw replaces `notes` and rebuilds the list under it, and the save that
-    // follows would then be written against a row that no longer matches.
-    if (editNote || editSess) return;
-    /* A redraw between touchstart and touchend removes the element the finger
-       landed on, and WebKit then fires no click at all. No haptic, no colour
-       change, no error, and a stop that never happened. The recorder button and
-       both sheets were already protected from this; the timers were not, and they
-       are the controls he uses twenty times a day. */
-    if (touching) { renderPending = true; return; }
-    document.getElementById('hTitle').textContent =
-      tab==='today' ? 'Time tracking' : tab==='tasks' ? 'Tasks' : 'Talk';
-    document.getElementById('hDate').textContent =
-      state && state.today ? state.today.weekday+' '+state.today.date.slice(5).replace('-','/') : '';
-
-    var noteQ = load(NOTEQ_KEY, []).length;
-    var bar=document.getElementById('hStatus'), txt=document.getElementById('hStatusT');
-    var cls='status', msg;
-    if (evq.length || noteQ)          { cls+=' warn'; msg=(evq.length+noteQ)+' waiting to send'; }
-    else if (health.net===false)      { cls+=' bad';  msg='offline · showing last known'; }
-    else if (state && state._updated) { msg='synced · Claude filed up to '+state._updated.slice(11); }
-    else                              { cls+=' warn'; msg='waiting for the first publish'; }
-    bar.className=cls; txt.textContent=msg;
-
-    [].forEach.call(document.querySelectorAll('nav button'), function (x) {
-      x.classList.toggle('on', x.getAttribute('data-go')===tab);
-    });
-    document.getElementById('s-today').classList.toggle('on', tab==='today');
-    document.getElementById('s-tasks').classList.toggle('on', tab==='tasks');
-    document.getElementById('s-talk').classList.toggle('on', tab==='talk');
-
-    if (tab==='today') renderToday();
-    else if (tab==='tasks') renderTasks();
-    else renderTalk();
-  }
-
-  // ------------------------------------------------------------ interaction
-  var touching = false, renderPending = false;
-  document.addEventListener('touchstart', function () { touching = true; },
-                            { passive:true, capture:true });
-  ['touchend','touchcancel'].forEach(function (t) {
-    document.addEventListener(t, function () {
-      touching = false;
-      if (renderPending) { renderPending = false; setTimeout(render, 0); }
-    }, { passive:true, capture:true });
+  var hist = v.focus_history || [];
+  h += '<div class="card"><h2>Focus, day by day</h2>' +
+    (hist.length ? sparkHTML(hist) : '') +
+    '<div class="stack" style="margin-top:14px">' + (hist.length ? hist.map(function(d){
+      return '<button class="spread" data-hist="'+esc(d.date)+'" style="width:100%;text-align:left;' +
+        'padding:11px 0;border-bottom:1px solid var(--line-soft)">' +
+        '<span><span style="font-weight:600">'+esc(d.weekday)+'</span> ' +
+        '<span class="tiny muted">'+esc(d.date)+'</span></span>' +
+        '<span class="row" style="gap:12px"><span class="small muted">'+hmShort(d.worked_minutes)+'</span>' +
+        '<span class="fscore" style="background:'+focusBg(d.focus)+';color:'+focusColour(d.focus)+
+          ';width:30px;height:30px;font-size:15px">'+(d.focus==null?'·':d.focus.toFixed(1))+'</span></span></button>';
+    }).join('') : emptyBox('📈','No history yet','It fills in as you rate sessions.')) + '</div></div>';
+  return h;
+}
+function sparkHTML(hist){
+  var days = hist.slice(0, 30).reverse();
+  var W = 300, H = 66, n = Math.max(days.length, 2), step = W / (n - 1 || 1);
+  var pts = [], bars = '';
+  days.forEach(function(d, i){
+    var x = i * step, y = d.focus == null ? null : H - (d.focus/10) * H;
+    if(y !== null) pts.push(x.toFixed(1) + ',' + y.toFixed(1));
+    var bh = Math.max(2, (Math.min(d.worked_minutes, 720)/720) * H);
+    bars += '<rect x="'+(x - step*0.3).toFixed(1)+'" y="'+(H - bh).toFixed(1)+'" width="'+
+      Math.max(2, step*0.6).toFixed(1)+'" height="'+bh.toFixed(1)+'" fill="var(--line)" rx="1.5"/>';
   });
+  return '<svg viewBox="0 0 '+W+' '+H+'" style="width:100%;height:74px;overflow:visible" ' +
+    'role="img" aria-label="Focus score per day, with hours behind it as grey bars">' + bars +
+    (pts.length > 1 ? '<polyline points="'+pts.join(' ')+'" fill="none" stroke="var(--focus)" ' +
+      'stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' : '') +
+    (pts.length ? '<circle cx="'+pts[pts.length-1].split(',')[0]+'" cy="'+
+      pts[pts.length-1].split(',')[1]+'" r="3.5" fill="var(--focus)"/>' : '') +
+    '</svg><div class="spread tiny muted"><span>'+esc(days[0]?days[0].date:'')+'</span>' +
+    '<span>grey bars are hours · line is focus</span><span>'+esc(days[days.length-1]?days[days.length-1].date:'')+'</span></div>';
+}
+</script>
+<script>
+/* ═══════════════════════════════════════════════════════════════ goals ═══ */
+function pageGoals(v){
+  var w = v.week, h = '';
 
-  document.addEventListener('click', function (e) {
-    var n = e.target.closest('[data-go]');
-    if (n) { tab=n.getAttribute('data-go'); document.querySelector('main').scrollTop=0; render(); return; }
-
-    if (e.target.closest('#hHelp')) { showHelp=!showHelp; render(); return; }
-
-    var tb = e.target.closest('[data-timer]');
-    if (tb) { doTimer(tb.getAttribute('data-timer')); return; }
-
-    var a = e.target.closest('[data-act]');
-    if (a) {
-      var act = a.getAttribute('data-act');
-      if (act==='stop')    doStop(false);
-      if (act==='nudge')   { toggleNudge(); render(); return; }
-      if (act==='undo')    doUndoStart();
-      if (act==='addsess') openSessEditor(null);
-      return;
-    }
-
-    // --- session editing: everything happens in the sheet ----------------
-    var ed = e.target.closest('[data-edit]');
-    if (ed) { openSessEditor(ed.getAttribute('data-edit')); return; }
-
-    var df = e.target.closest('[data-due]');
-    if (df) { dueFilter=df.getAttribute('data-due'); render(); return; }
-
-    var af = e.target.closest('[data-area]');
-    if (af) { areaFilter=af.getAttribute('data-area'); render(); return; }
-
-    var tk = e.target.closest('[data-tick]');
-    if (tk) {
-      var id = tk.getAttribute('data-tick');
-      var task = (state.tasks||[]).filter(function(x){ return x.id===id; })[0];
-      if (!task) return;
-      var payload = { id:id, title:task.title, area:task.area, section:task.section,
-                      due:task.due, priority:task.priority, repeat:task.repeat,
-                      last_done:task.last_done };
-      local.ticked = local.ticked || {};
-      if (local.ticked[id]) {
-        // The original tick may already be in flight or stored in the Sheet, so
-        // never delete it from evq: doing that while flush() owns evq[0] can
-        // shift the wrong event. Send an explicit correction instead. Events
-        // are ordered, so Claude sees tick -> untick and keeps the task active.
-        emit('task_untick', payload);
-        delete local.ticked[id];
-      } else {
-        emit('task_tick', payload);
-        local.ticked[id] = true;
-      }
-      save(LOCAL_KEY, local); render(); flush();
-    }
-  });
-
-  // ================================================================ recorder
-  // Ported from the capture app. Every comment below records a failure that
-  // actually happened; do not "simplify" any of it.
-
-  var stream=null, mr=null, chunks=[], holding=false, startedAt=0, ticker=null, armed=false;
-  var queueSeq=0, sending=false, sendingSince=0, recBound=null;
-
-  function pickMime() {
-    var want=['audio/mp4','audio/webm;codecs=opus','audio/webm'];
-    for (var i=0;i<want.length;i++) {
-      if (window.MediaRecorder && MediaRecorder.isTypeSupported(want[i])) return want[i];
-    }
-    return '';
-  }
-  function extFor(m){ return m.indexOf('mp4')>-1 ? 'm4a' : 'webm'; }
-
-  function enqueueNote(item) {
-    var q = load(NOTEQ_KEY, []);
-    var held = q.reduce(function(n,x){ return n + (x.audio?x.audio.length:0); }, 0);
-    // Over budget: drop audio from the OLDEST entries that still have words to
-    // fall back on, so the newest recording always keeps its audio.
-    for (var i=0; i<q.length && held+(item.audio?item.audio.length:0)>MAX_AUDIO_BYTES; i++) {
-      if (q[i].audio && q[i].spoken) { held-=q[i].audio.length; q[i].audio=null; q[i].mime=null; }
-    }
-    q.push(item); save(NOTEQ_KEY, q); render();
-  }
-  function patchNote(qid, ch) {
-    var q = load(NOTEQ_KEY, []);
-    q.forEach(function(x){ if (x.qid===qid) { for (var k in ch) x[k]=ch[k]; } });
-    save(NOTEQ_KEY, q); render();
-  }
-  function dequeueNote(qid) {
-    save(NOTEQ_KEY, load(NOTEQ_KEY, []).filter(function(x){ return x.qid!==qid; }));
-    render();
-  }
-
-  /** Oldest first, one at a time, stopping at the first failure. */
-  function flushNotes() {
-    if (sending && Date.now()-sendingSince > 90000) sending=false;   // never wedge
-    if (sending || !cfg) return;
-    var q = load(NOTEQ_KEY, []); if (!q.length) return;
-    sending = true; sendingSince = Date.now();
-    var item = q[0];
-    // qid makes the send idempotent: a request can succeed on the server and
-    // still fail on the way back, and the retry must not store the note twice.
-    var body = item.audio
-      ? { action:'transcribe', qid:item.qid, audio:item.audio, mime:item.mime, client_ts:item.ts }
-      : { action:'add', qid:item.qid, text:item.spoken, client_ts:item.ts };
-    post(body)
-      .then(function (d) {
-        if (d && d.ok) { notes = d.pending || notes; dequeueNote(item.qid); }
-        else if (item.audio && item.spoken) patchNote(item.qid, {audio:null, mime:null});
-        else if (item.audio) patchNote(item.qid, {audio:null, mime:null, spoken:'[could not transcribe]'});
-        sending=false; flushNotes();
-      })
-      .catch(function () { sending=false; });   // stays queued, retried next tick
-  }
-
-  /** Updates only the two text nodes inside the button, never the button or its
-      structure, so a captured pointer is never disturbed mid-hold. */
-  function recSet(cls, label, sub) {
-    var rec = document.getElementById('rec'); if (!rec) return;
-    rec.className = 'rec' + (cls ? ' '+cls : '');
-    document.getElementById('recLabel').textContent = label;
-    document.getElementById('recSub').textContent = sub || '';
-  }
-
-  /**
-   * Three states, because the microphone takes a second or two to open and the
-   * button used to go red immediately. Anything said in that gap was never
-   * recorded, and nothing on screen said so. Red is driven by MediaRecorder's
-   * own onstart, the real moment capture begins.
-   */
-  function down(ev) {
-    ev.preventDefault();
-    if (holding) return;
-    holding = true; armed = false;
-    recSet('arming', 'GETTING READY', 'opening the microphone');
-
-    navigator.mediaDevices.getUserMedia({ audio:true }).then(function (s) {
-      stream = s;
-      if (!holding) { releaseMic(); return; }        // released while it was opening
-      var mime = pickMime(); chunks = [];
-      // 48 kbps: 24 kbps was tried and cost real accuracy ("UCW work" came back
-      // as "UCW award"). See phone/README.md.
-      var opts = mime ? { mimeType:mime, audioBitsPerSecond:48000 } : { audioBitsPerSecond:48000 };
-      try { mr = new MediaRecorder(s, opts); }
-      catch (e) { mr = mime ? new MediaRecorder(s, {mimeType:mime}) : new MediaRecorder(s); }
-
-      mr.onstart = function () {
-        if (!holding) { releaseMic(); return; }      // let go before capture began
-        armed = true; startedAt = Date.now();
-        recSet('live', 'LISTENING', 'let go to send');
-        clearInterval(ticker);
-        ticker = setInterval(function () {
-          if (holding && armed) {
-            recSet('live', 'LISTENING  '+Math.round((Date.now()-startedAt)/1000)+'s', 'let go to send');
-          }
-        }, 500);
-      };
-      mr.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-      mr.onstop = function () {
-        var type = (mr && mr.mimeType) || 'audio/mp4';
-        var blob = new Blob(chunks, { type:type });
-        if (blob.size < 1200) { releaseMic(); return; }   // a tap, not speech
-        var ts = stamp(), qid = ts+'-'+(queueSeq++);
-        var fr = new FileReader();
-        saving = true;                       // holds off any self-update reload
-        fr.onloadend = function () {
-          enqueueNote({ qid:qid, ts:ts, spoken:'', audio:String(fr.result).split(',')[1],
-                        mime:type+';name=note.'+extFor(type) });
-          saving = false;
-          flushNotes();
-        };
-        // If the clip itself is unreadable, still record that something was said.
-        fr.onerror = function () {
-          enqueueNote({ qid:qid, ts:ts, spoken:'[recording unreadable]', audio:null, mime:null });
-          saving = false;
-          flushNotes();
-        };
-        fr.readAsDataURL(blob);
-        releaseMic();
-      };
-      // Chunked, so a long note accumulates as it goes. Buffering ten minutes in
-      // one lump is exactly how the tail of a note gets lost.
-      mr.start(1000);
-    }).catch(function (err) {
-      holding = false; clearInterval(ticker);
-      var rec = document.getElementById('rec');
-      if (rec) { rec.disabled = true; recSet('', 'MIC BLOCKED', String(err && err.name || '')); }
-    });
-  }
-
-  /**
-   * Hands the microphone back to iOS. Keeping the stream alive between presses
-   * left the amber recording indicator lit permanently. Never hold it open.
-   */
-  function releaseMic() {
-    if (mr) { try { if (mr.state==='recording') mr.stop(); } catch(e){} mr=null; }
-    if (stream) { try { stream.getTracks().forEach(function(t){t.stop();}); } catch(e){} stream=null; }
-  }
-
-  function up(ev) {
-    if (ev) ev.preventDefault();
-    if (!holding) return;
-    holding = false;
-    // Measured from the real start, not from the press.
-    var tooShort = !armed || (Date.now()-startedAt) < 1000;
-    clearInterval(ticker); armed = false;
-    var rec = document.getElementById('rec');
-    if (rec && !rec.disabled) recSet('', 'HOLD & TALK', 'let go to send');
-    if (mr && mr.state==='recording') {
-      if (tooShort) { try { mr.ondataavailable=null; mr.onstop=null; mr.stop(); } catch(e){} releaseMic(); }
-      else { try { mr.stop(); } catch(e){} }        // onstop releases the mic
-    } else { releaseMic(); }
-  }
-
-  /**
-   * Pointer events ONLY. Binding touch* and mouse* together was a real bug: iOS
-   * fires synthetic mouse events after every touch, so the second press ran
-   * down() twice and could tear down a recording in progress.
-   */
-  function bindRecorder() {
-    var rec = document.getElementById('rec');
-    if (!rec || recBound === rec) return;
-    recBound = rec;
-    rec.addEventListener('pointerdown', function (e) {
-      try { rec.setPointerCapture(e.pointerId); } catch (err) {}
-      down(e);
-    });
-    rec.addEventListener('pointerup', up);
-    rec.addEventListener('pointercancel', up);
-  }
-
-  // ------------------------------------------------------- notes: swipe/edit
-  /**
-   * Horizontal drag reveals Edit and Delete. The direction is decided once, on
-   * the first few pixels of movement, so a vertical scroll through the list is
-   * never mistaken for a swipe.
-   */
-  (function () {
-    var host = document.getElementById('s-talk');
-    var startX=0, startY=0, row=null, decided=false, horizontal=false;
-
-    function closeAll(except) {
-      [].forEach.call(host.querySelectorAll('.note.open'), function (r) {
-        if (r !== except) r.classList.remove('open');
-      });
-    }
-    host.addEventListener('touchstart', function (e) {
-      var t = e.target.closest ? e.target.closest('.note') : null;
-      if (!t || e.target.closest('.actions')) return;
-      row=t; startX=e.touches[0].clientX; startY=e.touches[0].clientY;
-      decided=false; horizontal=false;
-    }, { passive:true });
-
-    host.addEventListener('touchmove', function (e) {
-      if (!row) return;
-      var dx = e.touches[0].clientX-startX, dy = e.touches[0].clientY-startY;
-      if (!decided) {
-        if (Math.abs(dx)<8 && Math.abs(dy)<8) return;
-        decided=true; horizontal=Math.abs(dx)>Math.abs(dy);
-        if (horizontal) { closeAll(row); row.classList.add('swiping'); }
-      }
-      if (!horizontal) return;
-      var w = row.querySelectorAll('.actions button').length * 80;
-      var off = Math.max(-w, Math.min(0, dx - (row.classList.contains('open') ? -0 : 0)));
-      row.querySelector('.w').style.transform = 'translateX('+off+'px)';
-    }, { passive:true });
-
-    /* iOS fires touchcancel instead of touchend whenever the system claims the
-       gesture: an edge swipe, an incoming call, Control Centre. Without this the
-       note stays dragged halfway across, and the next touch anywhere in the list
-       keeps dragging that same stale row. */
-    host.addEventListener('touchcancel', function () {
-      if (!row) return;
-      var n = row.querySelector('.w') || row.querySelector('.note');
-      row.classList.remove('swiping');
-      if (n) n.style.transform = '';
-      row = null;
-    }, { passive:true });
-
-    host.addEventListener('touchend', function () {
-      if (!row) return;
-      var body = row.querySelector('.w');
-      if (horizontal) {
-        var cur = parseFloat((body.style.transform.match(/-?\d+(\.\d+)?/)||[0])[0]) || 0;
-        var w = row.querySelectorAll('.actions button').length * 80;
-        row.classList.remove('swiping');
-        body.style.transform = '';
-        row.classList.toggle('open', cur < -w/2);
-      }
-      row = null;
-    });
-  })();
-
-  document.addEventListener('click', function (e) {
-    var b = e.target.closest('[data-nact]');
-    if (!b) return;
-    var note = b.closest('.note');
-    var id = Number(note.getAttribute('data-id')) || 0;
-    var qid = note.getAttribute('data-qid');
-    var act = b.getAttribute('data-nact');
-
-    if (act === 'delete') {
-      note.classList.remove('open');
-      if (id) {
-        // Marked "discarded" server-side, never actually deleted: a mis-swipe
-        // must not be able to lose a note.
-        notes = notes.filter(function (n) { return n.id !== id; });
-        render();
-        post({ action:'discard', id:id })
-          .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
-          .catch(function () { refreshNotes(); });
-      } else if (qid) {
-        save(NOTEQ_KEY, load(NOTEQ_KEY, []).filter(function (x) { return x.qid !== qid; }));
-        render();
-      }
-      return;
-    }
-
-    if (act === 'edit' && id) {
-      note.classList.remove('open');
-      openNoteEditor(id, note.querySelector('p').textContent);
-    }
-  });
-
-  /* ------------------------------------------------------- the note editor
-   * Opening the sheet, and the two ways out of it. Nothing here saves on blur:
-   * he leaves by pressing Save or Cancel, and nothing else ends the edit.
-   */
-  function openNoteEditor(id, text) {
-    editNote = { id:id, before:text };
-    var ta = document.getElementById('eText');
-    ta.value = text;
-    document.getElementById('esheet').classList.add('on');
-    fitViewport();
-    ta.focus();
-    // Caret at the end rather than everything selected, so one wrong word can be
-    // fixed without retyping the note.
-    try { ta.setSelectionRange(text.length, text.length); } catch (e) {}
-    // iOS reports the viewport height several times while the keyboard slides up
-    // and the early values are wrong, which is what left a band of dead white
-    // page below the tab bar. Measure again until it has settled.
-    [80, 250, 500, 900].forEach(function (ms) { setTimeout(fitViewport, ms); });
-  }
-
-  function closeNoteEditor() {
-    editNote = null;
-    document.getElementById('esheet').classList.remove('on');
-    document.getElementById('eText').blur();
-    fitSettling();
-    render();
-  }
-
-  document.getElementById('eCancel').addEventListener('click', closeNoteEditor);
-
-  document.getElementById('eSave').addEventListener('click', function () {
-    if (!editNote) return;
-    var id = editNote.id, before = editNote.before;
-    var after = document.getElementById('eText').value.trim();
-    closeNoteEditor();
-    if (!after || after === before) return;
-    notes.forEach(function (n) { if (n.id === id) n.text = after; });
-    render();
-    post({ action:'edit', id:id, text:after })
-      .then(function (d) { if (d && d.ok) { notes = d.pending || notes; render(); } })
-      .catch(function () { refreshNotes(); });
-  });
-
-  function refreshNotes() {
-    if (!cfg) return;
-    get('fetch').then(function (d) { if (d && d.ok) { notes = d.entries||[]; if (tab==='talk') render(); } })
-                .catch(function(){});
-  }
-
-  // -------------------------------------------------------------------- boot
-  cfg   = readConfig();
-  state = load(STATE_KEY, null);
-  evq   = load(EVQ_KEY, []);
-  local = load(LOCAL_KEY, null) || freshLocal();
-  if (local.date !== todayISO()) local = rollLocal(local);
-  if (!local.segments) local.segments = [];
-  // c18 could not reverse a task tick. Clear its stranded optimistic ticks once
-  // when c19 first loads; the server-side event is reconciled independently.
-  if (!load('myday_task_undo_c19', false)) {
-    local.ticked = {};
-    save(LOCAL_KEY, local);
-    save('myday_task_undo_c19', true);
-  }
-
-  /* ---------- viewport ----------
-   * inset:0 is supposed to give the full viewport, but on this phone the tab bar
-   * still lands short of the bottom of the screen, so stop trusting it and pin the
-   * height to what the browser reports as visible. Runs on load, on resize and on
-   * rotation. geom() prints the same measurements into the footer, because reading
-   * them off a screenshot is the only way this Mac can see an iPhone.
-   */
-  /* ----------------------------------------------------- the session editor
-   * One sheet does all four jobs Amir needs: fix a start he set late, fix an end
-   * he forgot to press, move a session to the right area, and add work he did
-   * away from the phone entirely. It is static markup outside every redraw, so it
-   * cannot be torn away mid-edit the way the old inline editor was.
-   */
-  function openSessEditor(id) {
-    var row = id ? sessionRows().filter(function (x) { return x.id === id; })[0] : null;
-    if (id && !row) return;
-
-    editSess = {
-      id: id,
-      isNew: !id,
-      // `guessedEnd` marks an end this app inferred to keep one session running.
-      // Sending it as `was` would let an area-only correction overwrite the real
-      // stop time in the day file with our guess.
-      was: row ? { start:row.start, end:(row.guessedEnd ? null : row.end), area:row.area } : null,
-      area: row ? row.area : 'ucw',
-      // A forgotten session almost always ended a moment ago, so an hour back to
-      // now is the guess that needs the least correcting.
-      start: row ? row.start : minusMinutes(clock(), 60),
-      end: row ? (row.end || '') : clock(),
-      // A row with no end is still running, and editing it must not silently stop it.
-      runningState: row ? !row.end : false
-    };
-
-    document.getElementById('sTitle').textContent = id ? 'Edit session' : 'Add a session';
-    document.getElementById('sDelete').style.display = id ? '' : 'none';
-    disarmDelete();
-    document.getElementById('sStart').value = editSess.start;
-    document.getElementById('sEnd').value = editSess.end || clock();
-    paintSessSheet();
-    document.getElementById('ssheet').classList.add('on');
-    fitSettling();
-  }
-
-  function paintSessSheet() {
-    var run = editSess.runningState;
-    [].forEach.call(document.querySelectorAll('#sSeg button'), function (b) {
-      b.classList.toggle('on', (b.getAttribute('data-sstate') === 'running') === run);
-    });
-    document.getElementById('sEndWrap').style.visibility = run ? 'hidden' : 'visible';
-    document.getElementById('sAreas').innerHTML = AREAS.map(function (a) {
-      return '<button data-sarea="'+a.slug+'"'+(a.slug===editSess.area?' class="on"':'')+'>'+
-             a.ic+' '+a.label+'</button>';
-    }).join('');
-    paintSessDur();
-  }
-
-  /**
-   * How long the session is, shown live, so a wrong time is obvious before it is
-   * saved rather than after.
-   *
-   * The important case is a reversed pair. `spanMin` wraps past midnight, so
-   * 09:00 to 08:00 is not an error to it, it is 23 hours, and 23 hours of UCW
-   * would quietly wreck the day's totals. A genuine session can cross midnight,
-   * so the test is length, not order: anything over twelve hours is a typo, and
-   * Save is refused until it is fixed.
-   */
-  function sessProblem(st, en, run) {
-    if (!st) return 'Needs a start time.';
-    if (run) {
-      // A running session whose start is in the future is a mis-spun wheel, not a
-      // 23-hour session. Without this, setting 16:00 at 15:00 banked 23 hours.
-      if (toMin(st) > nowMin() && sinceToday(st) > 12*60) return 'That start is in the future.';
-      return '';
-    }
-    if (!en) return 'Needs an end time.';
-    // Only a genuine reversal is refused. A thirteen-hour day is real work and
-    // must stay editable, so the test is direction first, then length.
-    if (toMin(en) < toMin(st) && spanMin(st, en) > 12*60) return 'Ends before it starts.';
-    return '';
-  }
-
-  function nowMin() { var d = new Date(); return d.getHours()*60 + d.getMinutes(); }
-
-  /** Anything already on the list that covers the same clock time. */
-  function overlapWith(st, en, ignoreId) {
-    var a1 = wdMin(st), a2 = en ? wdMin(en) : wdMin(clock());
-    if (a2 < a1) a2 += 24*60;
-    var hit = null;
-    sessionRows().forEach(function (r) {
-      if (r.id === ignoreId || hit) return;
-      var b1 = wdMin(r.start), b2 = r.end ? wdMin(r.end) : wdMin(clock());
-      if (b2 < b1) b2 += 24*60;
-      if (a1 < b2 && b1 < a2) hit = r;
-    });
-    return hit;
-  }
-
-  function paintSessDur() {
-    var st = document.getElementById('sStart').value;
-    var en = document.getElementById('sEnd').value;
-    var run = editSess.runningState;
-    var el = document.getElementById('sDur');
-    var save = document.getElementById('sSave');
-    var bad = sessProblem(st, en, run);
-
-    save.disabled = !!bad;
-    save.style.opacity = bad ? '.4' : '';
-    el.classList.toggle('bad', !!bad);
-
-    if (bad) { el.textContent = bad; return; }
-
-    /* An overlap is not refused, because a correction in progress can legitimately
-       overlap for a moment. It is named, because two rows covering the same hour
-       count that hour twice and nothing else on the screen would say so. */
-    var clash = overlapWith(st, run ? null : en, editSess.id);
-    var warn = clash ? ' · overlaps ' + ((state && state.areas && state.areas[clash.area]) || clash.area) +
-                       ' ' + clash.start + '–' + (clash.end || 'now') : '';
-    el.classList.toggle('warn', !!clash);
-
-    if (run) { el.textContent = hm(sinceToday(st)) + ' so far, still running' + warn; return; }
-    var mins = spanMin(st, en);
-    el.textContent = hm(mins) +
-      (mins === 0 ? ' · that is zero minutes' : '') +
-      (toMin(en) < toMin(st) ? ' · crosses midnight' : '') + warn;
-  }
-
-  function closeSessEditor() {
-    editSess = null;
-    document.getElementById('ssheet').classList.remove('on');
-    fitSettling();
-    render();
-  }
-
-  function saveSessEditor() {
-    if (!editSess) return;
-    var st = document.getElementById('sStart').value;
-    var run = editSess.runningState;
-    var en = run ? null : document.getElementById('sEnd').value;
-    // The same test the duration line shows him. Nothing gets past both.
-    if (sessProblem(st, en, run)) { paintSessDur(); return; }
-    var area = editSess.area;
-    var was = editSess.was;
-    local.edits = local.edits || {};
-
-    if (editSess.isNew) {
-      // Work done away from the phone. It goes in as a local segment like any
-      // other, with its own id, and Claude hears about it as an explicit event.
-      var seg = { id:nextSessId(), start:st, end:en, area:area };
-      if (run) {
-        if (running()) doStop(true, st);
-        local.open = { id:seg.id, start:st, area:area };
-      } else {
-        local.segments.push(seg);
-      }
-      emit('session_add', { start:st, end:en, area:area });
-    } else {
-      emit('session_edit', { was:was, now:{ start:st, end:en, area:area } });
-      var wasRunning = was && !was.end;
-      var isFiled = String(editSess.id).charAt(0) === 'f';
-      var openIsThis = local.open && local.open.id === editSess.id;
-
-      if (isFiled) {
-        // A filed row belongs to the Mac, so the correction is recorded beside it.
-        local.edits[editSess.id] = { start:st, end:en, area:area };
-        if (wasRunning && !run) local.filedEnd = en;
-      } else {
-        // A local row is ours to change outright, which is why it never goes into
-        // local.edits: a stale edit there once un-stopped a finished session.
-        if (local.edits) delete local.edits[editSess.id];
-        var seg = (local.segments||[]).filter(function (x) { return x.id === editSess.id; })[0];
-        if (seg) { seg.start = st; seg.end = en; seg.area = area; }
-        if (openIsThis) { local.open.start = st; local.open.area = area; }
-      }
-
-      // Exactly one session runs at a time, before and after this save.
-      if (wasRunning && !run && openIsThis) {
-        local.segments.push({ id:editSess.id, start:st, end:en, area:area });
-        local.open = null;
-      }
-      if (!wasRunning && run) {
-        // Close whatever is running AT THIS SESSION'S START, not at the clock. The
-        // old code closed it at "now", so re-opening a 09:00 session at 15:00 left
-        // an hour sitting inside both rows.
-        if (running()) doStop(true, st);
-        local.segments = (local.segments||[]).filter(function (x) { return x.id !== editSess.id; });
-        // A filed row hidden as deleted cannot lend its id to the replacement:
-        // the replacement inherits the deletion and vanishes with it.
-        var newId = isFiled ? nextSessId() : editSess.id;
-        if (isFiled) local.edits[editSess.id] = 'deleted';
-        local.open = { id:newId, start:st, area:area };
-      }
-    }
-    local.date = todayISO(); save(LOCAL_KEY, local);
-    closeSessEditor(); flush();
-  }
-
-  function deleteSessEditor() {
-    if (!editSess || editSess.isNew) return;
-    var id = editSess.id, was = editSess.was;
-    local.edits = local.edits || {};
-    local.edits[id] = 'deleted';
-    emit('session_delete', { start:was&&was.start, end:was&&was.end, area:was&&was.area });
-    if (local.open && local.open.id === id) local.open = null;
-    local.segments = (local.segments||[]).filter(function (x) { return x.id !== id; });
-    if (was && !was.end && String(id).charAt(0) === 'f') local.filedEnd = was.start;
-    local.date = todayISO(); save(LOCAL_KEY, local);
-    closeSessEditor(); flush();
-  }
-
-  document.getElementById('sCancel').addEventListener('click', closeSessEditor);
-  document.getElementById('sSave').addEventListener('click', saveSessEditor);
-  ['sStart','sEnd'].forEach(function (id) {
-    var el = document.getElementById(id);
-    el.addEventListener('input', paintSessDur);
-    // The iOS time wheel resizes the visible area exactly like the keyboard does.
-    el.addEventListener('focus', fitSettling);
-    el.addEventListener('blur', fitSettling);
-  });
-  document.getElementById('sSeg').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-sstate]'); if (!b || !editSess) return;
-    editSess.runningState = b.getAttribute('data-sstate') === 'running';
-    paintSessSheet();
-  });
-  document.getElementById('sAreas').addEventListener('click', function (e) {
-    var b = e.target.closest('[data-sarea]'); if (!b || !editSess) return;
-    editSess.area = b.getAttribute('data-sarea');
-    paintSessSheet();
-  });
-  /* Delete asks once. A mis-tap here loses real work, and there is no undo for it. */
-  var armTimer = null;
-  function disarmDelete() {
-    if (armTimer) { clearTimeout(armTimer); armTimer = null; }
-    var b = document.getElementById('sDelete');
-    b.classList.remove('arm'); b.textContent = 'Delete this session';
-  }
-  document.getElementById('sDelete').addEventListener('click', function () {
-    var b = this;
-    if (!b.classList.contains('arm')) {
-      // The timer is held so that arming one row cannot disarm the next one he
-      // opens four seconds later, which made clearing several rows unreliable.
-      b.classList.add('arm'); b.textContent = 'Tap again to delete';
-      if (armTimer) clearTimeout(armTimer);
-      armTimer = setTimeout(disarmDelete, 4000);
-      return;
-    }
-    disarmDelete();
-    deleteSessEditor();
-  });
-
-  /* --------------------------------------------------------------- the nudge
-   * The switch only tells the server. Everything else happens off this phone.
-   *
-   * An earlier build did it here: a timer in the page, a chime, and an inaudible
-   * tone playing the whole time to stop iOS suspending the page. It worked and it
-   * was the wrong answer. A web page on the Home Screen cannot ask iOS to hold a
-   * schedule for it, so staying awake was the only way, and staying awake costs
-   * battery all day for a reminder that lasts a second.
-   *
-   * Apps Script holds the schedule now and sends through ntfy every 15 minutes.
-   * This phone does nothing between reminders and can be closed.
-   *
-   * The local copy is only so the switch answers the moment it is tapped. The
-   * server's answer replaces it on the next poll, unless a tap is still in flight.
-   */
-  var nudgeSending = false;
-
-  function nudgeOn() { var l = load(NUDGE_KEY, null); return !!(l && l.on); }
-  var nudgeErr = '';
-  function nudgeStatusLine() {
-    if (nudgeOn() && nudgeErr) return '⚠️ Not sending. ' + nudgeErr;
-    return nudgeOn() ? 'On · sent to your ntfy app, even when this is closed'
-                     : 'A reminder every 15 minutes, until you switch it off';
-  }
-
-  function toggleNudge() {
-    var want = !nudgeOn();
-    save(NUDGE_KEY, { on: want });
-    nudgeSending = true;
-    post({ action:'nudge_set', on: want })
-      .then(function (d) { if (d && d.ok) save(NUDGE_KEY, { on: !!d.on }); })
-      .catch(function () {})       // the next poll will straighten it out
-      .then(function () { nudgeSending = false; render(); });
-  }
-
-  /* iOS fires visualViewport.scroll continuously while the keyboard animates, and
-     writing body.style.height can itself move the visual viewport, so the handler
-     could feed itself. One write per frame settles it. */
-  var fitQueued = false;
-  function fitSoon() {
-    if (fitQueued) return;
-    fitQueued = true;
-    requestAnimationFrame(function () { fitQueued = false; fitViewport(); });
-  }
-  /* The keyboard and the iOS time wheel both animate for about a third of a
-     second, and every height reported during that animation is wrong. Measuring
-     once is what left the tab bar stranded in mid-screen, so every open and every
-     close re-measures until it has settled. */
-  function fitSettling() {
-    fitViewport();
-    [80, 250, 500, 900].forEach(function (ms) { setTimeout(fitViewport, ms); });
-  }
-
-  function fitViewport() {
-    var vv = window.visualViewport;
-    var h = (vv ? Math.round(vv.height) : 0) || window.innerHeight;
-    // offsetTop is how far iOS has scrolled the visible area down inside the
-    // page to keep the caret above the keyboard. A fixed element that ignores it
-    // stays behind, which is why the tab bar ended up stranded in mid-screen.
-    var top = vv ? Math.round(vv.offsetTop) : 0;
-    document.body.style.top = top + 'px';
-    document.body.style.bottom = 'auto';
-    document.body.style.height = h + 'px';
-    ['esheet','ssheet'].forEach(function (id) {
-      var sh = document.getElementById(id);
-      if (sh) { sh.style.top = top + 'px'; sh.style.height = h + 'px'; }
-    });
-  }
-  function envBottom() {
-    var d = document.createElement('div');
-    d.style.cssText = 'position:fixed;visibility:hidden;height:env(safe-area-inset-bottom)';
-    document.body.appendChild(d);
-    var v = parseFloat(getComputedStyle(d).height) || 0;
-    d.remove();
-    return Math.round(v);
-  }
-  function geom() {
-    var nav = document.querySelector('nav');
-    var nb = nav ? Math.round(nav.getBoundingClientRect().bottom) : -1;
-    var vv = window.visualViewport ? Math.round(visualViewport.height) : -1;
-    return 'ih' + window.innerHeight + ' vv' + vv + ' sh' + screen.height +
-           ' sab' + envBottom() + ' navB' + nb + ' gap' + (window.innerHeight - nb) +
-           ' std' + (navigator.standalone ? 1 : 0);
-  }
-
-  /* ---------- self-update ----------
-   * A Home Screen app has no address bar and no reload button, and GitHub Pages
-   * serves this file with max-age=600, so a published fix can sit unseen on the
-   * phone for a long time. Three layout fixes shipped on 2026-08-17 and none of
-   * them reached the phone, which is what this exists to prevent. The page fetches
-   * its own URL with cache:'no-store', reads the BUILD string out of the response,
-   * and reloads itself when the server is running something newer. Never while a
-   * recording is in progress: that would drop the audio mid-hold.
-   */
-  var updating = false, saving = false;
-  function checkForUpdate() {
-    /* `holding` goes false the instant he lets go, but the audio is not saved for
-       hundreds of milliseconds after that: onstop, then the FileReader, then the
-       localStorage write. A reload inside that window destroys the clip with no
-       trace, which is the exact failure the save-before-send rule exists to
-       prevent. `saving` stays true until the note is on disk. */
-    if (updating || holding || saving || editNote || editSess) return;
-    updating = true;
-    fetch(location.pathname + '?v=' + Date.now(), { cache:'no-store' })
-      .then(function (r) { return r.ok ? r.text() : null; })
-      .then(function (html) {
-        if (!html) return;
-        var m = html.match(/var BUILD = '([^']+)'/);
-        if (!m || m[1] === BUILD) return;
-        /* location.reload() is allowed to come back out of the HTTP cache, and with
-           max-age=600 on Pages it often did. Paired with the attempt guard below
-           that pinned the phone to a stale build for good: it recorded the target
-           as tried, reloaded, got the cached old copy back, and then refused to
-           retry. Navigating to a URL carrying the build number instead is a URL the
-           cache has never seen, so the fetch is always fresh. The hash carries the
-           deployment id and token and must survive. */
-        var target = m[1];
-        var tries = 0;
-        try { tries = parseInt(sessionStorage.getItem('myday_reload_' + target) || '0', 10); } catch (e) {}
-        if (tries >= 2) return;                 // give up rather than loop on a stuck edge
-        try { sessionStorage.setItem('myday_reload_' + target, tries + 1); } catch (e) {}
-        location.replace(location.pathname + '?b=' + encodeURIComponent(target) + location.hash);
-      })
-      .catch(function () {})
-      .then(function () { updating = false; });
-  }
-
-  if (!cfg) {
-    document.querySelector('main').innerHTML =
-      '<div class="card diag"><div class="r"><span class="s">⚪️</span><div class="t">'+
-      '<b>Not linked yet</b><span>Open the console link ending in <code>#d=…&amp;k=…</code> and keep '+
-      'the whole fragment in the address bar when you add it to the Home Screen. If you just did '+
-      'and still see this, you are in a Private tab, which cannot save anything.</span></div></div></div>';
-    document.querySelector('nav').style.display = 'none';
+  if(!w || !w.total){
+    h += '<div class="nag"><h3>This week has no goals</h3>' +
+      '<p class="small dim">Hold the microphone and say them out loud, for example ' +
+      '“this week: finish the health paper rebuttal, and ship the landing page”. ' +
+      'Or type them below.</p></div>';
+    h += '<div class="card"><h2>Set this week’s goals</h2>' +
+      '<div class="stack" id="goalDraft">' + goalInput(0) + goalInput(1) + goalInput(2) + '</div>' +
+      '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save the week’s goals</button>' +
+      '<p class="tiny muted" style="margin-top:10px">Two or three is plenty. They are what turn ' +
+      'hours into something you can point at on Sunday.</p></div>';
   } else {
-    bindRecorder();                 // once, on the static button
-    fitViewport();
-    window.addEventListener('resize', fitViewport);
-    window.addEventListener('orientationchange', fitViewport);
-    if (window.visualViewport) {
-      visualViewport.addEventListener('resize', fitSoon);
-      visualViewport.addEventListener('scroll', fitSoon);
-    }
-    render();                       // cached state paints before any network call
-    refresh(); refreshNotes(); flush();
-    checkForUpdate();
-    setInterval(function(){ refresh(); refreshNotes(); flush(); checkForUpdate(); }, POLL_MS);
-    setInterval(function(){ if (running()) render(); }, 30000);   // live timer
-    // Only the number is rewritten. Redrawing the whole page once a second would
-    // fight the swipe gestures, the area picker and the editor sheet, which is the
-    // same mistake that used to tear the note editor out mid-sentence.
-    setInterval(function () {
-      var el = document.getElementById('elapsed');
-      if (el) el.textContent = hms(secSince(el.getAttribute('data-start')));
-    }, 1000);
+    var elapsed = weekElapsed(w, v.today.date);
+    h += '<div class="card"><div class="spread" style="align-items:flex-end;margin-bottom:14px">' +
+      '<div><div class="serif" style="font-size:46px;line-height:1">'+w.progress+'<span style="font-size:22px">%</span></div>' +
+      '<div class="small muted">'+esc(w.key)+' · day '+elapsed+' of 7</div></div>' +
+      '<div style="text-align:right"><div style="font-weight:700;font-size:19px">'+w.hit+' / '+w.total+'</div>' +
+      '<div class="tiny muted">done</div></div></div>' +
+      '<div class="bar" style="height:8px"><i style="background:var(--goals)" data-w="'+
+        Math.round(w.progress)+'"></i></div>' +
+      '<div class="spread tiny muted" style="margin-top:7px"><span>where you are</span>' +
+      '<span>pace needs '+Math.round(elapsed/7*100)+'%</span></div></div>';
 
-    /* c22 registered a service worker so the page could raise its own
-       notification. c23 sends from the server instead, so it has no job left.
-       Unregister it rather than leave it installed on phones that already took
-       it: a worker nobody maintains is the kind of thing that strands a build. */
-    if (navigator.serviceWorker) {
-      navigator.serviceWorker.getRegistrations()
-        .then(function (rs) { rs.forEach(function (r) { r.unregister(); }); })
-        .catch(function () {});
-    }
-    window.addEventListener('online', function(){ refresh(); flush(); });
-    document.addEventListener('visibilitychange', function () {
-      if (document.hidden) { holding=false; releaseMic(); }
-      else { fitViewport(); refresh(); refreshNotes(); flush(); checkForUpdate(); }
-    });
+    h += '<div class="card flush">' + w.goals.map(function(g, i){
+      return '<div class="goal'+(g.done?' done':'')+'"><div class="top">' +
+        '<button class="tick'+(g.done||g.percent>=100?' on':'')+'" data-goaltick="'+i+'" ' +
+        'aria-label="Mark done">'+((g.done||g.percent>=100)?'✓':'')+'</button>' +
+        '<span class="txt">'+esc(g.title)+
+          (g.bucket?' <span class="pill" style="background:var(--goals-soft);color:var(--goals)">'+
+            esc(g.bucket)+'</span>':'')+'</span>' +
+        '<span class="pct">'+(g.done?100:(g.percent||0))+'%</span></div>' +
+        '<input class="slider" type="range" min="0" max="100" step="5" value="'+
+          (g.done?100:(g.percent||0))+'" data-goalpct="'+i+'" aria-label="Progress on '+esc(g.title)+'"></div>';
+    }).join('') + '</div>';
+    h += '<button class="btn wide" id="editGoals" style="margin-bottom:14px">Change this week’s goals</button>';
   }
-})();
+
+  var past = (v.weeks||[]).filter(function(x){ return !x.current; }).reverse();
+  h += '<div class="card"><h2>Every week so far</h2>' +
+    (past.length ? '<div class="stack">' + past.map(function(x){
+      return '<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line-soft)">' +
+        '<div><div style="font-weight:600">'+esc(x.key)+'</div>' +
+        '<div class="tiny muted">'+esc(x.start)+' to '+esc(x.end)+'</div></div>' +
+        '<div class="row" style="gap:14px">' +
+        '<span class="small"><b>'+x.hit+'</b><span class="muted"> / '+x.total+'</span></span>' +
+        '<span style="width:34px">'+triSVG({consistency:x.consistency,focus:x.focus,goals:x.goals},
+          {size:34, r:12, labels:false})+'</span></div></div>';
+    }).join('') + '</div>' +
+      '<div class="spread small" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--line)">' +
+      '<span class="muted">Hit rate</span><span style="font-weight:700">' +
+      hitRate(past) + '</span></div>'
+     : emptyBox('🏁','No finished weeks yet','This fills in every Sunday.')) + '</div>';
+  return h;
+}
+function goalInput(i){
+  return '<input class="setup-in" data-draft="'+i+'" placeholder="Goal '+(i+1)+
+    (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);' +
+    'border-radius:11px;background:var(--surface)">';
+}
+function weekElapsed(w, onDate){
+  var monday = new Date(w.start + 'T00:00:00'), d = new Date(onDate + 'T00:00:00');
+  return Math.max(1, Math.min(7, Math.round((d - monday)/86400000) + 1));
+}
+function hitRate(weeks){
+  var hit = 0, tot = 0;
+  weeks.forEach(function(w){ hit += w.hit; tot += w.total; });
+  return tot ? Math.round(hit/tot*100) + '% (' + hit + ' of ' + tot + ')' : '·';
+}
+
+/* ═══════════════════════════════════════════════════════════════ tasks ═══ */
+var TASK_FILTER = 'all';
+function pageTasks(v){
+  var all = v.tasks || [];
+  var counts = {
+    all: all.length,
+    overdue: all.filter(function(t){ return t.when === 'overdue'; }).length,
+    today: all.filter(function(t){ return t.when === 'today'; }).length,
+    none: all.filter(function(t){ return t.when === 'none'; }).length,
+    later: all.filter(function(t){ return t.when === 'future'; }).length
+  };
+  var chips = [['all','All'],['overdue','Overdue'],['today','Today'],['none','No date'],['later','Later']];
+  var h = '<div class="chips">' + chips.map(function(c){
+    return '<button class="chip'+(TASK_FILTER===c[0]?' on':'')+'" data-filter="'+c[0]+'">' +
+      esc(c[1]) + ' <span style="opacity:.6">'+counts[c[0]]+'</span></button>';
+  }).join('') + '</div>';
+
+  var list = all.filter(function(t){
+    return TASK_FILTER === 'all' ? true
+         : TASK_FILTER === 'later' ? t.when === 'future'
+         : t.when === TASK_FILTER;
+  });
+  if(!list.length) return h + '<div class="card">' +
+    emptyBox('✅','Nothing here','Try another filter.') + '</div>';
+
+  // One card per list, exactly as the task tables in chat are grouped.
+  var groups = {};
+  list.forEach(function(t){
+    var k = t.area_label + ' — ' + t.section;
+    (groups[k] = groups[k] || []).push(t);
+  });
+  Object.keys(groups).forEach(function(k){
+    h += '<div class="card flush"><h2 style="padding:16px 16px 4px;margin:0">'+esc(k)+'</h2>' +
+      groups[k].map(function(t){
+        var due = t.due ? (t.when === 'overdue'
+              ? '<span style="color:var(--bad);font-weight:600">'+t.overdue_days+'d overdue</span>'
+              : t.when === 'today' ? '<span style="color:var(--consistency);font-weight:600">today</span>'
+              : esc(t.due)) : '<span class="muted">no date</span>';
+        return '<div class="tk" data-taskrow="'+esc(t.id)+'">' +
+          '<button class="box" data-tick="'+esc(t.id)+'" aria-label="Tick '+esc(t.title)+'"></button>' +
+          '<div class="grow"><div class="t">'+esc(t.title)+'</div>' +
+          '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
+            (t.priority==='high'?' · <span style="color:var(--bad)">HIGH</span>':'')+'</div></div></div>';
+      }).join('') + '</div>';
+  });
+  return h;
+}
+
+/* ═══════════════════════════════════════════════════════════════ notes ═══ */
+var NOTES = [];
+function pageNotes(v){
+  var h = '<div class="card"><h2>How this works</h2>' +
+    '<p class="small dim">Hold the microphone on any page and talk. What you say is written down ' +
+    'and tagged with the page you were on, so a note recorded on Goals is read as a goal and one ' +
+    'recorded on Tasks is read as a task. A note stays in this list until Claude has filed it. ' +
+    'When it disappears, it landed.</p></div>';
+
+  h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Waiting for Claude</h2>' +
+    (NOTES.length ? NOTES.map(function(n){
+      return '<div class="item"><div class="grow"><div style="line-height:1.45">'+esc(n.text)+'</div>' +
+        '<div class="s">'+esc(String(n.client_ts).replace('T',' ').slice(0,16))+
+        (n.page?' · from '+esc(n.page):'')+'</div></div></div>';
+    }).join('') : emptyBox('📥','Nothing waiting','Everything you have said has been filed.')) + '</div>';
+
+  var pend = PEND.filter(function(e){ return !e.sent; });
+  if(pend.length){
+    h += '<div class="card"><h2>Not sent yet</h2><div class="stack">' + pend.map(function(e){
+      return '<div class="spread small"><span>'+esc(e.kind.replace(/_/g,' '))+'</span>' +
+        '<span class="muted">'+esc(e.at)+'</span></div>';
+    }).join('') + '</div><p class="tiny muted" style="margin-top:10px">Saved on this phone. ' +
+      'They send themselves as soon as you are back online.</p></div>';
+  }
+  return h;
+}
+async function refreshNotes(){
+  try{
+    NOTES = await api('/rest/v1/entries?status=eq.new&select=id,text,page,client_ts&order=id.desc&limit=40');
+  }catch(e){ NOTES = []; }
+}
+</script>
+<script>
+/* ═════════════════════════════════════════════════════════ the shell ═════ */
+var TAB = 'home';
+var TABS = [
+  {k:'home',  ic:'△', label:'Triangle'},
+  {k:'time',  ic:'⏱', label:'Hours'},
+  {k:'focus', ic:'🎯', label:'Focus'},
+  {k:'goals', ic:'🏁', label:'Goals'},
+  {k:'tasks', ic:'☑', label:'Tasks'},
+  {k:'notes', ic:'📥', label:'Notes'}
+];
+var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
+              tasks:'Tasks', notes:'Notes'};
+var MIC_HINT = {
+  home:'Say anything. It lands in the inbox.',
+  time:'Say your working blocks, or a session you forgot.',
+  focus:'Say how focused you were and when.',
+  goals:'Say this week’s goals out loud.',
+  tasks:'Say a task and where it belongs.',
+  notes:'Say anything at all.'
+};
+
+function render(){
+  derive();
+  var app = document.getElementById('app');
+  if(!CFG){ app.innerHTML = setupHTML(); return; }
+  if(!VIEW){ app.innerHTML = loadingHTML(); return; }
+
+  var v = VIEW;
+  var body = TAB === 'home'  ? pageHome(v)
+           : TAB === 'time'  ? pageTime(v)
+           : TAB === 'focus' ? pageFocus(v)
+           : TAB === 'goals' ? pageGoals(v)
+           : TAB === 'tasks' ? pageTasks(v)
+           : pageNotes(v);
+
+  app.innerHTML =
+    '<div class="topbar" id="topbar"><h1>'+esc(TITLES[TAB])+'</h1>' +
+      '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
+    '<nav class="nav">' + TABS.map(function(t){
+      return '<button data-go="'+t.k+'" class="'+(TAB===t.k?'on':'')+'">' +
+        '<span class="ic">'+t.ic+'</span>'+esc(t.label)+'</button>';
+    }).join('') + '</nav>' +
+    '<main><div class="page on">' + body + '</div>' +
+      '<p class="tiny muted" style="text-align:center;margin:22px 0 0">' +
+      'Updated '+esc(UPDATED||v.generated_at)+' · '+BUILD+'</p></main>' +
+    '<div class="micwrap"><div class="mic-hint" id="micHint">'+esc(MIC_HINT[TAB])+'</div>' +
+    '<button class="mic" id="mic" aria-label="Hold to talk">' +
+    '<span class="ring"></span><span id="micLabel">Hold to talk</span></button></div>';
+
+  // Widths are set synchronously; the growing is a CSS keyframe. Nothing here
+  // may depend on a frame callback, because a backgrounded tab does not run one.
+  document.querySelectorAll('.bar > i[data-w]').forEach(function(i){
+    i.style.width = i.getAttribute('data-w') + '%';
+  });
+  document.querySelector('main').addEventListener('scroll', syncBar);
+  window.addEventListener('scroll', syncBar, {passive:true});
+  bindMic();
+  tickClock();
+}
+function syncBar(){
+  var b = document.getElementById('topbar');
+  if(b) b.classList.toggle('scrolled', window.scrollY > 4);
+}
+function loadingHTML(){
+  return '<div class="topbar"><h1>myday</h1></div><main>' +
+    '<div class="card"><div class="skel" style="height:200px"></div></div>' +
+    '<div class="grid3">' + [0,1,2].map(function(){
+      return '<div class="skel" style="height:92px"></div>'; }).join('') + '</div>' +
+    '<div class="card"><div class="skel" style="height:76px"></div></div></main>';
+}
+function setupHTML(){
+  return '<div class="setup"><h1 class="serif" style="font-size:40px">myday</h1>' +
+    '<p class="dim" style="margin:12px 0 20px">This link is missing its key. Open the full ' +
+    'link again, including everything after the # sign.</p>' +
+    '<p class="tiny muted">iOS gives a Home Screen app its own storage, so an icon saved ' +
+    'without the fragment lands here every time. Delete the icon, open the full link in ' +
+    'Safari, then add it again.</p></div>';
+}
+
+/* ── the live clock ─────────────────────────────────────────────────────── */
+var CLOCK_T = null;
+function tickClock(){
+  clearInterval(CLOCK_T);
+  var e = document.getElementById('liveclock');
+  if(!e) return;
+  var upd = function(){
+    var n = document.getElementById('liveclock');
+    if(!n){ clearInterval(CLOCK_T); return; }
+    n.textContent = hm(minsSince(n.getAttribute('data-start')));
+  };
+  upd();
+  CLOCK_T = setInterval(upd, 15000);
+}
+
+/* ── sheets ─────────────────────────────────────────────────────────────── */
+var SHEET = null;
+function openSheet(html, opts){
+  opts = opts || {};
+  closeSheet(true);
+  SHEET = el('<div class="sheet"><div class="grab"></div>' + html + '</div>');
+  SHEET.dataset.mandatory = opts.mandatory ? '1' : '';
+  document.body.appendChild(SHEET);
+  document.getElementById('scrim').classList.add('on');
+  setTimeout(function(){ if(SHEET) SHEET.classList.add('on'); }, 16);
+}
+function closeSheet(force){
+  if(!SHEET) return;
+  if(SHEET.dataset.mandatory && !force) return;
+  var s = SHEET; SHEET = null;
+  s.classList.remove('on');
+  document.getElementById('scrim').classList.remove('on');
+  setTimeout(function(){ s.remove(); }, 340);
+}
+document.getElementById('scrim').addEventListener('click', function(){ closeSheet(); });
+
+/* ── start a session ────────────────────────────────────────────────────── */
+var AREAS = [
+  ['ucw','UCW','var(--consistency)'], ['research','Research','var(--consistency)'],
+  ['ai','AI Business','var(--goals)'], ['dog','Dog Business','var(--focus)'],
+  ['personal','Personal','var(--ink-3)'], ['overhead','Overhead','var(--ink-3)']
+];
+function askArea(){
+  openSheet('<h3>What are you working on?</h3>' +
+    '<p class="small muted">The area is enough. You never have to name the task.</p>' +
+    '<div class="grid2" style="margin-top:16px">' + AREAS.map(function(a){
+      return '<button class="btn" data-area="'+a[0]+'" style="justify-content:flex-start">' +
+        '<span style="width:9px;height:9px;border-radius:50%;background:'+a[2]+'"></span>' +
+        esc(a[1]) + '</button>';
+    }).join('') + '</div>');
+}
+/* ── stop, and the score it will not skip ───────────────────────────────── */
+function askFocus(sessionStart, mins, mandatory){
+  openSheet('<h3>How focused were you?</h3>' +
+    '<p class="small muted">'+hm(mins)+' just now. Only you can measure this, so be honest.</p>' +
+    '<div class="scale">' + [1,2,3,4,5,6,7,8,9,10].map(function(n){
+      return '<button data-focus="'+n+'" data-for="'+esc(sessionStart||'')+'">'+n+'</button>';
+    }).join('') + '</div>' +
+    '<div class="scale-ends"><span>1 · barely there</span><span>10 · completely in it</span></div>',
+    {mandatory: !!mandatory});
+}
+
+/* ── all taps, in one place ─────────────────────────────────────────────── */
+document.addEventListener('click', async function(ev){
+  var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
+    '[data-filter],[data-goaltick],[data-day],[data-hist],#startBtn,#stopBtn,#saveGoals,#editGoals');
+  if(!t) return;
+
+  if(t.dataset.go){ TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
+  if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; render(); return; }
+
+  if(t.id === 'startBtn'){ askArea(); return; }
+  if(t.dataset.area){
+    closeSheet(true);
+    await record('session_start', {area:t.dataset.area});
+    toast('Started at ' + hhmm());
+    return;
+  }
+  if(t.id === 'stopBtn'){
+    var open = VIEW.today.open_session;
+    if(!open) return;
+    var mins = minsSince(open.start);
+    await record('session_stop', {});
+    askFocus(open.start, mins, true);
+    return;
+  }
+  if(t.dataset.focus){
+    var n = +t.dataset.focus, forStart = t.dataset.for;
+    t.parentNode.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
+    t.classList.add('on');
+    setTimeout(async function(){
+      closeSheet(true);
+      // Always its own event. The stop may already be on the wire, so trying to
+      // amend its payload would be a race; the score instead names the session
+      // by its start time, which both sides already agree on and which does not
+      // change. Stop and score are two facts and travel as two facts.
+      await record('session_focus', {start:forStart, focus:n});
+      render();
+      toast('Focus ' + n + ' out of 10. Recorded.');
+    }, 190);
+    return;
+  }
+  if(t.dataset.rate){
+    var s = (VIEW.today.sessions||[]).filter(function(x){ return x.start === t.dataset.rate; })[0];
+    askFocus(t.dataset.rate, s ? s.minutes : 0, false);
+    return;
+  }
+  if(t.dataset.tick){
+    var task = (VIEW.tasks||[]).filter(function(x){ return x.id === t.dataset.tick; })[0];
+    t.classList.add('on'); t.textContent = '✓';
+    var row = t.closest('.tk'); if(row) row.classList.add('ticked');
+    await record('task_tick', task ? {id:task.id, title:task.title, area:task.area,
+                                      section:task.section} : {id:t.dataset.tick});
+    toast('Ticked. Claude files it properly at the computer.');
+    return;
+  }
+  if(t.dataset.goaltick){
+    var i = +t.dataset.goaltick, g = VIEW.week.goals[i];
+    await record('goal_progress', {index:i, title:g.title, percent: g.percent >= 100 ? 0 : 100});
+    render();
+    return;
+  }
+  if(t.id === 'saveGoals'){
+    var vals = [];
+    document.querySelectorAll('[data-draft]').forEach(function(inp){
+      var s = inp.value.trim(); if(s) vals.push({title:s, bucket:null, done:false, percent:0});
+    });
+    if(!vals.length){ toast('Type at least one goal first.'); return; }
+    await record('goals_set', {goals:vals, week: VIEW.week ? VIEW.week.key : null});
+    toast('Goals saved for this week.');
+    render();
+    return;
+  }
+  if(t.id === 'editGoals'){
+    var cur = VIEW.week.goals.map(function(g){ return g.title; });
+    openSheet('<h3>Change this week’s goals</h3><div class="stack" style="margin-top:14px">' +
+      [0,1,2,3].map(function(i){
+        return '<input data-draft="'+i+'" value="'+esc(cur[i]||'')+'" placeholder="Goal '+(i+1)+
+          '" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;' +
+          'background:var(--surface)">';
+      }).join('') + '</div>' +
+      '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save</button>');
+    return;
+  }
+  if(t.dataset.hist || t.dataset.day){
+    var key = t.dataset.hist || t.dataset.day;
+    var d = (VIEW.focus_history||[]).filter(function(x){ return x.date === key; })[0];
+    var m = (VIEW.month||[]).filter(function(x){ return x.date === key; })[0];
+    openSheet('<h3>'+esc(key)+'</h3>' +
+      (m ? '<div class="row" style="gap:16px;margin:12px 0 4px">' +
+        '<span style="flex:0 0 96px">'+triSVG(m,{size:96,r:31,labels:false})+'</span>' +
+        '<div class="grow stack" style="gap:7px">' +
+          statLine('Score', pct(m.area)+'%') +
+          statLine('Hours', hmShort(m.worked_minutes)) +
+          statLine('Focus', d && d.focus != null ? d.focus.toFixed(1)+' / 10' : 'not rated') +
+        '</div></div>' : '') +
+      (d && d.sessions.length ? '<div style="margin-top:12px;border-top:1px solid var(--line)">' +
+        d.sessions.map(sessionRow).join('') + '</div>'
+        : '<p class="small muted" style="margin-top:12px">No sessions recorded.</p>'));
+    return;
+  }
+});
+document.addEventListener('change', async function(ev){
+  var s = ev.target.closest('[data-goalpct]');
+  if(!s) return;
+  var i = +s.dataset.goalpct, g = VIEW.week.goals[i];
+  await record('goal_progress', {index:i, title:g.title, percent:+s.value});
+  render();
+});
+</script>
+<script>
+/* ═════════════════════════════════════════════ the microphone ════════════ */
+/* Hold to talk, on every page. The page the note was recorded on travels with
+   it, so "nine to eleven, research paper" said on Consistency becomes a working
+   block and the same words said on Tasks become a task. Amir never has to say
+   which one he means. */
+var REC = null, CHUNKS = [], RECSTART = 0, STREAM = null;
+
+function pickMime(){
+  var want = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+  for(var i=0;i<want.length;i++){
+    if(window.MediaRecorder && MediaRecorder.isTypeSupported(want[i])) return want[i];
+  }
+  return '';
+}
+async function startRec(){
+  if(REC) return;
+  try{
+    STREAM = await navigator.mediaDevices.getUserMedia({audio:{
+      echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
+  }catch(e){
+    toast('The microphone is blocked. Allow it for this site and try again.');
+    typeInstead();
+    return;
+  }
+  var mime = pickMime();
+  CHUNKS = [];
+  // 24 kbps is plenty for speech and the upload is the one leg we control.
+  REC = new MediaRecorder(STREAM, mime ? {mimeType:mime, audioBitsPerSecond:24000} : undefined);
+  REC.ondataavailable = function(e){ if(e.data && e.data.size) CHUNKS.push(e.data); };
+  REC.start();
+  RECSTART = Date.now();
+  var m = document.getElementById('mic'), hint = document.getElementById('micHint');
+  if(m) m.classList.add('rec');
+  var lab = document.getElementById('micLabel');
+  if(lab) lab.textContent = 'Listening… let go to send';
+  if(hint) hint.textContent = 'Speaking on the ' + TITLES[TAB] + ' page';
+  if(navigator.vibrate) navigator.vibrate(12);
+}
+function stopRec(){
+  var m = document.getElementById('mic'), hint = document.getElementById('micHint');
+  if(m) m.classList.remove('rec');
+  var lab = document.getElementById('micLabel');
+  if(lab) lab.textContent = 'Hold to talk';
+  if(hint) hint.textContent = MIC_HINT[TAB];
+  if(!REC) return;
+  var held = Date.now() - RECSTART;
+  var rec = REC; REC = null;
+  rec.onstop = function(){
+    if(STREAM){ STREAM.getTracks().forEach(function(t){ t.stop(); }); STREAM = null; }
+    if(held < 450){ toast('Hold the button while you talk.'); return; }
+    sendAudio(new Blob(CHUNKS, {type: rec.mimeType || 'audio/mp4'}), rec.mimeType || 'audio/mp4');
+  };
+  try{ rec.stop(); }catch(e){}
+}
+async function sendAudio(blob, mime){
+  toast('Sending…');
+  var b64 = await new Promise(function(res){
+    var r = new FileReader();
+    r.onloadend = function(){ res(String(r.result).split(',')[1]); };
+    r.readAsDataURL(blob);
+  });
+  var ts = nowISO();
+  try{
+    var r = await fetch(CFG.url + '/functions/v1/transcribe', {
+      method:'POST', headers:hdrs(),
+      body: JSON.stringify({audio:b64, mime:mime, page:TAB, client_ts:ts})
+    });
+    if(!r.ok) throw new Error(await r.text());
+    var out = await r.json();
+    if(!out.text) throw new Error('empty transcript');
+    toast('“' + out.text.slice(0, 46) + (out.text.length > 46 ? '…' : '') + '”');
+    await refreshNotes();
+    if(TAB === 'notes') render();
+  }catch(e){
+    toast('Could not transcribe that. Type it instead.');
+    typeInstead(ts);
+  }
+}
+function typeInstead(ts){
+  openSheet('<h3>Type it instead</h3>' +
+    '<p class="small muted">It goes to the same place and is tagged with this page.</p>' +
+    '<textarea id="typedNote" rows="4" placeholder="What happened?" style="width:100%;' +
+    'margin-top:14px;padding:13px;border:1px solid var(--line);border-radius:11px;' +
+    'background:var(--surface);resize:vertical"></textarea>' +
+    '<button class="btn wide primary" id="sendTyped" style="margin-top:12px">Send</button>');
+  setTimeout(function(){
+    var b = document.getElementById('sendTyped'); if(!b) return;
+    b.onclick = async function(){
+      var v = (document.getElementById('typedNote')||{}).value || '';
+      if(!v.trim()) return;
+      try{
+        await postEntry(v.trim(), TAB, ts || nowISO());
+        closeSheet(true); toast('Saved. Claude files it at the computer.');
+        await refreshNotes(); if(TAB === 'notes') render();
+      }catch(e){ toast('Could not save that. Check your connection.'); }
+    };
+  }, 60);
+}
+function bindMic(){
+  var m = document.getElementById('mic');
+  if(!m) return;
+  m.addEventListener('pointerdown', function(e){ e.preventDefault(); startRec(); });
+  ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+    m.addEventListener(ev, function(e){ e.preventDefault(); stopRec(); });
+  });
+  // A long press with no microphone still has to lead somewhere.
+  m.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+}
+
+/* ═════════════════════════════════════════════════════════════ boot ══════ */
+async function refresh(){
+  if(!CFG) return;
+  try{
+    var st = await getState();
+    if(st){ RAW = st.blob; UPDATED = String(st.updated_at).replace('T',' ').slice(0,16); }
+  }catch(e){
+    if(!RAW) toast('Cannot reach the database. Showing nothing rather than something wrong.');
+  }
+  prunePend(RAW);
+  flushPend();
+  await refreshNotes();
+  render();
+}
+
+/* The page reloads itself when the deployed build differs from the one running,
+   because a phone with the app already open would otherwise keep showing an old
+   copy forever and a correct deploy would look like a failed one. */
+async function checkBuild(){
+  try{
+    var r = await fetch(location.pathname + '?b=' + Date.now(), {cache:'no-store'});
+    var txt = await r.text();
+    var m = txt.match(/var BUILD = '([^']+)'/);
+    if(m && m[1] !== BUILD) location.reload();
+  }catch(e){}
+}
+
+loadCfg();
+loadPend();
+render();
+refresh();
+setInterval(refresh, 60000);
+setInterval(checkBuild, 300000);
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'visible'){ refresh(); checkBuild(); }
+});
+window.addEventListener('online', flushPend);
 </script>
 </body>
 </html>
