@@ -34,7 +34,7 @@
 
   --good:#3F7D6E; --warn:#C2703D; --bad:#B0413E;
 
-  --r:16px; --r-sm:10px; --r-lg:22px;
+  --r:16px; --r-sm:10px; --r-lg:16px;
   --shadow:0 1px 2px rgba(28,25,23,.04), 0 8px 24px -12px rgba(28,25,23,.10);
   --shadow-lg:0 2px 4px rgba(28,25,23,.05), 0 18px 48px -20px rgba(28,25,23,.18);
   --ease:cubic-bezier(.22,.61,.36,1);
@@ -70,7 +70,7 @@ input,textarea{font:inherit; color:inherit}
 .topbar.scrolled{border-bottom-color:var(--line)}
 .topbar h1{font-size:19px}
 .topbar .date{margin-left:auto; font-size:13px; color:var(--ink-3); white-space:nowrap}
-main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; width:100%; margin:0 auto}
+main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; width:100%; margin:0 auto}
 .page{display:none}
 .page.on{display:block; animation:rise .36s var(--ease) both}
 @keyframes rise{from{opacity:0; transform:translateY(10px)} to{opacity:1; transform:none}}
@@ -186,7 +186,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 
 /* ── the big start/stop ─────────────────────────────────────────────────── */
 .runner{
-  border-radius:var(--r-lg); padding:20px; border:1px solid var(--line);
+  border-radius:var(--r); padding:18px; border:1px solid var(--line);
   background:var(--surface); box-shadow:var(--shadow); margin:14px 0;
 }
 .runner.live{border-color:color-mix(in srgb,var(--focus) 40%,var(--line)); background:var(--focus-soft)}
@@ -229,12 +229,9 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 .mic:active,.mic.rec{background:var(--bad); padding:18px 20px}
 .mic.rec .ring{animation:ripple 1.1s var(--ease) infinite}
 @keyframes ripple{0%,100%{transform:scale(1);opacity:1} 50%{transform:scale(.55);opacity:.5}}
-.mic-hint{
-  position:absolute; left:0; right:0; bottom:100%; padding:7px 20px;
-  background:var(--surface-2); border-top:1px solid var(--line); color:var(--ink-2);
-  font-size:12px; text-align:center;
-  transition:opacity .2s var(--ease);
-}
+/* The hint used to be its own strip. Three stacked bars took about 145 CSS px
+   of an iPhone screen on every page, so it lives inside the bar now. */
+.mic-hint{display:block; font-size:11.5px; font-weight:400; opacity:.72; margin-top:2px}
 
 /* ── sheet (focus prompt, editors) ──────────────────────────────────────── */
 .scrim{position:fixed; inset:0; z-index:80; background:rgba(28,25,23,.34);
@@ -277,7 +274,8 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 .goal.done .txt{color:var(--ink-3)}
 .goal.done .txt .gt{text-decoration:line-through}
 .goal .pct{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-3); font-weight:600}
-.slider{width:100%; margin:12px 0 0; accent-color:var(--goals)}
+.slider{width:calc(100% - 33px); margin:12px 0 0 33px; accent-color:var(--goals)}
+.goal .bar{margin-left:33px; width:calc(100% - 33px)}
 .nag{
   background:var(--goals-soft); border:1px solid color-mix(in srgb,var(--goals) 26%,transparent);
   border-radius:var(--r); padding:17px; margin:14px 0;
@@ -305,6 +303,9 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 @media (min-width:640px){ .tl-one{display:none} .tl-two{display:block} }
 
 /* ── task rows ──────────────────────────────────────────────────────────── */
+.chips-wrap{position:relative}
+.chips-wrap::after{content:""; position:absolute; right:0; top:0; bottom:12px; width:30px;
+  pointer-events:none; background:linear-gradient(to right, transparent, var(--bg))}
 .chips{display:flex; gap:7px; overflow-x:auto; padding:2px 0 12px; scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
@@ -321,7 +322,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 
 /* ── misc ───────────────────────────────────────────────────────────────── */
-.empty{text-align:center; padding:34px 20px; color:var(--ink-3)}
+.empty{text-align:center; padding:44px 20px; color:var(--ink-3)}
 .empty .ico{font-size:30px; margin-bottom:10px; opacity:.5}
 .toast{
   position:fixed; left:50%; bottom:calc(150px + var(--safe-b)); z-index:100;
@@ -410,7 +411,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c38-2026-09-01-copy2';
+var BUILD = 'c40-2026-09-01-fixes3';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -537,7 +538,13 @@ var PEND = [];
 function loadPend(){
   try{
     var v = JSON.parse(localStorage.getItem('myday_pending')||'[]');
-    PEND = Array.isArray(v) ? v : [];
+    // Shape-checked, not just array-checked. An entry missing `at` reached
+    // minsBetween as undefined, threw, and put the app on the error card whose
+    // only button reloads the same broken entry straight back in.
+    PEND = (Array.isArray(v) ? v : []).filter(function(e){
+      return e && typeof e.qid === 'string' && typeof e.kind === 'string' &&
+             typeof e.ts === 'string' && typeof e.at === 'string';
+    });
   }catch(e){ PEND = []; }
 }
 function savePend(){
@@ -547,7 +554,18 @@ function savePend(){
 function newQid(){
   return 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2,9);
 }
+function dropSupersededGoalEvents(title){
+  /* Only the latest change to one goal matters. Dragging 40 to 60 and back to
+     40 left the 60 pending, because the 40 matched the published value and was
+     pruned first, and the slider then snapped back to 60. */
+  var key = (title || '').trim().toLowerCase();
+  PEND = PEND.filter(function(e){
+    return !(e.kind === 'goal_progress' &&
+             ((e.payload || {}).title || '').trim().toLowerCase() === key);
+  });
+}
 async function record(kind, payload){
+  if(kind === 'goal_progress') dropSupersededGoalEvents((payload || {}).title);
   var ev = {qid:newQid(), kind:kind, payload:payload||{}, ts:nowISO(),
             at:hhmm(), sent:false};
   PEND.push(ev);
@@ -579,6 +597,14 @@ async function flushPend(){
       try{ await postEvent(e.kind, e.payload, e.qid, e.ts); e.sent = true; savePend(); }
       catch(err){
         if(err && err.duplicate){ e.sent = true; savePend(); continue; }
+        e.tries = (e.tries || 0) + 1;
+        if(e.tries > 40){
+          // Forty failures is not a flaky connection, it is a payload the server
+          // will never take. Letting it go stops one bad event blocking every
+          // later tap for ever.
+          e.dead = true; e.sent = true; savePend(); continue;
+        }
+        savePend();
         break;   // a real network failure: stop, keep the order, try again later
       }
     }
@@ -601,21 +627,30 @@ function prunePend(st){
   PEND = PEND.filter(function(e){
     if(!e.sent) return true;
     var age = now - Date.parse(e.ts);
-    if(age > STALE_MS) return false;
     var p = e.payload || {};
-    if(e.kind === 'task_tick') return !!live[p.id];
+    // A tick is filed by Claude at the computer, which can be a day or more
+    // away, so the six-hour backstop must not reach it. The task reappearing
+    // unticked invites a second tick, and a repeating task would then have its
+    // due date rolled forward twice.
+    if(e.kind === 'task_tick') return age < 14*24*60*60*1000 && !!live[p.id];
+    if(age > STALE_MS) return false;
     if(e.kind === 'session_start')
       return !sessions.some(function(x){ return x.start === e.at; });
     if(e.kind === 'session_stop')
-      return sessions.some(function(x){ return x.open; });
+      return !sessions.some(function(x){ return x.start === p.start && !x.open; });
     if(e.kind === 'session_focus')
       return !sessions.some(function(x){ return x.start === p.start && x.focus != null; });
-    if(e.kind === 'goals_set')
-      return !(week && week.goals && week.goals.length === (p.goals||[]).length);
+    if(e.kind === 'goals_set'){
+      // Matched on the titles themselves. Comparing counts deleted the overlay
+      // the moment three goals were replaced by three different ones.
+      var want = (p.goals||[]).map(function(g){ return (g.title||'').trim().toLowerCase(); }).sort();
+      var have = ((week && week.goals) || []).map(function(g){ return (g.title||'').trim().toLowerCase(); }).sort();
+      return want.join('|') !== have.join('|');
+    }
     if(e.kind === 'goal_progress')
       return !(week && (week.goals||[]).some(function(g){
         return g.title === p.title && (g.done ? 100 : g.percent) === p.percent; }));
-    return age > 15*60*1000;
+    return age < 15*60*1000;   // keep an unrecognised kind briefly, then let it go
   });
   savePend();
 }
@@ -660,7 +695,18 @@ function derive(){
       v.tasks = v.tasks.filter(function(x){ return x.id !== p.id; });
     } else if(e.kind === 'goals_set'){
       v.week = v.week || {key:'', start:'', end:'', goals:[], progress:0, hit:0, total:0};
-      v.week.goals = p.goals || [];
+      // Carry the bucket and the progress of a goal whose wording did not
+      // change, exactly as apply_goal_events does on the Mac. Showing every goal
+      // reset to 0% for fifteen minutes and then jumping back was worse than
+      // showing nothing at all.
+      var old = {};
+      (v.week.goals || []).forEach(function(g){ old[(g.title||'').trim().toLowerCase()] = g; });
+      v.week.goals = (p.goals || []).map(function(g){
+        var prev = old[(g.title||'').trim().toLowerCase()];
+        return {title:g.title, bucket:g.bucket || (prev && prev.bucket) || null,
+                done: !!(g.done || (prev && prev.done)),
+                percent: g.percent != null ? g.percent : ((prev && prev.percent) || 0)};
+      });
       v.week.total = v.week.goals.length;
       v.week.pending = true;
     } else if(e.kind === 'goal_progress'){
@@ -673,14 +719,24 @@ function derive(){
 
   // Recompute everything the overlay could have changed, so the triangle, the
   // totals and the balance never disagree with the list right above them.
-  var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0;
+  var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0, personal = 0;
   t.sessions.forEach(function(s){
     if(s.minutes == null || s.open) return;
     closed += s.minutes;
     if(s.area === 'overhead') overhead += s.minutes;
+    if(s.area === 'personal') personal += s.minutes;
     if(s.bucket) buckets[s.bucket] += s.minutes;
   });
   t.closed_minutes = closed; t.buckets = buckets; t.overhead_minutes = overhead;
+  // work_minutes and focus_coverage were left at their published values, and
+  // triScores prefers work_minutes, so the Consistency tile and the triangle
+  // both ignored the session Amir had just finished while the Hours page showed
+  // it. Two screens, one fact, two answers.
+  t.personal_minutes = personal;
+  t.work_minutes = closed - personal;
+  var scoredMin = 0;
+  t.sessions.forEach(function(x){ if(x.focus != null && x.minutes) scoredMin += x.minutes; });
+  t.focus_coverage = t.work_minutes ? Math.round(scoredMin / t.work_minutes * 1000) / 1000 : 0;
   t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
   t.unscored = t.sessions.filter(function(s){ return !s.open && s.minutes && s.focus == null; });
   t.focus = weightedFocus(t.sessions);
@@ -692,6 +748,18 @@ function derive(){
     v.week.total = v.week.goals.length;
   }
   v.triangle.day = triScores(t, v.week, t.date);
+  // The week card was built from the published blob alone, so it did not move
+  // until the Mac republished. Its hours at least can follow the day.
+  if(v.triangle.week && RAW.today && RAW.triangle && RAW.triangle.week){
+    var delta = t.work_minutes - (RAW.today.work_minutes || 0);
+    if(delta){
+      var w = v.triangle.week;
+      w.worked_minutes = Math.max(0, (w.worked_minutes || 0) + delta);
+      w.consistency = Math.max(0, Math.min(1, w.worked_minutes / (600 * (w.days_elapsed || 1))));
+      w.area = Math.round((w.consistency*w.focus + w.focus*w.goals +
+                           w.goals*w.consistency) / 3 * 10000) / 10000;
+    }
+  }
   VIEW = v;
 }
 function workingDayOf(iso){
@@ -750,6 +818,15 @@ function triScores(today, week, onDate){
     worked_minutes: worked,
     focus_score: today.focus,
     focus_coverage: today.focus_coverage || 0,
+    // Secondary advice, so a low-coverage warning is not swallowed by an
+    // unset-goals warning. The Python computes this and nothing rendered it.
+    notes: (function(){
+      var n = [];
+      if(today.focus != null && today.focus_coverage > 0 && today.focus_coverage < 0.5 &&
+         unknown.length) n.push(ADVICE.low_coverage);
+      for(var i = 1; i < unknown.length; i++) n.push(ADVICE[unknown[i] + '_unknown']);
+      return n;
+    })(),
     goals_set: hasGoals
   };
 }
@@ -883,13 +960,16 @@ var AREA_COLOUR = {
   personal:'#8C8681', overhead:'#A9A29C'
 };
 function areaColour(a){ return AREA_COLOUR[a] || 'var(--ink-3)'; }
-function focusColour(n){
-  if(n == null) return 'var(--ink-3)';
-  return n >= 8 ? 'var(--focus)' : n >= 5 ? 'var(--consistency)' : 'var(--bad)';
-}
+/* Focus is green, always. The number's strength is carried by how solid the
+   green is, not by switching to the terracotta and red that already mean
+   consistency and overdue elsewhere. A 7.9 used to be green on one page and
+   peach on another. */
+function focusColour(n){ return n == null ? 'var(--ink-3)' : (n >= 6 ? '#FFFFFF' : 'var(--focus)'); }
 function focusBg(n){
   if(n == null) return 'transparent';
-  return n >= 8 ? 'var(--focus-soft)' : n >= 5 ? 'var(--consistency-soft)' : '#FBECEC';
+  var a = Math.max(0.10, Math.min(1, n / 10));
+  return n >= 6 ? 'rgba(63,125,110,' + a.toFixed(2) + ')'
+                : 'rgba(63,125,110,' + (a * 0.55).toFixed(2) + ')';
 }
 function emptyBox(icon, title, sub){
   return '<div class="empty"><div class="ico">'+icon+'</div><div style="font-weight:600;color:var(--ink-2)">'+
@@ -913,7 +993,9 @@ function pageHome(v){
        'of the full triangle the three corners fill.</p></div></div>';
   h += '<div class="advice"><span class="pip" style="background:'+
        CORNERS.filter(function(c){return c.k===tri.weakest;})[0].hex+'"></span>' +
-       '<span>'+adviceHTML(tri.advice)+'</span></div>';
+       '<span>'+adviceHTML(tri.advice) +
+       ((tri.notes||[]).length ? '<br><span class="tiny">'+esc(tri.notes.join(' '))+'</span>' : '') +
+       '</span></div>';
   h += '</div>';
   h += '<div class="side">';
 
@@ -1017,13 +1099,14 @@ function shortfallLine(t){
 function runnerHTML(v){
   var t = v.today, o = t.open_session;
   if(o){
-    var live = minsSince(o.start);
+    var live = minsSince(o.start, o.started_iso);
     return '<div class="runner live">' +
       '<div class="row" style="gap:7px"><span class="livedot"></span>' +
       '<span class="tiny" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--focus)">Working</span></div>' +
-      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'">'+hm(live)+'</div>' +
+      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" ' +
+      'data-since="'+esc(o.started_iso||'')+'">'+hm(live)+'</div>' +
       '<div class="small muted">'+esc(o.area_label||o.area)+' · started '+esc(o.start)+'</div>' +
-      '<button class="btn stop wide" id="stopBtn" style="margin-top:14px">Stop and rate this session</button></div>';
+      '<button class="btn primary wide" id="stopBtn" style="margin-top:14px">Stop and rate this session</button></div>';
   }
   return '<div class="runner">' +
     '<div class="tiny muted" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase">Not working</div>' +
@@ -1054,7 +1137,7 @@ function pageTime(v){
     '<div class="stack">' +
       splitBar('Academia', b.academia, sp.academia, AREA_COLOUR.ucw) +
       splitBar('AI Business', b.ai, sp.ai, AREA_COLOUR.ai) +
-      (b.dog ? splitBar('Dog Business (no target today)', b.dog, 0, AREA_COLOUR.dog) : '') +
+      splitBar('Dog Business (no target today)', b.dog, 0, AREA_COLOUR.dog) +
       (t.overhead_minutes ? '<div class="spread small"><span class="muted">Overhead</span>' +
         '<span class="dim">'+hmShort(t.overhead_minutes)+' · counts as work, not in the split</span></div>' : '') +
     '</div></div>';
@@ -1086,12 +1169,13 @@ function rateRow(u){
     '<div class="tiny muted">'+esc(u.area_label||u.area)+' · '+hm(u.minutes)+'</div></div>' +
     '<button class="btn" data-rate="'+esc(u.start)+'" style="padding:9px 16px">Rate it</button></div>';
 }
-function sessionRow(s){
+function sessionRow(s, day){
   var f = s.focus;
+  var dayAttr = day ? 'data-rateday="'+esc(day)+'" ' : '';
   var badge = s.open
     ? '<span class="fscore live">now</span>'
     : (f == null
-        ? '<button class="fscore none" data-rate="'+esc(s.start)+'" ' +
+        ? '<button class="fscore none" data-rate="'+esc(s.start)+'" ' + dayAttr +
           'aria-label="Give this session a score">not<br>rated</button>'
         : '<button class="fscore" data-rate="'+esc(s.start)+'" ' +
           'style="background:'+focusBg(f)+';color:'+focusColour(f)+'"' +
@@ -1179,10 +1263,11 @@ function pageFocus(v){
   h += '<div class="card"><div class="spread" style="align-items:flex-end">' +
     '<div><div class="serif" style="font-size:52px;line-height:1;color:' +
       (t.focus == null ? 'var(--ink-3)' : 'var(--focus)') + '">' +
-      (t.focus == null ? 'not rated' : t.focus.toFixed(1)) + '</div>' +
-    '<div class="small muted">Today’s focus score.</div></div>' +
-    '<div class="tiny muted" style="max-width:230px">A four-hour session at 10 counts far ' +
-      'more than a fifteen-minute one at 2.</div></div></div>';
+      (t.focus == null ? 'not rated' : t.focus.toFixed(1)) +
+      (t.focus == null ? '' : '<span style="font-size:22px;color:var(--ink-3)"> / 10</span>') +
+      '</div>' +
+    '<div class="small muted prose" style="margin-top:6px">A four-hour session at 10 counts ' +
+      'far more than a fifteen-minute one at 2.</div></div></div></div>';
 
   if(t.unscored.length){
     h += '<div class="card" style="border-color:color-mix(in srgb,var(--consistency) 34%,transparent);' +
@@ -1313,8 +1398,9 @@ function pageGoals(v){
         '<button class="tick'+(g.done||g.percent>=100?' on':'')+'" data-goaltick="'+i+'" ' +
         'aria-label="Mark done">'+((g.done||g.percent>=100)?'✓':'')+'</button>' +
         '<span class="txt"><span class="gt" dir="auto">'+esc(g.title)+'</span>'+
-          (g.bucket?' <span class="pill" style="background:var(--goals-soft);color:var(--goals)">'+
-            esc(AREA_NAME[g.bucket]||g.bucket)+'</span>':'')+'</span>' +
+          (g.bucket?'<br><span class="pill" style="background:var(--goals-soft);color:var(--goals);' +
+            'display:inline-block;margin-top:5px">'+esc(AREA_NAME[g.bucket]||g.bucket)+
+            '</span>':'')+'</span>' +
         '<span class="pct">'+(g.done?100:(g.percent||0))+'%</span></div>' +
         (g.done || g.percent >= 100
           ? '<div class="bar" style="margin-top:13px"><i style="background:var(--goals)" data-w="100"></i></div>'
@@ -1370,10 +1456,10 @@ function pageTasks(v){
     later: all.filter(function(t){ return t.when === 'future'; }).length
   };
   var chips = [['all','All'],['overdue','Overdue'],['today','Today'],['none','No date'],['later','Later']];
-  var h = '<div class="chips">' + chips.map(function(c){
+  var h = '<div class="chips-wrap"><div class="chips">' + chips.map(function(c){
     return '<button class="chip'+(TASK_FILTER===c[0]?' on':'')+'" data-filter="'+c[0]+'">' +
       esc(c[1]) + ' <span style="opacity:.6">'+counts[c[0]]+'</span></button>';
-  }).join('') + '</div>';
+  }).join('') + '</div></div>';
 
   var list = all.filter(function(t){
     return TASK_FILTER === 'all' ? true
@@ -1457,7 +1543,7 @@ var TABS = [
   {k:'focus', ic:'◎', label:'Focus'},
   {k:'goals', ic:'⚑', label:'Goals'},
   {k:'tasks', ic:'☑', label:'Tasks'},
-  {k:'notes', ic:'✉', label:'Notes'}
+  {k:'notes', ic:'◍', label:'Notes'}
 ];
 var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes'};
@@ -1494,6 +1580,7 @@ function render(){
   if(!VIEW){ app.innerHTML = loadingHTML(); return; }
 
   var v = VIEW;
+  try{
   var body = TAB === 'home'  ? pageHome(v)
            : TAB === 'time'  ? pageTime(v)
            : TAB === 'focus' ? pageFocus(v)
@@ -1501,7 +1588,6 @@ function render(){
            : TAB === 'tasks' ? pageTasks(v)
            : pageNotes(v);
 
-  try{
   app.innerHTML =
     '<div class="topbar" id="topbar"><h1>'+esc(TITLES[TAB])+'</h1>' +
       '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
@@ -1509,13 +1595,13 @@ function render(){
       return '<button data-go="'+t.k+'" class="'+(TAB===t.k?'on':'')+'">' +
         '<span class="ic">'+t.ic+'</span>'+esc(t.label)+'</button>';
     }).join('') + '</nav>' +
-    '<main><div class="page on">' + body + '</div>' +
-      staleHTML() +
+    '<main><div class="page on">' + staleHTML() + body + '</div>' +
       '<p class="tiny muted" style="text-align:center;margin:22px 0 0">' +
-      'Updated '+esc(UPDATED||v.generated_at)+' · version '+esc(BUILD.split('-')[0])+'</p></main>' +
-    '<div class="micwrap"><div class="mic-hint" id="micHint">'+esc(MIC_HINT[TAB])+'</div>' +
+      'Updated '+esc(UPDATED||v.generated_at)+'</p></main>' +
+    '<div class="micwrap">' +
     '<button class="mic" id="mic" aria-label="Hold to talk">' +
-    '<span class="ring"></span><span id="micLabel">Hold to talk</span></button></div>';
+    '<span class="ring"></span><span><span id="micLabel">Hold to talk</span>' +
+    '<span class="mic-hint" id="micHint">'+esc(MIC_HINT[TAB])+'</span></span></button></div>';
 
   }catch(err){
     LAST_ERR = String((err && err.message) || err);
@@ -1575,8 +1661,9 @@ function askForMissingScore(){
   if(SHEET || !VIEW) return;
   var u = (VIEW.today.unscored || [])[0];
   if(!u || ASKED_FOR === u.start) return;
-  var ended = u.end && minsSince(u.end);
-  if(ended == null || ended > 3) return;
+  if(!u.end || !u.ended_iso) return;
+  var ended = Math.round((Date.now() - Date.parse(u.ended_iso)) / 60000);
+  if(!(ended >= 0 && ended <= 3)) return;
   ASKED_FOR = u.start;
   askFocus(u.start, u.minutes, false);
 }
@@ -1587,7 +1674,8 @@ function tickClock(){
   var upd = function(){
     var n = document.getElementById('liveclock');
     if(!n){ clearInterval(CLOCK_T); return; }
-    n.textContent = hm(minsSince(n.getAttribute('data-start')));
+    n.textContent = hm(minsSince(n.getAttribute('data-start'),
+                                 n.getAttribute('data-since') || null));
   };
   upd();
   CLOCK_T = setInterval(upd, 15000);
@@ -1636,12 +1724,13 @@ function askArea(){
     }).join('') + '</div>');
 }
 /* ── stop, and the score it will not skip ───────────────────────────────── */
-function askFocus(sessionStart, mins, mandatory){
+function askFocus(sessionStart, mins, mandatory, forDay){
   openSheet('<h3>How focused were you?</h3>' +
     '<p class="small muted">That session ran '+hm(mins)+'. Only you can measure this, ' +
     'so give it your own number.</p>' +
     '<div class="scale">' + [1,2,3,4,5,6,7,8,9,10].map(function(n){
-      return '<button data-focus="'+n+'" data-for="'+esc(sessionStart||'')+'">'+n+'</button>';
+      return '<button data-focus="'+n+'" data-for="'+esc(sessionStart||'')+
+        '" data-fday="'+esc(forDay||'')+'">'+n+'</button>';
     }).join('') + '</div>' +
     '<div class="scale-ends"><span>1 · barely working</span><span>10 · fully absorbed</span></div>',
     {mandatory: !!mandatory});
@@ -1669,15 +1758,20 @@ document.addEventListener('click', async function(ev){
     var open = VIEW.today.open_session;
     if(!open) return;
     var mins = minsSince(open.start, open.started_iso);
+    // The stop names the session it closed, so pruning can look for that exact
+    // row rather than for "any open session". Without it, a start and a stop
+    // inside one publish window left the blob with nothing open, the stop was
+    // deleted as already filed, and the start alone reopened the session a
+    // minute later with the day's total back at zero.
     // The sheet opens BEFORE the network call. Awaiting the post first left
     // seconds on a slow connection where the session already read as stopped,
     // the Start button was live again, and no sheet had appeared.
-    askFocus(open.start, mins, true);
-    record('session_stop', {});
+    askFocus(open.start, mins, true, VIEW.today.date);
+    record('session_stop', {start: open.start, day: VIEW.today.date});
     return;
   }
   if(t.dataset.focus){
-    var n = +t.dataset.focus, forStart = t.dataset.for;
+    var n = +t.dataset.focus, forStart = t.dataset.for, forDay = t.dataset.fday || '';
     t.parentNode.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
     t.classList.add('on');
     // Recorded first, then the sheet closes. Always its own event: the stop
@@ -1685,7 +1779,7 @@ document.addEventListener('click', async function(ev){
     // the score names the session by its start time instead. The 190ms delay
     // was purely so the selected button was visible, and a force-quit inside it
     // used to throw away a score the user had actually given.
-    record('session_focus', {start:forStart, focus:n});
+    record('session_focus', {start:forStart, focus:n, day:forDay || VIEW.today.date});
     setTimeout(function(){
       closeSheet(true);
       render();
@@ -1694,8 +1788,13 @@ document.addEventListener('click', async function(ev){
     return;
   }
   if(t.dataset.rate){
-    var s = (VIEW.today.sessions||[]).filter(function(x){ return x.start === t.dataset.rate; })[0];
-    askFocus(t.dataset.rate, s ? s.minutes : 0, false);
+    // A rate button on a past day carries that day, so the Mac files the score
+    // into the right file instead of onto whatever happens to be unrated today.
+    var day = t.dataset.rateday || VIEW.today.date;
+    var pool = day === VIEW.today.date ? (VIEW.today.sessions || [])
+      : ((((VIEW.focus_history || []).filter(function(d){ return d.date === day; })[0]) || {}).sessions || []);
+    var s = pool.filter(function(x){ return x.start === t.dataset.rate; })[0];
+    askFocus(t.dataset.rate, s ? s.minutes : 0, false, day);
     return;
   }
   if(t.dataset.tick){
@@ -1709,7 +1808,11 @@ document.addEventListener('click', async function(ev){
   }
   if(t.dataset.goaltick){
     var i = +t.dataset.goaltick, g = VIEW.week.goals[i];
-    await record('goal_progress', {index:i, title:g.title, percent: g.percent >= 100 ? 0 : 100});
+    // The tick is drawn from `done || percent >= 100`, so the toggle reads the
+    // same thing. Reading `percent` alone meant a goal written as `- [x]` with
+    // no percentage could never be un-ticked.
+    var isDone = g.done || g.percent >= 100;
+    await record('goal_progress', {index:i, title:g.title, percent: isDone ? 0 : 100});
     render();
     return;
   }
@@ -1754,7 +1857,7 @@ document.addEventListener('click', async function(ev){
           statLine('Focus', d && d.focus != null ? d.focus.toFixed(1)+' / 10' : 'not rated') +
         '</div></div>' : '') +
       (d && d.sessions.length ? '<div style="margin-top:12px;border-top:1px solid var(--line)">' +
-        d.sessions.map(sessionRow).join('') + '</div>'
+        d.sessions.map(function(x){ return sessionRow(x, key); }).join('') + '</div>'
         : '<p class="small muted" style="margin-top:12px">No sessions recorded.</p>'));
     return;
   }
@@ -1905,7 +2008,7 @@ function staleMinutes(){
    because a phone with the app already open would otherwise keep showing an old
    copy forever and a correct deploy would look like a failed one. */
 async function checkBuild(){
-  if(SHEET && SHEET.dataset.mandatory) return;   // never reload out from under it
+  if(SHEET) return;   // never reload out from under any open sheet
   try{
     var r = await fetch(location.pathname + '?b=' + Date.now(), {cache:'no-store'});
     var txt = await r.text();
