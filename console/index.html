@@ -134,8 +134,15 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
 @keyframes growBar{from{transform:scaleX(0)} to{transform:scaleX(1)}}
 
 /* ── month strip ────────────────────────────────────────────────────────── */
-.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none}
+.strip-wrap{position:relative}
+.strip-wrap::after{
+  content:""; position:absolute; right:0; top:0; bottom:8px; width:34px; pointer-events:none;
+  background:linear-gradient(to right, transparent, var(--surface));
+}
+.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none;
+  scroll-snap-type:x proximity}
 .strip::-webkit-scrollbar{display:none}
+.strip .d{scroll-snap-align:end}
 .strip .d{flex:0 0 auto; width:34px; text-align:center; cursor:pointer;
   border-radius:8px; padding:2px 0; transition:background .16s}
 .strip .d:hover{background:var(--surface-2)}
@@ -363,7 +370,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c34-2026-09-01-advice';
+var BUILD = 'c35-2026-09-01-banner';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -890,6 +897,22 @@ function pageHome(v){
 
   h += runnerHTML(v);
 
+  if((t.unscored || []).length){
+    h += '<div class="card" style="border-color:color-mix(in srgb,var(--consistency) 40%,transparent);' +
+      'background:var(--consistency-soft)">' +
+      '<h2 style="color:var(--consistency)">' +
+      (t.unscored.length === 1 ? 'One session has no score'
+        : t.unscored.length + ' sessions have no score') + '</h2>' +
+      '<p class="small dim" style="margin-bottom:12px">Today has no score until they are rated. ' +
+      'Only you can measure focus, so nothing else can fill this in.</p>' +
+      '<div class="stack">' + t.unscored.map(function(u){
+        return '<button class="btn wide primary" data-rate="'+esc(u.start)+'" ' +
+          'style="justify-content:space-between"><span>'+esc(u.start)+' – '+esc(u.end)+
+          ' · '+esc(u.area_label||u.area)+'</span><span style="opacity:.75">'+
+          hm(u.minutes)+' · rate it</span></button>';
+      }).join('') + '</div></div>';
+  }
+
   if(!v.week || !v.week.total){
     h += '<div class="nag"><h3>This week has no goals</h3>' +
          '<p class="small dim">Hours and focus with no goal add up to nothing you can point ' +
@@ -924,13 +947,13 @@ function statLine(k, val){
          '<span style="font-weight:600">'+esc(val)+'</span></div>';
 }
 function stripHTML(v){
-  return '<div class="strip">' + v.month.map(function(d){
+  return '<div class="strip-wrap"><div class="strip" id="strip">' + v.month.map(function(d){
     var t = {consistency:d.consistency, focus:d.focus, goals:d.goals};
     var label = d.scored === false ? 'not scored' : pct(d.area) + '%';
     return '<button class="d' + (d.date === v.today.date ? ' sel' : '') + '" data-day="'+esc(d.date)+'" ' +
       'title="'+esc(d.date + ' · ' + label)+'">' + triSVG(t, {size:34, r:13, labels:false}) +
       '<div class="dl">'+esc(d.weekday[0])+'</div></button>';
-  }).join('') + '</div>';
+  }).join('') + '</div></div>';
 }
 function runnerHTML(v){
   var t = v.today, o = t.open_session;
@@ -1372,6 +1395,9 @@ function render(){
   window.addEventListener('scroll', syncBar, {passive:true});
   bindMic();
   tickClock();
+  // The strip is 30 days wide and today is the last one, so start at the end.
+  var strip = document.getElementById('strip');
+  if(strip) strip.scrollLeft = strip.scrollWidth;
   askForMissingScore();
 }
 function staleHTML(){
@@ -1407,11 +1433,14 @@ function setupHTML(){
 var CLOCK_T = null;
 var ASKED_FOR = null;
 function askForMissingScore(){
-  /* A session closed while the app was force-quit, or reloaded past the sheet,
-     comes back with no score and nothing would ever ask again. Ask once. */
+  /* Only when he has just this moment stopped a session and the app reloaded
+     out from under the sheet. Anything older gets the banner instead, because a
+     modal that opens by itself every time the app is opened is hostile. */
   if(SHEET || !VIEW) return;
   var u = (VIEW.today.unscored || [])[0];
   if(!u || ASKED_FOR === u.start) return;
+  var ended = u.end && minsSince(u.end);
+  if(ended == null || ended > 3) return;
   ASKED_FOR = u.start;
   askFocus(u.start, u.minutes, false);
 }
