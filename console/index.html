@@ -359,7 +359,7 @@ main{flex:1; padding:4px 20px calc(186px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c31-2026-09-01-fixes';
+var BUILD = 'c32-2026-09-01-deeplink';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment, exactly as the
@@ -367,6 +367,7 @@ var BUILD = 'c31-2026-09-01-fixes';
    committed, so the public repo holds no key. It must stay in the address bar:
    iOS gives a Home Screen web app its own storage, so an icon saved without the
    fragment opens to "Not linked yet" no matter what Safari has. */
+var TAB_KEYS = ['home','time','focus','goals','tasks','notes'];
 var CFG = null;
 function loadCfg(){
   var h = location.hash.replace(/^#/,'');
@@ -375,8 +376,12 @@ function loadCfg(){
     if(u && k){
       CFG = {url:u.replace(/\/+$/,''), key:k};
       try{ localStorage.setItem('myday_cfg2', JSON.stringify(CFG)); }catch(e){}
-      return CFG;
     }
+    // An optional `tab` opens the link straight on one page. It is read but
+    // never stored, so it is a deep link rather than a preference.
+    var t = p.get('tab');
+    if(t && TAB_KEYS.indexOf(t) >= 0) TAB = t;
+    if(CFG) return CFG;
   }
   try{ CFG = JSON.parse(localStorage.getItem('myday_cfg2')||'null'); }catch(e){ CFG = null; }
   return CFG;
