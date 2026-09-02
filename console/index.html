@@ -474,7 +474,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c55-2026-09-02-typebtn';
+var BUILD = 'c56-2026-09-02-onebutton';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1919,7 +1919,6 @@ function pageNotes(v){
     'Until then you can fix a word the transcriber got wrong, or throw the note away.' +
     '</p></div>';
 
-  h += '<button class="btn wide primary" data-act="type" style="margin-bottom:14px">＋ Write a note</button>';
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Waiting for Claude</h2>' +
     (NOTES.length ? NOTES.map(function(n){
       return '<div class="item"><div class="grow">' +
