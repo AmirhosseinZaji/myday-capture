@@ -332,7 +332,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 
 /* ── task rows ──────────────────────────────────────────────────────────── */
 .chips-wrap{position:relative}
-.chips-wrap::after{content:""; position:absolute; right:0; top:0; bottom:12px; width:30px;
+.chips-wrap::after{content:""; position:absolute; right:0; top:0; bottom:12px; width:44px; z-index:1;
   pointer-events:none; background:linear-gradient(to right, transparent, var(--bg))}
 .chips{display:flex; gap:7px; overflow-x:auto; padding:2px 34px 12px 0; scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
@@ -426,7 +426,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
     align-items:start}
   .cols2 > *{margin-top:0}
   
-  main .btn.wide{max-width:340px; margin-left:auto !important; margin-right:auto !important}
+  main .btn.wide{display:flex; max-width:340px; margin-left:auto !important; margin-right:auto !important}
   .nag .btn.wide{margin-left:0}
   .today-hero{justify-content:flex-start; gap:56px}
   .taskcols{columns:2; column-gap:16px}
@@ -466,7 +466,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c53-2026-09-02-round2';
+var BUILD = 'c54-2026-09-02-round3';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -688,9 +688,26 @@ function prunePend(st){
   var week = st && st.week;
   var live = {}; tasks.forEach(function(t){ live[t.id]=1; });
   var now = Date.now();
+  // An undo of something that was itself only pending goes with it. A cancel
+  // or a delete used to be judged against the blob, which never held the row,
+  // so it was dropped first and the start or the add it undid came back alone
+  // with a live Stop button.
+  var cancelStarts = {}, deleteKeys = {}, pendingStarts = {}, pendingAdds = {};
+  PEND.forEach(function(e){
+    var p = e.payload || {};
+    if(e.kind === 'session_cancel') cancelStarts[p.start] = 1;
+    if(e.kind === 'session_delete') deleteKeys[p.start + '|' + p.area] = 1;
+    if(e.kind === 'session_start') pendingStarts[e.at] = 1;
+    if(e.kind === 'session_add') pendingAdds[p.start + '|' + p.area] = 1;
+  });
 
   PEND = PEND.filter(function(e){
     if(!e.sent) return true;
+    var pp = e.payload || {};
+    if(e.kind === 'session_start' && cancelStarts[e.at]) return false;
+    if(e.kind === 'session_cancel' && pendingStarts[pp.start]) return false;
+    if(e.kind === 'session_add' && deleteKeys[pp.start + '|' + pp.area]) return false;
+    if(e.kind === 'session_delete' && pendingAdds[pp.start + '|' + pp.area]) return false;
     var age = now - Date.parse(e.ts);
     var p = e.payload || {};
     // A tick is filed by Claude at the computer, which can be a day or more
@@ -845,7 +862,7 @@ function derive(){
       }
       if(v.week) v.week.pending = true;
     } else if(e.kind === 'plan_set'){
-      t.plan = p.blocks || t.plan;
+      if(!p.day || p.day === t.date) t.plan = p.blocks || t.plan;
     }
   });
 
@@ -882,7 +899,7 @@ function derive(){
   t.work_minutes = closed - personal;
   var scoredMin = 0;
   t.sessions.forEach(function(x){
-    if(x.focus != null && x.minutes && x.area !== 'personal' && x.area !== 'overhead') scoredMin += x.minutes;
+    if(x.focus != null && x.minutes && x.area !== 'personal') scoredMin += x.minutes;
   });
   t.focus_coverage = t.work_minutes ? Math.round(scoredMin / t.work_minutes * 1000) / 1000 : 0;
   t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
@@ -931,7 +948,7 @@ function weightedFocus(sessions){
   var num = 0, den = 0;
   sessions.forEach(function(s){
     if(s.focus == null || !s.minutes) return;
-    if(s.area === 'personal' || s.area === 'overhead') return;   // not work, so not in the score
+    if(s.area === 'personal') return;   // not work, so not in the score. Overhead is work.
     num += s.focus * s.minutes; den += s.minutes;
   });
   return den ? Math.round(num/den*100)/100 : null;
@@ -982,7 +999,8 @@ function triScores(today, week, onDate){
 var ADVICE = {
   consistency:'The consistency corner is the shortest one. Get more hours in.',
   focus:'The focus corner is the shortest one. Make it quiet and work on one thing.',
-  no_sessions:'No sessions yet today. Press Start when you begin, and the triangle starts filling.',
+  no_sessions:'No sessions yet today. Press Start a session when you begin, and the triangle starts filling.',
+  running_only:'A session is running. Its score comes when you stop it, and the triangle fills from there.',
   focus_unknown:'Nothing is rated yet, so today has no score. Rate your sessions.',
   goals:'The goals corner is the shortest one. Make progress on this week’s goals, not just hours.',
   goals_unknown:'No goals are set for this week, so the third corner cannot be measured.',
@@ -991,6 +1009,8 @@ var ADVICE = {
 };
 function adviceFor(weakest, today, week, corners, unknown){
   if(!(today.sessions || []).length && !(today.work_minutes || 0)) return ADVICE.no_sessions;
+  if(today.open_session && !(today.sessions || []).some(function(s){ return !s.open && s.minutes; }))
+    return ADVICE.running_only;
   if(unknown && unknown.length) return ADVICE[unknown[0] + '_unknown'];
   if(today.focus != null && today.focus_coverage > 0 && today.focus_coverage < 0.5)
     return ADVICE.low_coverage;
@@ -1158,7 +1178,7 @@ function pageHome(v){
          : '<div class="n" style="color:var(--ink-3)">—</div>' +
            '<div class="cap">Not scored</div>') +
        '<p class="tiny muted prose" style="margin:9px auto 0">Each corner is scored ' +
-       'against what today needs. Hours count towards the 10h floor. Focus is your own score of 10. ' +
+       'against what today needs. Hours count towards the 10h floor. Focus is your own score from 1 to 10. ' +
        'Goals are measured against the pace this week has to keep. The big number is how much ' +
        'of the full triangle the three corners fill.</p></div></div>';
   h += '<div class="advice"><span class="pip" style="background:'+
@@ -1246,6 +1266,7 @@ function statLine(k, val){
          '<span style="font-weight:600">'+esc(val)+'</span></div>';
 }
 function stripHTML(v){
+  if(!(v.month || []).length) return emptyBox('📅', 'No days yet', 'The strip fills in as days are recorded.');
   return '<div class="strip-wrap"><div class="strip" id="strip">' + (v.month||[]).map(function(d){
     var t = {consistency:d.consistency, focus:d.focus, goals:d.goals, unknown:d.unknown, scored:d.scored};
     var label = d.scored === false ? 'not scored' : pct(d.area) + '%';
@@ -1451,7 +1472,7 @@ function sessionRow(s, day, edit){
           ' aria-label="Focus '+esc(f)+' of 10">'+esc(f)+'</button>');
   return '<div class="item">' + badge +
     '<div class="grow"><div class="t" dir="auto">'+esc(s.task || s.area_label || s.area)+'</div>' +
-    '<div class="s">'+esc(s.start)+' – '+esc(s.end||'now')+
+    '<div class="s">'+esc(s.start)+' – '+esc(s.malformed ? '?' : (s.end||'now'))+
       // The area is only repeated when the task line is something else.
       (s.task && s.task !== (s.area_label||s.area) ? ' · '+esc(s.area_label||s.area) : '') +
       (s.pending?' · saving':'')+'</div></div>' +
@@ -1463,7 +1484,7 @@ function timelineHTML(t){
   var blocks = [];
   (t.plan||[]).forEach(function(p){ blocks.push({k:'planned', s:p.start, e:p.end,
     label:p.activity.replace(/\*\*/g,''), status:p.status}); });
-  (t.sessions||[]).forEach(function(s){ blocks.push({k:'actual', s:s.start,
+  (t.sessions||[]).forEach(function(s){ if(s.malformed) return; blocks.push({k:'actual', s:s.start,
     e:s.end || hhmm(), label:(s.area_label||s.area), area:s.area, open:s.open}); });
   if(!blocks.length){
     return emptyBox('🗓', 'Nothing planned yet',
@@ -1670,11 +1691,11 @@ function pageGoals(v){
 
   if(!w || !w.total){
     h += '<div class="nag"><h3>This week has no goals</h3>' +
-      '<p class="small dim prose">Hold the microphone and say them, for example ' +
+      '<p class="small dim prose">Hold the talk button and say them, for example ' +
       '“this week: finish the health paper rebuttal, and ship the landing page”. ' +
       'Or type them below.</p></div>';
     h += '<div class="card"><h2>Set this week’s goals</h2>' +
-      '<div class="stack" id="goalDraft">' + goalInput(0) + goalInput(1) + goalInput(2) + '</div>' +
+      '<div class="stack" id="goalDraft">' + goalInput(0) + goalInput(1) + goalInput(2) + goalInput(3) + '</div>' +
       '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save</button>' +
       '<p class="tiny muted prose" style="margin-top:10px">Two or three goals are enough. ' +
       'Goals are what turn your hours into finished work by Sunday.</p></div>';
@@ -1788,12 +1809,14 @@ function pageTasks(v){
   // Every area Amir actually has open work in, so the row does not carry five
   // chips reading zero. `overhead` is never a task area.
   var order = {ai:0, ucw:1, research:2, dog:3, personal:4};
-  var seen = {};
-  all.forEach(function(t){ if(t.area && t.area !== 'overhead') seen[t.area] = 1; });
+  var seen = {}, labelOf = {};
+  all.forEach(function(t){
+    if(t.area && t.area !== 'overhead'){ seen[t.area] = 1; if(t.area_label && !labelOf[t.area]) labelOf[t.area] = t.area_label; }
+  });
   var areas = [['all','All areas']].concat(
     Object.keys(seen).sort(function(a, b){
       return (order[a] != null ? order[a] : 9) - (order[b] != null ? order[b] : 9) || (a < b ? -1 : 1);
-    }).map(function(k){ return [k, (v.areas || {})[k] || k]; })
+    }).map(function(k){ return [k, (v.areas || {})[k] || labelOf[k] || k]; })
   );
 
   // Each chip counts what you would see if you tapped it, so the two rows agree
@@ -1813,7 +1836,7 @@ function pageTasks(v){
   var list = all.filter(function(t){ return matchDue(TASK_FILTER, t) && matchArea(AREA_FILTER, t); });
   if(!list.length) return h + '<div class="card">' +
     (TASK_FILTER === 'all' && AREA_FILTER === 'all'
-      ? emptyBox('🎙','No tasks yet','Hold the bar below and say a task and where it belongs.')
+      ? emptyBox('🎙','No tasks yet','Hold the talk button and say a task and where it belongs.')
       : emptyBox('🔍','Nothing in this filter','Try another one.')) + '</div>';
 
   var groups = {};
@@ -1892,8 +1915,8 @@ function pageNotes(v){
     (NOTES.length ? NOTES.map(function(n){
       return '<div class="item"><div class="grow">' +
         '<div dir="auto" style="line-height:1.45">'+esc(n.text)+'</div>' +
-        '<div class="s">'+esc(localStamp(n.client_ts))+
-        (n.page?' · from '+esc(n.page):'')+'</div></div>' +
+        '<div class="s">'+esc(prettyStamp(localStamp(n.client_ts)))+
+        (n.page?' · from '+esc(n.page === 'home' ? 'Triangle' : (TITLES[n.page] || n.page)):'')+'</div></div>' +
         '<button class="editbtn" data-noteact="edit" data-id="'+esc(n.id)+'" ' +
         'aria-label="Edit this note">✎</button>' +
         '<button class="editbtn" data-noteact="delete" data-id="'+esc(n.id)+'" ' +
@@ -2005,7 +2028,7 @@ function render(){
     }).join('') + '</nav>' +
     '<main><div class="page on">' + staleHTML() + body + '</div>' +
       '<p class="tiny muted" style="text-align:center;margin:22px 0 0">' +
-      'Updated '+esc(UPDATED||v.generated_at)+'</p></main>' +
+      'Updated '+esc(prettyStamp(UPDATED||v.generated_at))+'</p></main>' +
     '<div class="micwrap">' +
     '<button class="mic" id="mic" aria-label="Hold to talk">' +
     '<span class="ring"></span><span><span id="micLabel">Hold to talk</span>' +
@@ -2344,7 +2367,8 @@ document.addEventListener('click', async function(ev){
         return true;
       });
       savePend();
-      if(wasSent) await record('task_untick', {id:id});
+      var tk = (VIEW.tasks||[]).filter(function(x){ return x.id === id; })[0];
+      if(wasSent) await record('task_untick', tk ? {id:tk.id, title:tk.title, area:tk.area, section:tk.section} : {id:id});
       render();
       toast('Undone.');
       return;
@@ -2353,7 +2377,7 @@ document.addEventListener('click', async function(ev){
     var tev = await record('task_tick', task ? {id:task.id, title:task.title, area:task.area,
                                       section:task.section} : {id:id});
     render();
-    if(!tev) return;
+    if(!tev || !PEND.some(function(e){ return e.kind === 'task_tick' && (e.payload||{}).id === id; })) return;
     toast('Ticked. Claude will file it the next time you are at your computer.');
     return;
   }
@@ -2501,7 +2525,7 @@ function stopRec(){
   if(m) m.classList.remove('rec');
   var lab = document.getElementById('micLabel');
   if(lab) lab.textContent = 'Hold to talk';
-  if(hint) hint.textContent = MIC_HINT[TAB];
+  if(hint) hint.textContent = micHint();
   if(!REC) return;
   var held = Date.now() - RECSTART;
   var rec = REC; REC = null;
@@ -2604,6 +2628,7 @@ function parsePlan(text){
   var hits = [], m;
   while((m = re.exec(t))) hits.push({i:m.index, j:re.lastIndex, m:m});
   if(!hits.length) return [];
+  var evening = /\b(tonight|this evening|in the evening|evening|this afternoon|afternoon)\b/.test(t);
   var segs = hits.map(function(h, k){ return t.slice(k > 0 ? hits[k - 1].j : 0, h.i); });
   segs.push(t.slice(hits[hits.length - 1].j));
   var blocks = [], prevEnd = null, seenRange = {};
@@ -2618,6 +2643,8 @@ function parsePlan(text){
     if(!ap1 && ap2) ap1 = ap2 === 'pm' && +mm[1] >= 8 && +mm[1] <= 11 && +mm[4] <= 12 && +mm[1] > +mm[4] ? 'am' : ap2;
     var a = planHour(mm[1], mm[2], ap1, null);
     var b = planHour(mm[4], mm[5], ap2, a);
+    // "tonight 8 to 10" is the evening, not the morning.
+    if(evening && !ap1 && !ap2 && a < 12 * 60){ a += 720; b += 720; }
     // Blocks are spoken in order. "9 to 5, then 7 to 10" means the evening.
     if(!ap1 && prevEnd != null && a < prevEnd && a + 720 < 29 * 60){ a += 720; b += 720; }
     // "11 pm to 1 am", "9 to midnight": the end is past midnight.
@@ -2637,9 +2664,15 @@ function parsePlan(text){
     var label = tail || lead || 'work';
     var area = null;
     AREA_WORDS.forEach(function(p){ if(!area && p[0].test(label)) area = p[1]; });
-    var pretty = label.charAt(0).toUpperCase() + label.slice(1);
+    if(area){
+      // "research nine to eleven research paper" reads as Research · Paper.
+      var stripArea = {'🔬 Research':/^research\b\s*/i, '🤖 AI Business':/^(ai business|ai)\b\s*/i,
+        '🎓 UCW':/^ucw\b\s*/i, '🐕 Dog Business':/^dog business\b\s*/i, '🏠 Personal':/^personal\b\s*/i}[area];
+      if(stripArea) label = label.replace(stripArea, '');
+    }
+    var pretty = label ? label.charAt(0).toUpperCase() + label.slice(1) : '';
     // "one to four AI business" needs no "AI Business · Ai business".
-    var bare = /^(ai|a\.i\.|ai business|my business|business|research|ucw|university|dog|dogs|dog business|personal)$/i.test(label);
+    var bare = !label || /^(ai|a\.i\.|ai business|my business|business|research|ucw|university|dog|dogs|dog business|personal)$/i.test(label);
     var activity = area ? (bare ? area : area + ' · ' + pretty) : pretty;
     var s0 = pad(Math.floor(a / 60) % 24) + ':' + pad(a % 60), e0 = pad(Math.floor(b / 60) % 24) + ':' + pad(b % 60);
     blocks.push({start:s0, end:e0, minutes:b - a, activity:activity, duration:hm(b - a),
@@ -2654,13 +2687,21 @@ function planOverlap(a, b){
   if(a2 < a1) a2 += 1440; if(b2 < b1) b2 += 1440;
   return a1 < b2 && b1 < a2;
 }
+function nextDate(iso){
+  var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + 1);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
 async function planFromSpeech(text, entryId){
   if(TAB !== 'time') return false;
   var blocks = parsePlan(text);
   if(!blocks.length) return false;
+  // "tomorrow 9 to 11 research" is tomorrow's plan. It goes to the Mac under
+  // that date and is not drawn on today's timeline.
+  var tomorrow = /\btomorrow\b/i.test(text);
+  var forDay = tomorrow ? nextDate(VIEW.today.date) : VIEW.today.date;
   // A second sentence adds to the plan; it only replaces the blocks it
   // overlaps. The whole merged list goes to the Mac, which writes the table.
-  var kept = ((VIEW.today.plan) || []).filter(function(e){
+  var kept = (tomorrow ? [] : (VIEW.today.plan || [])).filter(function(e){
     return e.start && e.end && !blocks.some(function(b){ return planOverlap(e, b); });
   }).map(function(e){ return {start:e.start, end:e.end, minutes:e.minutes, activity:e.activity,
                               duration:e.duration, status:e.status}; });
@@ -2668,10 +2709,10 @@ async function planFromSpeech(text, entryId){
     var m = function(v){ var q = toMin(v); return q < 300 ? q + 1440 : q; };
     return m(x.start) - m(y.start);
   });
-  await record('plan_set', {blocks:blocks, day:VIEW.today.date});
+  await record('plan_set', {blocks:blocks, day:forDay});
   if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
   render();
-  toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + ' for today.');
+  toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + (tomorrow ? ' for tomorrow.' : ' for today.'));
   return true;
 }
 /* Goals spoken on the Goals page while the week has none become the week's
@@ -2682,8 +2723,8 @@ async function goalsFromSpeech(text, entryId){
   if(TAB !== 'goals') return false;
   if(VIEW.week && VIEW.week.total) return false;
   var t = String(text || '').trim()
-    .replace(/^(?:ok(?:ay)?[,.]?\s*)?(?:so\s+)?(?:this week(?:'s goals)?|my goals(?: for this week)?|the goals(?: for this week)?|goals)\s*(?:are|is)?\s*[:,.-]?\s*/i, '');
-  var parts = t.split(/\s*(?:[,;.]|\band\b|\bthen\b|\balso\b)\s*/i)
+    .replace(/^(?:ok(?:ay)?[,.]?\s*)?(?:so\s+)?(?:this week(?:'s goals)?|my goals(?: for this week)?|the goals(?: for this week)?|goals|این هفته|اهداف این هفته|اهداف)\s*(?:are|is)?\s*[:,.،-]?\s*/i, '');
+  var parts = t.split(/\s*(?:[,;.،]|\band\b|\bthen\b|\balso\b|\sو\s)\s*/i)
     .map(function(x){ return x.replace(/^(?:to|i want to|i will|i'll|i need to)\s+/i, '').trim(); })
     .filter(function(x){ return x.length > 3 && /[a-z\u0600-\u06FF]/i.test(x); })
     .slice(0, 5);
@@ -2747,7 +2788,10 @@ async function refresh(){
         // A toast fades in three seconds and leaves a skeleton that looks
         // broken for ever. The failure has to stay on the page, with a way back.
         // render() draws it, so the loading skeleton cannot overwrite it.
-        UNREACHABLE = String((e && e.message) || e) || 'no answer';
+        var raw = String((e && e.message) || e), code = (raw.match(/\b(\d{3})\b/) || [])[1];
+        UNREACHABLE = code === '401' ? 'The database did not accept the key in this link (401).'
+                    : code ? 'The database answered with an error (' + code + ').'
+                    : 'No answer came back from the database.';
       }
     }
     try{ prunePend(RAW); }catch(e){ console.error('prune failed', e); }
