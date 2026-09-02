@@ -15,7 +15,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
 <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
 <style>
-/* The serif is ours, 8 KB, preloaded, so the numbers never repaint. Inter
+/* The serif is ours, 15 KB, preloaded, so the numbers never repaint. Inter
    loads without blocking; the system face stands in until it lands. */
 @font-face{font-family:"Instrument Serif"; font-style:normal; font-weight:400; font-display:swap;
   src:url(../fonts/instrument-serif.woff2) format("woff2")}
@@ -80,7 +80,7 @@ input,textarea{font:inherit; color:inherit}
 }
 .topbar.scrolled{border-bottom-color:var(--line)}
 .topbar h1{font-size:19px}
-.topbar .date{margin-left:auto; font-size:13px; color:var(--ink-3); white-space:nowrap}
+.topbar .date{margin-left:auto; font-size:13px; color:var(--ink-3); white-space:nowrap; max-width:55%; overflow:hidden; text-overflow:ellipsis}
 main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; width:100%; margin:0 auto}
 .page{display:none}
 .page.on{display:block; animation:rise .36s var(--ease) both}
@@ -94,10 +94,12 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .card.flush{padding:0; overflow:hidden}
 .card h2{font-size:12px; font-weight:600; letter-spacing:.09em; text-transform:uppercase;
   color:var(--ink-3); margin-bottom:14px}
+.card h2.hd{display:flex; align-items:center; gap:8px}
+.card h2.hd .ibtn{margin-left:auto}
 .row{display:flex; align-items:center; gap:12px}
 .spread{display:flex; align-items:center; justify-content:space-between; gap:12px}
 .muted{color:var(--ink-3)}
-.prose{max-width:66ch}
+.prose{max-width:66ch; overflow-wrap:anywhere}
 .dim{color:var(--ink-2)}
 .tiny{font-size:12px}
 .small{font-size:13px}
@@ -139,7 +141,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   transition:transform .2s var(--ease), box-shadow .2s var(--ease);
 }
 .corner:active{transform:scale(.975)}
-.corner .lab{font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase}
+.corner .lab{font-size:10.5px; font-weight:600; letter-spacing:.05em; text-transform:uppercase; white-space:nowrap}
 .corner .val{font-family:"Instrument Serif",Georgia,serif; font-size:28px; line-height:1}
 .corner .sub{font-size:11.5px; color:var(--ink-3)}
 .bar{height:8px; border-radius:5px; background:var(--surface-2);
@@ -149,6 +151,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 @keyframes growBar{from{transform:scaleX(0)} to{transform:scaleX(1)}}
 
 /* ── month strip ────────────────────────────────────────────────────────── */
+.strip-head{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px 2px; text-align:center;
+  font-size:10.5px; font-weight:600; letter-spacing:.06em; color:var(--ink-3); margin-bottom:4px}
+.strip .d.pad{visibility:hidden}
 .strip-wrap{position:relative}
 .strip-wrap::after, .strip-wrap::before{
   content:""; position:absolute; top:0; bottom:8px; width:26px; pointer-events:none;
@@ -156,13 +161,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .strip-wrap::after{right:0; background:linear-gradient(to right, transparent, var(--surface))}
 .strip-wrap::before{left:0; z-index:1; background:linear-gradient(to left, transparent, var(--surface))}
 /* Padding inside the scroller, so today (the last cell) stops clear of the fade. */
-.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 30px 8px 0; scrollbar-width:none}
-.strip::-webkit-scrollbar{display:none}
-.strip .d{flex:0 0 auto; width:34px; text-align:center; cursor:pointer;
-  border-radius:8px; padding:2px 0; transition:background .16s}
+.strip{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px 2px; padding:2px 0 4px}
+.strip .d{width:auto; text-align:center; cursor:pointer; border-radius:8px; padding:3px 0; transition:background .16s}
 .strip .d:hover{background:var(--surface-2)}
-.strip .d svg{display:block; width:34px; height:auto}
-.strip .d .dl{font-size:10px; color:var(--ink-3); margin-top:2px}
+.strip .d svg{display:block; width:100%; max-width:40px; height:auto; margin:0 auto}
+.strip .d .dl{font-size:11px; color:var(--ink-3); margin-top:2px}
 .strip .d.sel .dl{color:var(--ink); font-weight:700}
 
 /* ── session / list rows ────────────────────────────────────────────────── */
@@ -185,7 +188,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .fscore.live{background:var(--focus-soft); border:1px solid var(--focus); color:var(--focus);
   font-family:Inter,sans-serif; font-size:10px; font-weight:700}
 .dur{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-2); white-space:nowrap}
-.ibtn{width:20px; height:20px; border-radius:50%; border:1.5px solid var(--ink-3); color:var(--ink-3);
+.ibtn{position:relative; width:20px; height:20px; border-radius:50%; border:1.5px solid var(--ink-3); color:var(--ink-3);
   font-family:"Instrument Serif",Georgia,serif; font-style:italic; font-size:13px; line-height:1; display:inline-grid;
   place-items:center; vertical-align:middle; margin-left:4px; flex:0 0 auto}
 .editbtn{width:30px; height:30px; flex:0 0 auto; border-radius:9px; border:1px solid var(--line);
@@ -227,17 +230,25 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 }
 .nav button{
   flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; min-height:46px;
-  padding:5px 1px; border-radius:12px; color:var(--ink-3); font-size:10px; font-weight:600;
-  letter-spacing:.01em; transition:color .18s, background .18s; position:relative;
+  padding:5px 0; min-width:0; border-radius:12px; color:var(--ink-3); font-size:11px; font-weight:600;
+  letter-spacing:-.02em; transition:color .18s, background .18s; position:relative;
 }
 .nav button .ic{line-height:0; position:relative}
 .nav button .ic svg{width:22px; height:22px; display:block}
 .nav button .badge{position:absolute; top:-5px; right:-9px; min-width:16px; height:16px; padding:0 4px;
   border-radius:8px; background:var(--goals); color:#fff; font-size:10px; font-weight:700;
   display:grid; place-items:center; line-height:1}
-@media (hover:hover){ .nav button:not(.on):hover, .chip:not(.on):hover, .seg button:not(.on):hover{background:var(--surface-2)} }
+@media (hover:hover){
+  .nav button:not(.on):hover, .chip:not(.on):hover, .seg button:not(.on):hover{background:var(--surface-2)}
+  .btn:not(.primary):hover, .tk:hover, .goal:hover, .drow:hover, .corner:hover{background:var(--surface-2)}
+  .btn.primary:hover, .typebtn:hover, .mic:hover{background:#33302c}
+  .ibtn:hover, .tk .box:hover, .goal .tick:not(.on):hover, .editbtn:hover{border-color:var(--ink)}
+}
 .morebtn{justify-content:flex-start; gap:14px; padding:14px 16px; text-align:left}
-.morebtn .ic{font-size:22px; width:28px; text-align:center}
+.morebtn .ic{width:28px; display:grid; place-items:center; color:var(--ink-2)}
+.morebtn .ic svg{width:24px; height:24px}
+.empty .ico svg{width:32px; height:32px; display:block; margin:0 auto}
+.nav .wide-tab{display:none}
 .nav button.on{color:var(--ink); background:var(--surface-2)}
 
 /* ── the microphone, on every page ──────────────────────────────────────── */
@@ -298,7 +309,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 /* ── the 1 to 10 focus picker ───────────────────────────────────────────── */
 .seg{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; background:var(--surface-2);
   border:1px solid var(--line); border-radius:12px; padding:4px}
-.seg button{padding:9px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
+.seg button{padding:9px; min-height:40px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
 .seg button.on{background:var(--surface); color:var(--ink); box-shadow:var(--shadow)}
 .sheet label{display:flex; flex-direction:column; gap:5px; min-width:0}
 .sheet input[type=time]{padding:11px 12px; border:1px solid var(--line); border-radius:11px;
@@ -354,8 +365,10 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .blk.tight .bl{display:block; white-space:nowrap; text-overflow:clip}
 .blk.bar{padding:0; border-radius:4px}
 .tl-two .blk.tight .bt{display:none}
-.tl-head{min-width:0; flex:1 1 0; padding:6px 6px; letter-spacing:.04em}
-.tl-head .tl-sum{min-width:0; overflow:hidden; text-overflow:ellipsis}
+.tl-head{min-width:0; flex:1 1 0; padding:6px 6px; letter-spacing:.04em; font-size:11px; gap:5px}
+.tl-head .tl-sum{flex:0 0 auto; white-space:nowrap}
+.tl-head .wide-only{font-weight:inherit; opacity:1}
+.narrow-only{display:inline}
 .blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
 .blk.planned{right:calc(50% + 3px)}
 .blk.actual{left:calc(46px + 50% + 3px)}
@@ -392,7 +405,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .wrapchips .chips{-webkit-mask-image:none; mask-image:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
-  flex:0 0 auto; padding:7px 13px; border-radius:99px; border:1px solid var(--line);
+  flex:0 0 auto; padding:9px 14px; min-height:40px; border-radius:99px; border:1px solid var(--line);
   background:var(--surface); font-size:12.5px; font-weight:600; color:var(--ink-2);
 }
 .chip.on{background:var(--ink); color:#fff; border-color:var(--ink)}
@@ -407,19 +420,30 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
-.tk .grow .s{text-align:start}
-/* One column on the phone; the Focus side column dissolves so its cards can be ordered. */
+.tk .grow .s{direction:ltr; unicode-bidi:isolate; text-align:left}
+.tk .grow:dir(rtl) .s{text-align:right}
+/* One column on the phone; the side columns dissolve so their cards can be ordered. */
+.split{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
+.split > *, .split > .side > *{margin:0}
+.split > .side{display:contents}
+.split .plan-card{order:2} .split .sess-card{order:3}
 .cols2{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
 .cols2 > *, .cols2 .focus-side > *{margin-top:0}
 .cols2 .focus-side{display:contents}
 .cols2 .sess-card{order:-1}
 .tk .box{position:relative}
+/* Hit areas: the control stays small on screen and grows for the finger. */
+.ibtn::before, .tk .box::before, .goal .tick::before, .editbtn::before{content:""; position:absolute; inset:-12px}
+.goal .tick, .editbtn{position:relative}
 .tk .box.hi::after{content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%; background:var(--consistency); border:1.5px solid var(--surface)}
 .chips-wrap + .chips-wrap{margin-top:-6px}
 .wrapchips .chips{flex-wrap:wrap; overflow:visible; padding-right:0}
 .wrapchips::after{display:none}
 .pgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(56px, 1fr)); gap:6px 2px}
 .pcell{text-align:center; padding:4px 0; border-radius:8px}
+.pgrid.pweek{grid-template-columns:repeat(7,minmax(0,1fr))}
+.pgrid.pweek .pcell svg{width:100%; max-width:52px; height:auto}
+.pcell.pad{visibility:hidden}
 .pcell.nodata svg{opacity:.45}
 .pcell .pv:empty::before{content:"·"; color:var(--ink-3)}
 .pcell svg{display:block; width:52px; height:auto; margin:0 auto}
@@ -491,39 +515,40 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 
 
   /* Two columns where the content genuinely pairs up. */
-  .split{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr);
-    gap:16px; align-items:start}
-  .split > *{margin-top:0}
+  .split{grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr); gap:16px; align-items:start; margin-bottom:16px}
+  .split .plan-card{grid-column:1 / -1; order:0}
   .cols2{grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start}
   .cols2 > *{margin-top:0}
   .fullstrip{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
   .notespage{max-width:680px; margin:0 auto}
   .wide-only{display:inline}
+  .narrow-only{display:none}
   .blk{font-size:13px; padding:7px 11px}
   .blk .bt{font-size:12px}
   .nav button .badge{top:-7px; right:-13px}
   .cols2 > :only-child{grid-column:1 / -1}
-  .split{align-items:stretch}
   .split > .side{display:flex; flex-direction:column; gap:16px}
-  .split > .side > .runner{flex:1; margin:0; display:flex; flex-direction:column; justify-content:center}
+  .split > .side > .runner{flex:0 0 auto; margin:0}
   .split > .side > .grid3{margin:0}
-  .goal{display:grid; grid-template-columns:minmax(0,1fr) 440px; column-gap:24px; align-items:center}
-  .goal .top{grid-column:1} .goal .slider{grid-column:2; width:100%; max-width:420px; margin:0 0 0 auto; display:block}
+  .goal{display:grid; grid-template-columns:24px minmax(0,1fr) 56px minmax(260px,420px); column-gap:14px; align-items:center}
+  .goal .top{display:contents} .goal .pct{text-align:right} .goal .slider{grid-column:4; width:100%; margin:0; display:block}
   .cols2 .side, .cols2 .focus-side{display:flex; flex-direction:column; gap:16px}
   .cols2 .side > *{margin:0}
   .cols2 .focus-side{order:2} .cols2 .sess-card{order:0}
   main .seg:not(.dayseg){max-width:420px}
   .nav button .ic .badge{position:static; margin-left:6px; display:inline-grid; vertical-align:middle}
+  .nav .wide-tab{display:flex}
+  .nav .narrow-tab{display:none}
+  .sheet .grab{display:none}
+  main{padding-bottom:calc(200px + var(--safe-b))}
   .pgrid{grid-template-columns:repeat(auto-fill, minmax(84px, 1fr))}
   .pcell svg{width:58px}
   
   main .btn.wide{display:flex; max-width:340px; margin-left:auto !important; margin-right:auto !important}
   .nag .btn.wide{margin-left:0}
   .today-hero{justify-content:flex-start; gap:56px}
-  .taskcols{columns:2; column-gap:16px}
-  .taskcols > .card{break-inside:avoid; margin-top:0; margin-bottom:16px}
-  .strip{flex-wrap:wrap; overflow:visible; padding-right:0}
-  .swipehint{display:none}
+  .taskcols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 16px; align-items:start}
+  .taskcol > .card{margin-top:0; margin-bottom:16px}
   .chips-wrap::after{display:none}
   .strip-wrap::after, .strip-wrap::before{display:none}
   .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:480px;
@@ -559,7 +584,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c65-2026-09-02-roundC2';
+var BUILD = 'c66-2026-09-02-roundD';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -644,6 +669,7 @@ function hhmm(d){ d = d||new Date(); return pad(d.getHours())+':'+pad(d.getMinut
 function localStamp(iso){
   /* Postgres hands timestamps back in UTC. Printing one raw told Amir his day
      had updated at 07:12 when his clock said 00:12. */
+  if(iso == null || iso === '') return '';
   var d = new Date(iso);
   if(isNaN(d)) return String(iso).replace('T',' ').slice(0,16);
   return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate())+' '+
@@ -692,7 +718,8 @@ function loadPend(){
     // only button reloads the same broken entry straight back in.
     PEND = (Array.isArray(v) ? v : []).filter(function(e){
       return e && typeof e.qid === 'string' && typeof e.kind === 'string' &&
-             typeof e.ts === 'string' && typeof e.at === 'string';
+             typeof e.ts === 'string' && typeof e.at === 'string' &&
+             (e.payload == null || (typeof e.payload === 'object' && !Array.isArray(e.payload)));
     });
   }catch(e){ PEND = []; }
 }
@@ -732,7 +759,9 @@ async function record(kind, payload){
             at:hhmm(), sent:false};
   PEND.push(ev);
   var stored = savePend();
-  render();
+  // Not under the score sheet: the page behind it would flip to "not working"
+  // and list the very session being rated with its own Rate it button.
+  if(!(SHEET && SHEET.dataset.mandatory)) render();
   try{
     ev.posting = true;
     await postEvent(kind, payload, ev.qid, ev.ts);
@@ -783,11 +812,14 @@ function prunePend(st){
      anything, and a timestamp rule silently deleted pending taps that had not
      been filed at all. The clock is kept only as a six-hour backstop so a
      never-filed event cannot haunt the screen forever. */
-  var tasks = (st && st.tasks) || [];
-  var sessions = (st && st.today && st.today.sessions) || [];
+  var tasks = ((st && st.tasks) || []).filter(function(x){ return x && typeof x === 'object' && x.id != null; });
+  var sessions = ((st && st.today && st.today.sessions) || []).filter(function(x){ return x && typeof x === 'object'; });
   var week = st && st.week;
   var live = {}; tasks.forEach(function(t){ live[t.id]=1; });
   var now = Date.now();
+  // A tap stamped in the future is a clock fault. Kept, it would close the
+  // open session at a time that has not happened.
+  PEND = PEND.filter(function(e){ return !(Date.parse(e.ts) > now + 5 * 60000); });
   // The Mac publishes the taps it has not dealt with yet. A sent tap that is
   // not on that list, in a picture published after the tap, is done with:
   // filed, cleared, or deliberately deleted. Without this a wiped history left
@@ -830,7 +862,7 @@ function prunePend(st){
     }
   });
 
-  PEND = PEND.filter(function(e){
+  var keepOne = function(e){
     if(!e.sent) return true;
     if(openQ && openQ.indexOf(e.qid) < 0 && !isNaN(blobMs) && blobMs > Date.parse(e.ts) + 60000) return false;
     var pp = e.payload || {};
@@ -853,8 +885,8 @@ function prunePend(st){
       return !sessions.some(function(x){ return x.start === p.start && !x.open; });
     if(e.kind === 'session_cancel')
       return sessions.some(function(x){ return x.start === p.start && x.open; });
-    if(e.kind === 'session_focus')
-      return !sessions.some(function(x){ return x.start === p.start && x.focus != null; });
+    if(e.kind === 'session_focus')   // spent only when the row carries THIS number, so a re-rating is not undone
+      return !sessions.some(function(x){ return x.start === p.start && x.focus === p.focus; });
     if(e.kind === 'session_add')
       return !sessions.some(function(x){ return x.start === p.start && x.area === p.area; });
     if(e.kind === 'session_edit')
@@ -881,7 +913,9 @@ function prunePend(st){
       });
     }
     return age < 15*60*1000;   // keep an unrecognised kind briefly, then let it go
-  });
+  };
+  // One malformed entry used to throw here and abandon pruning for everyone.
+  PEND = PEND.filter(function(e){ try{ return keepOne(e); }catch(err){ console.error('bad pending event dropped', err); return false; } });
   savePend();
 }
 
@@ -905,6 +939,18 @@ function derive(){
   // below while the event still went out, so the screen showed nothing running
   // and a second tap sent a second start. The phone knows what day it is.
   var phoneDay = workingDayOf(new Date().toISOString());
+  // A missing, unreadable or future "today" is treated like a stale one.
+  var okDay = function(d){ return /^\d{4}-\d{2}-\d{2}$/.test(String(d || '')) && !isNaN(new Date(d + 'T12:00:00')); };
+  if(!v.today || typeof v.today !== 'object' || !okDay(v.today.date) || (phoneDay && v.today.date > phoneDay)) v.today = emptyToday(phoneDay || v.today && v.today.date || '');
+  if(v.week && !Array.isArray(v.week.goals)) v.week.goals = [];
+  if(v.week && v.week.goals){
+    v.week.goals = v.week.goals.filter(function(g){ return g && typeof g === 'object'; });
+    v.week.goals.forEach(function(g){
+      var pc = Number(g.percent);
+      g.percent = (g.percent == null || !isFinite(pc)) ? 0 : Math.max(0, Math.min(100, pc));
+      g.done = g.done === true; g.title = String(g.title || '');
+    });
+  }
   if(v.today && v.today.date && phoneDay && v.today.date < phoneDay){
     v.today = emptyToday(phoneDay);
     // What the blob called tomorrow may be today by now.
@@ -912,7 +958,17 @@ function derive(){
     else if(v.tomorrow && v.tomorrow.date < phoneDay){ v.tomorrow = {date: nextDate(phoneDay), plan: []}; }
   }
   var t = v.today;
-  t.sessions = t.sessions || [];
+  // Every number the totals read is a number here or nothing. A minutes cell
+  // of "sixty" once made the day read NaNhNaNm.
+  var okT = function(x){ return /^([01]\d|2[0-3]):[0-5]\d$/.test(String(x || '')); };
+  t.sessions = (t.sessions || []).filter(function(x){ return x && typeof x === 'object'; });
+  t.sessions.forEach(function(x){
+    if(!okT(x.start)){ x.malformed = true; x.start = String(x.start || '??:??'); x.open = false; }
+    if(x.end != null && !okT(x.end)){ x.malformed = true; x.end = null; x.open = false; }
+    var mm = Number(x.minutes); x.minutes = (x.minutes == null || !isFinite(mm)) ? null : mm;
+    var ff = Number(x.focus); x.focus = (x.focus == null || !isFinite(ff) || ff < 1 || ff > 10) ? null : ff;
+    if(x.malformed) x.minutes = null;
+  });
   v.tasks = (v.tasks || []).filter(function(x){ return x && typeof x === 'object'; });
   // Tomorrow is the one other day Amir plans. The Mac publishes its plan when
   // the file exists; a plan spoken today for tomorrow shows here at once.
@@ -931,7 +987,7 @@ function derive(){
   };
   t.plan = (t.plan || []).filter(okBlock); v.tomorrow.plan = v.tomorrow.plan.filter(okBlock);
 
-  PEND.forEach(function(e){
+  var overlayOne = function(e){
     var p = e.payload || {};
     /* An event only belongs to the day it was tapped in. Without this, a Start
        pressed at 23:50 with no signal reappeared on the next morning's screen
@@ -946,7 +1002,7 @@ function derive(){
       }
     } else if(e.kind === 'session_stop'){
       for(var i=t.sessions.length-1;i>=0;i--){
-        if(t.sessions[i].open){
+        if(t.sessions[i].open && (!p.start || t.sessions[i].start === p.start)){
           var s = t.sessions[i];
           s.end = e.at; s.open = false; s.pending = true;
           s.minutes = minsBetween(s.start, s.end);
@@ -1017,12 +1073,17 @@ function derive(){
       if(!p.day || p.day === t.date) t.plan = p.blocks || t.plan;
       else if(p.day === v.tomorrow.date) v.tomorrow.plan = p.blocks || v.tomorrow.plan;
     }
-  });
+  };
+  // A malformed pending event is skipped, not allowed to brick every tab. It
+  // used to survive in localStorage, so Try again reloaded the same crash.
+  PEND.forEach(function(e){ try{ overlayOne(e); }catch(err){ console.error('pending event skipped', err); e.dead = true; } });
+  if(PEND.some(function(e){ return e.dead; })){ PEND = PEND.filter(function(e){ return !e.dead; }); savePend(); }
 
   // A row the Mac could not make sense of must not poison the totals: a
   // negative length once subtracted from the day and inflated the focus score.
   var anyOpen = t.sessions.some(function(s){ return s.open; });
   t.sessions.forEach(function(s){
+    if(s.malformed) return;
     if(s.end == null && !s.open){
       if(anyOpen){ s.malformed = true; s.minutes = null; }
       else { s.open = true; s.minutes = null; anyOpen = true; }
@@ -1313,7 +1374,7 @@ function focusBg(n){
   return 'rgba(63,125,110,' + (0.08 + Math.max(0, Math.min(10, n)) * 0.022).toFixed(3) + ')';
 }
 function emptyBox(icon, title, sub){
-  return '<div class="empty"><div class="ico">'+icon+'</div><div style="font-weight:600;color:var(--ink-2)">'+
+  return '<div class="empty"><div class="ico">'+((typeof EMPTY_ICONS !== 'undefined' && EMPTY_ICONS[icon]) || icon)+'</div><div style="font-weight:600;color:var(--ink-2)">'+
     esc(title)+'</div>'+(sub?'<div class="small" style="margin-top:5px">'+esc(sub)+'</div>':'')+'</div>';
 }
 
@@ -1329,6 +1390,16 @@ function pageHome(v){
   }
 
 
+  var weekCard = '<div class="card"><h2>This week</h2><div class="row" style="gap:18px">' +
+       '<div style="flex:0 0 108px">' + triSVG(wtri, {size:108, r:34, labels:false}) + '</div>' +
+       '<div class="grow stack" style="gap:8px">' +
+         statLine('Score', wtri.scored ? pct(wtri.area) + '%' : 'not scored') +
+         statLine('Hours', hmShort(wtri.worked_minutes) + ' by day ' + wtri.days_elapsed + ' of 7') +
+         statLine('Focus', wtri.focus_score == null ? 'not rated'
+                             : wtri.focus_score.toFixed(1) + ' of 10') +
+         statLine('Goals', v.week && v.week.total
+                            ? v.week.hit + ' of ' + v.week.total + ' done' : '—') +
+       '</div></div></div>';
   h += '<div class="split"><div class="card"><div class="tri-wrap">' + triSVG(tri, {size:230, r:74}) +
        '<div class="tri-score">' +
        (tri.scored
@@ -1371,6 +1442,7 @@ function pageHome(v){
   }).join('') + '</div>';
 
   h += runnerHTML(v);
+  h += weekCard;
   h += '</div></div>';
 
   if((t.unscored || []).length){
@@ -1393,18 +1465,8 @@ function pageHome(v){
   h += '<div class="cols2 fullstrip">';
   h += '<div class="card"><div class="spread"><h2>The last 30 days</h2>' +
        '<button class="tiny" data-go="progress" style="color:var(--goals);font-weight:600;margin-bottom:14px">All progress →</button></div>' +
-       stripHTML(v) + '<p class="tiny muted swipehint" style="margin-top:6px">Swipe for earlier days.</p></div>';
+       stripHTML(v) + '</div>';
 
-  h += '<div class="card"><h2>This week</h2><div class="row" style="gap:18px">' +
-       '<div style="flex:0 0 108px">' + triSVG(wtri, {size:108, r:34, labels:false}) + '</div>' +
-       '<div class="grow stack" style="gap:8px">' +
-         statLine('Score', wtri.scored ? pct(wtri.area) + '%' : 'not scored') +
-         statLine('Hours', hmShort(wtri.worked_minutes) + ' by day ' + wtri.days_elapsed + ' of 7') +
-         statLine('Focus', wtri.focus_score == null ? 'not rated'
-                             : wtri.focus_score.toFixed(1) + ' of 10') +
-         statLine('Goals', v.week && v.week.total
-                            ? v.week.hit + ' of ' + v.week.total + ' done' : '—') +
-       '</div></div></div>';
   h += '</div>';
   return h;
 }
@@ -1424,14 +1486,21 @@ function statLine(k, val){
          '<span style="font-weight:600">'+esc(val)+'</span></div>';
 }
 function stripHTML(v){
-  if(!(v.month || []).length) return emptyBox('📅', 'No days yet', 'The strip fills in as days are recorded.');
-  return '<div class="strip-wrap"><div class="strip" id="strip">' + (v.month||[]).map(function(d){
+  var days = v.month || [];
+  if(!days.length) return emptyBox('📅', 'No days yet', 'The strip fills in as days are recorded.');
+  // Seven to a row, Monday first, so each row is a week and a bad Tuesday
+  // sits under the last one.
+  var first = new Date(days[0].date + 'T12:00:00'), pad0 = isNaN(first) ? 0 : (first.getDay() + 6) % 7, cells = '';
+  for(var i = 0; i < pad0; i++) cells += '<span class="d pad"></span>';
+  cells += days.map(function(d){
     var t = {consistency:d.consistency, focus:d.focus, goals:d.goals, unknown:d.unknown, scored:d.scored};
     var label = d.scored === false ? 'not scored' : pct(d.area) + '%';
     return '<button class="d' + (d.date === v.today.date ? ' sel' : '') + '" data-day="'+esc(d.date)+'" ' +
-      'title="'+esc(prettyDate(d.date) + ' · ' + label)+'">' + triSVG(t, {size:34, r:13, labels:false}) +
-      '<div class="dl">'+esc(d.weekday[0])+'</div></button>';
-  }).join('') + '</div></div>';
+      'title="'+esc(prettyDate(d.date) + ' · ' + label)+'">' + triSVG(t, {size:40, r:15, labels:false}) +
+      '<div class="dl">'+(+String(d.date).slice(8) || '')+'</div></button>';
+  }).join('');
+  return '<div class="strip-head">' + ['M','T','W','T','F','S','S'].map(function(x){ return '<span>'+x+'</span>'; }).join('') +
+    '</div><div class="strip" id="strip">' + cells + '</div>';
 }
 /* ═════════════════════════════════════ the session editor ═══════════════ */
 /* Correcting a session, adding one done away from the phone, and deleting one.
@@ -1507,10 +1576,11 @@ function paintSessEditor(){
         '<span class="tiny muted">End</span>' +
         '<input type="time" id="sEnd" value="' + esc(e.end || hhmm()) + '"></label>' +
     '</div>' +
-    '<div class="tiny" style="margin-top:8px;color:' + (bad ? 'var(--bad)' : (ov ? 'var(--notice)' : 'var(--ink-3)')) + '">' +
+    '<div class="spread tiny" style="margin-top:8px"><span class="muted">' + (bad ? 'Problem' : 'Length') + '</span>' +
+    '<span style="text-align:right;font-weight:600;color:' + (bad ? 'var(--bad)' : (ov ? 'var(--notice)' : 'var(--ink-2)')) + '">' +
       esc(bad || (hm(mins) +
         (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : '') +
-        (ov ? ' · overlaps the ' + ov.start + ' ' + (ov.area_label || ov.area) + ' session' : ''))) + '</div>' +
+        (ov ? ' · overlaps the ' + ov.start + ' ' + (ov.area_label || ov.area) + ' session' : ''))) + '</span></div>' +
     '<div class="tiny muted" style="margin:16px 0 8px">Area</div>' +
     '<div class="grid2">' + AREAS.map(function(a){
       return '<button class="btn' + (a[0] === e.area ? ' primary' : '') + '" data-sarea="' + a[0] +
@@ -1519,7 +1589,7 @@ function paintSessEditor(){
     }).join('') + '</div>' +
     '<div class="row" style="gap:10px;margin-top:18px">' +
       (e.isNew ? '' : '<button class="btn" id="sessDelete" style="color:var(--bad)">Delete</button>') +
-      '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + (e.isNew ? ' style="width:100%"' : '') + '>' +
+      '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + ' style="flex:1' + (e.isNew ? ';width:100%' : '') + '">' +
         (e.isNew ? 'Add it' : 'Save') + '</button>' +
     '</div>');
   if(open && SHEET) SHEET.classList.add('on');   // no slide-in on a repaint
@@ -1538,6 +1608,7 @@ function shortfallLine(t){
   // The app knows the gap, so it names it instead of saying "get more hours in".
   var w = t.work_minutes != null ? t.work_minutes : (t.closed_minutes || 0);
   if(w >= 600) return 'You have passed the 10h floor. 12h is a good day.';
+  if(!w) return 'Nothing logged yet. The 10h floor starts when you do.';
   return 'You are ' + hmShort(600 - w) + ' short of the 10h floor.';
 }
 function runnerHTML(v){
@@ -1562,13 +1633,19 @@ function runnerHTML(v){
 <script>
 /* ═══════════════════════════════════════════ consistency (the hours) ═════ */
 function pageTime(v){
-  var t = v.today, sp = v.targets.split, b = t.buckets;
+  var t = v.today, sp = (v.targets && v.targets.split) || {academia:240, ai:360}, b = t.buckets || {academia:0, ai:0, dog:0};
   var h = '';
 
-  h += '<div class="split"><div class="card"><h2>Today</h2>' +
+  var sessCard = '<div class="card flush sess-card"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
+       (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
+        : emptyBox('⏱', 'No sessions yet today',
+            'Press Start a session when you begin.')) +
+       '<button class="btn wide" id="addSess" style="margin:14px 16px 16px;width:calc(100% - 32px)">' +
+       '＋ Add a session I forgot</button></div>';
+  h += '<div class="split"><div class="side"><div class="card"><h2 class="hd">Today ' + infoBtn('hours') + '</h2>' +
     '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.work_minutes)+'</div>' +
-      '<div class="small muted">of the 10h floor ' + infoBtn('hours') + '</div></div>' +
+      '<div class="small muted">of the 10h floor</div></div>' +
       '<div style="text-align:right"><div class="serif" style="font-size:26px;color:var(--consistency)">'+
         pct(Math.min(1,(t.work_minutes||0)/600))+'%</div>' +
       '<div class="tiny muted" style="white-space:nowrap">done</div></div>' +
@@ -1581,14 +1658,14 @@ function pageTime(v){
       splitBar('AI Business', b.ai, sp.ai, AREA_COLOUR.ai) +
       splitBar('Dog Business (paused)', b.dog, 0, AREA_COLOUR.dog) +
       (t.overhead_minutes ? '<div class="spread small"><span class="muted">Overhead</span>' +
-        '<span class="dim">'+hmShort(t.overhead_minutes)+' · counts as work, not in the split</span></div>' : '') +
+        '<span class="dim">'+hmShort(t.overhead_minutes)+' · work, not in the split</span></div>' : '') +
     '</div></div>';
 
-  h += '<div class="side">' + runnerHTML(v) + '</div></div>';
+  h += runnerHTML(v) + '</div><div class="side">' + sessCard + '</div>';
 
   var tm = v.tomorrow || {plan:[]}, hasTm = (tm.plan || []).length > 0, showTm = hasTm && SHOW_TOMORROW;
-  h += '<div class="card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
-       '<h2 style="margin:0">' + (showTm ? 'Tomorrow' : (hasTm ? 'Today' : 'Planned and done')) + (showTm ? '' : ' ' + infoBtn('plan')) + '</h2>' +
+  h += '<div class="card plan-card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
+       '<h2 class="hd" style="margin:0;flex:1">' + (showTm ? 'Tomorrow' : (hasTm ? 'Today' : 'Planned and done')) + (showTm ? '' : ' ' + infoBtn('plan')) + '</h2>' +
        (hasTm ? '<div class="seg dayseg">' +
           '<button data-act="daytoday"' + (showTm ? '' : ' class="on"') + '>Today</button>' +
           '<button data-act="daytomorrow"' + (showTm ? ' class="on"' : '') + '>Tomorrow</button></div>' : '') +
@@ -1600,13 +1677,8 @@ function pageTime(v){
            ' ' + infoBtn('plan') + '</p>' +
            timelineHTML({plan: tm.plan, sessions: []}, true)
          : timelineHTML(t)) + '</div>';
+  h += '</div>';   // closes .split: the calendar spans both columns on a laptop
 
-  h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
-       (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
-        : emptyBox('⏱', 'No sessions yet today',
-            'Press Start a session when you begin.')) +
-       '<button class="btn wide" id="addSess" style="margin:14px 16px 16px;width:calc(100% - 32px)">' +
-       '＋ Add a session I forgot</button></div>';
   return h;
 }
 function splitBar(label, got, target, colour){
@@ -1615,7 +1687,7 @@ function splitBar(label, got, target, colour){
     '<span style="font-weight:600">'+hmShort(got)+(target?' <span class="muted" style="font-weight:400">of '+
       hmShort(target)+'</span>':'')+(target && got < target ? ' <span class="muted" style="font-weight:400">· '+
       hmShort(target-got)+' short</span>' : '')+'</span></div>' +
-    '<div class="bar"><i style="background:'+colour+'" data-w="'+p+'"></i></div></div>';
+    (target ? '<div class="bar"><i style="background:'+colour+'" data-w="'+p+'"></i></div>' : '') + '</div>';
 }
 function rateRow(u){
   return '<div class="spread" style="background:var(--surface);border:1px solid var(--line);' +
@@ -1647,7 +1719,23 @@ function sessionRow(s, day, edit){
 }
 var SHOW_TOMORROW = false;
 function planWork(plan){
-  var m = 0; (plan || []).forEach(function(b){ if(b.status !== 'fixed') m += b.minutes || minsBetween(b.start, b.end) || 0; });
+  // Overlapping blocks are merged first, so a plan spoken twice over the same
+  // hour does not promise it twice.
+  var iv = [];
+  (plan || []).forEach(function(b){
+    if(!b || b.status === 'fixed') return;
+    var a = toMin(b.start), z = toMin(b.end);
+    if(isNaN(a) || isNaN(z)) return;
+    if(z <= a) z += 1440;
+    iv.push([a, z]);
+  });
+  iv.sort(function(x, y){ return x[0] - y[0]; });
+  var m = 0, cur = null;
+  iv.forEach(function(x){
+    if(!cur || x[0] > cur[1]){ if(cur) m += cur[1] - cur[0]; cur = [x[0], x[1]]; }
+    else if(x[1] > cur[1]) cur[1] = x[1];
+  });
+  if(cur) m += cur[1] - cur[0];
   return m;
 }
 function longDay(iso){
@@ -1711,6 +1799,7 @@ function timelineHTML(t, planOnly){
              '<div class="hrlab" style="top:'+y+'px">'+pad(Math.floor(m/60)%24)+':00</div>';
   }
   blocks.sort(function(a, b){ return a.m0 - b.m0 || (a.k < b.k ? -1 : 1); });
+  var anyBar = false;
   var bh = blocks.map(function(b, i){
     var y = (b.m0 - lo) * PX, hgt = Math.max(20, (b.m1 - b.m0) * PX - 3);
     // A short block is given room to be read, but never over the next block
@@ -1730,6 +1819,7 @@ function timelineHTML(t, planOnly){
     var tight = hgt < 46, bar = hgt < 22;
     var lab = tight ? String(b.label).split(/ — | · /)[0].replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '') : b.label;
     var mins = b.m1 - b.m0;
+    if(bar) anyBar = true;
     if(bar) return '<div class="blk '+b.k+' bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
       'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+'"></div>';
     return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
@@ -1747,15 +1837,15 @@ function timelineHTML(t, planOnly){
       '<span class="muted tiny" style="flex:0 0 auto;margin-left:10px">'+esc(b.s)+'–'+esc(b.e)+'</span></div>';
   }).join('');
 
-  var plannedMin = 0; (t.plan||[]).forEach(function(p){ if(p.status !== 'fixed') plannedMin += p.minutes || 0; });
+  var plannedMin = planWork(t.plan);
   var doneMin = t.work_minutes || 0;
   return '<div class="tl-two">' +
-    '<div class="tl-heads"><div class="tl-head plan"><span class="sw plan"></span>Planned' +
+    '<div class="tl-heads"><div class="tl-head plan"><span class="sw plan"></span><span class="wide-only">Planned</span><span class="narrow-only">Plan</span>' +
       '<span class="tl-sum">'+hmShort(plannedMin)+'</span></div>' +
     '<div class="tl-head actual"><span class="sw actual"></span>Done' +
       '<span class="tl-sum">'+hmShort(doneMin)+'</span></div></div>' +
     '<div class="timeline" style="height:'+H+'px">'+lines+bh+'</div>' +
-    (planList ? '<details class="tl-list"><summary class="tiny muted">The plan, as a list</summary>'+planList+'</details>' : '') +
+    (planList ? '<details class="tl-list"'+(anyBar ? ' open' : '')+'><summary class="tiny muted">The plan, as a list</summary>'+planList+'</details>' : '') +
     '</div>';
 }
 
@@ -1793,7 +1883,7 @@ function pageFocus(v){
        '</div>';
 
   var hist = v.focus_history || [];
-  var shown = SHOW_ALL_HIST ? hist : hist.slice(0, 45);
+  var shown = SHOW_ALL_HIST ? hist : hist.slice(0, 7);   // a week; the rest behind Show all
   var weekCard = '';
   var dayCard = '<div class="card"><h2>Focus, day by day</h2>' +
     (hist.length ? sparkHTML(hist, t.date) : '') +
@@ -1890,9 +1980,7 @@ function sparkHTML(hist, today){
       'vector-effect="non-scaling-stroke"/>';
   }).join('');
 
-  return '<p class="tiny muted prose" style="margin-bottom:10px">The green line is the focus ' +
-    'score, read against the 0 to 10 scale on the left. A gap in it means that day was not ' +
-    'rated. The grey bars behind it are hours worked, where a full-height bar is 12 hours.</p>' +
+  return '<p class="tiny muted" style="margin-bottom:8px">Line: focus, 0 to 10 · Bars: hours worked, a full bar is 12h</p>' +
     '<div class="spark">' +
       '<div class="spark-y"><span>10</span><span>5</span><span>0</span></div>' +
       '<svg viewBox="0 0 '+W+' '+H+'" preserveAspectRatio="none" role="img" ' +
@@ -1981,9 +2069,9 @@ function pageGoals(v){
   return h;
 }
 function goalInput(i){
-  return '<input class="setup-in" data-draft="'+i+'" placeholder="Goal '+(i+1)+
+  return '<textarea class="setup-in" rows="1" dir="auto" data-draft="'+i+'" placeholder="Goal '+(i+1)+
     (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);' +
-    'border-radius:11px;background:var(--surface)">';
+    'border-radius:11px;background:var(--surface);resize:none;line-height:1.4;font:inherit;display:block"></textarea>';
 }
 function prettyDate(iso){
   var d = new Date(iso + 'T00:00:00');
@@ -2075,7 +2163,7 @@ function pageTasks(v){
     return worst(b) - worst(a) || (a < b ? -1 : 1);
   });
 
-  h += '<div class="taskcols">';
+  var cards = [];
   order.forEach(function(k){
     var rows = groups[k].slice().sort(function(a, b){
       if(!a.due && !b.due) return 0;
@@ -2084,9 +2172,9 @@ function pageTasks(v){
       return a.due < b.due ? -1 : 1;
     });
     var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
-    h += '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
+    var card = '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
       '<h2 style="margin:0">'+esc(k)+'</h2>' +
-      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
+      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+(od === rows.length ? od + ' overdue' : rows.length + ' task' + (rows.length === 1 ? '' : 's') + (od ? ' · ' + od + ' overdue' : ''))+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
         var due = t.due
@@ -2108,9 +2196,17 @@ function pageTasks(v){
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
           '</div></div></div>';
       }).join('') + '</div>';
+    cards.push({html:card, rows:rows.length});
   });
-
-  h += '</div>';
+  // Two columns on a laptop, filled shortest first so they end near the same
+  // line. CSS columns split by height and left one column 190px short.
+  if(window.innerWidth >= 900 && cards.length > 1){
+    var colA = [], colB = [], hA = 0, hB = 0;
+    cards.forEach(function(c){ var w = c.rows + 1.4; if(hA <= hB){ colA.push(c.html); hA += w; } else { colB.push(c.html); hB += w; } });
+    h += '<div class="taskcols"><div class="taskcol">' + colA.join('') + '</div><div class="taskcol">' + colB.join('') + '</div></div>';
+  } else {
+    h += '<div class="taskcols">' + cards.map(function(c){ return c.html; }).join('') + '</div>';
+  }
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking marks it done; it is filed at the next sync. ' +
        'Tap it again to undo. ' + '<span hidden>Ticking sends it to Claude, who ' +
        'files it properly at your computer. Tap it again to undo before that happens.</p>';
@@ -2191,7 +2287,12 @@ function pageProgress(v){
     h += '<p class="small dim prose" style="margin-bottom:12px">Each triangle is one ' + unit + '. ' +
       (ma != null ? 'The average score over these ' + withData.length + ' ' + unit + (withData.length === 1 ? '' : 's') +
         ' is <b>' + pct(ma) + '%</b>.' : 'No ' + unit + ' has a full score yet.') + '</p>';
-    h += '<div class="pgrid">' + buckets.map(function(b){
+    var padP = '';
+    if(unit === 'day' && buckets.length && buckets[0].days && buckets[0].days[0]){
+      var f0 = new Date(String(buckets[0].days[0].date) + 'T12:00:00');
+      if(!isNaN(f0)) for(var q = 0; q < (f0.getDay() + 6) % 7; q++) padP += '<div class="pcell pad"></div>';
+    }
+    h += '<div class="pgrid' + (unit === 'day' ? ' pweek' : '') + '">' + padP + buckets.map(function(b){
       var tri = {consistency:b.consistency || 0, focus:b.focus || 0, goals:b.goals || 0,
                  scored: b.area != null, unknown: [].concat(b.focus == null ? ['focus'] : [], b.goals == null ? ['goals'] : [])};
       return '<div class="pcell' + (b.dayCount ? '' : ' nodata') + '" title="'+esc(b.title + (b.area != null ? ' · ' + pct(b.area) + '%' : ' · not scored'))+'">' +
@@ -2236,7 +2337,9 @@ var INFO = {
     'far more than a third.'],
   focus:['How focus is scored', 'Only you can measure focus, so the page never guesses. Every session gets your own number ' +
     'from 1 to 10 when you stop it. The day’s figure is the average weighted by session length: a four-hour session at 10 ' +
-    'counts far more than a fifteen-minute one at 2. An unrated session is left out, never counted as zero.'],
+    'counts far more than a fifteen-minute one at 2. An unrated session is left out, never counted as zero. ' +
+    'On the chart, the green line is the focus score against the 0 to 10 scale, a gap means that day was not rated, ' +
+    'and the grey bars behind it are hours worked, where a full bar is 12 hours.'],
   plan:['Planned and done', 'The left calendar is what you promised: hold the talk button and say your working blocks, like ' +
     '“nine to eleven, research paper”. Say “tomorrow” and they go on tomorrow’s plan. The right calendar is what actually ' +
     'happened, from Start and Stop. The headers show the hours of each, so the gap is a number.'],
@@ -2311,27 +2414,46 @@ var ICONS = {
   tasks: SVG('<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8 12.5 2.6 2.5L16 9.5"/>'),
   more:  SVG('<circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>')
 };
+ICONS.notes = SVG('<path d="M6 4h9l4 4v12H6z"/><path d="M15 4v4h4M9 12h6M9 16h6"/>');
+ICONS.progress = SVG('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>');
+/* Empty states use the same stroke set as the navigation. The emoji they
+   replaced were the only saturated colour on otherwise quiet pages. */
+var EMPTY_ICONS = {
+  '🗓': SVG('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8 3v4M16 3v4"/>'),
+  '📅': SVG('<rect x="4" y="5" width="16" height="15" rx="3"/><path d="M4 10h16M8 3v4M16 3v4"/>'),
+  '⏱': ICONS.time,
+  '🎯': ICONS.focus,
+  '🔍': SVG('<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/>'),
+  '🎙': SVG('<rect x="9" y="4" width="6" height="11" rx="3"/><path d="M6 11a6 6 0 0 0 12 0M12 17v3"/>'),
+  '🏁': ICONS.goals,
+  '📈': SVG('<path d="M4 19h16M6 16l4-5 3 3 5-7"/>'),
+  '◍': ICONS.notes,
+  '▤': ICONS.progress
+};
 var TABS = [
   {k:'home',  label:'Triangle'},
   {k:'time',  label:'Consistency'},
   {k:'focus', label:'Focus'},
   {k:'goals', label:'Goals'},
   {k:'tasks', label:'Tasks'},
-  {k:'more',  label:'More'}
+  {k:'notes', label:'Notes', wide:true},
+  {k:'progress', label:'Progress', wide:true},
+  {k:'more',  label:'More', narrow:true}
 ];
-/* Seven tabs on a phone are seven targets too small to hit. Notes and
-   Progress live behind More, which opens a sheet with room for both. */
+/* Seven tabs on a phone are seven targets too small to hit, so there Notes
+   and Progress live behind More. A laptop has the width, so it shows all
+   seven and no More. */
 function moreSheet(){
   var waiting = (NOTES || []).length;
   openSheet('<h3>More</h3><div class="stack" style="margin-top:14px">' +
-    '<button class="btn wide morebtn" data-go="notes"><span class="ic">◍</span><span class="grow" style="text-align:left">Notes' +
+    '<button class="btn wide morebtn" data-go="notes"><span class="ic">' + ICONS.notes + '</span><span class="grow" style="text-align:left">Notes' +
       '<span class="tiny muted" style="display:block;font-weight:400">' + (waiting ? waiting + ' waiting for Claude' : 'Nothing waiting') + '</span></span></button>' +
-    '<button class="btn wide morebtn" data-go="progress"><span class="ic">▤</span><span class="grow" style="text-align:left">Progress' +
+    '<button class="btn wide morebtn" data-go="progress"><span class="ic">' + ICONS.progress + '</span><span class="grow" style="text-align:left">Progress' +
       '<span class="tiny muted" style="display:block;font-weight:400">Days, weeks and months as triangles</span></span></button>' +
     '</div>');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.go === 'more'); });
 }
-var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
+var TITLES = {home:'Triangle', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes', progress:'Progress'};
 var AREA_NAME = {academia:'Academia', ai:'AI Business', dog:'Dog Business',
                  personal:'Personal', overhead:'Overhead'};
@@ -2401,8 +2523,8 @@ function render(){
       '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
     '<nav class="nav">' + TABS.map(function(t){
       var on = TAB === t.k || (t.k === 'more' && (TAB === 'notes' || TAB === 'progress'));
-      var badge = t.k === 'more' && (NOTES || []).length ? '<span class="badge">'+NOTES.length+'</span>' : '';
-      return '<button data-go="'+t.k+'" class="'+(on?'on':'')+'" aria-label="'+esc(t.label)+'">' +
+      var badge = (t.k === 'more' || t.k === 'notes') && (NOTES || []).length ? '<span class="badge">'+NOTES.length+'</span>' : '';
+      return '<button data-go="'+t.k+'" class="'+(on?'on':'')+(t.wide?' wide-tab':'')+(t.narrow?' narrow-tab':'')+'" aria-label="'+esc(t.label)+'">' +
         '<span class="ic">'+ICONS[t.k]+badge+'</span>'+esc(t.label)+'</button>';
     }).join('') + '</nav>' +
     '<main><div class="page on'+(TAB === 'notes' ? ' notespage' : '')+'">' + staleHTML() + body + '</div>' +
@@ -2429,15 +2551,11 @@ function render(){
   document.querySelectorAll('.bar > i[data-w]').forEach(function(i){
     i.style.width = i.getAttribute('data-w') + '%';
   });
-  window.addEventListener('scroll', syncBar, {passive:true});
   bindMic();
   tickClock();
-  // The strip is 30 days wide and today is the last one, so start at the end.
-  var strip = document.getElementById('strip');
-  if(strip) strip.scrollLeft = strip.scrollWidth;
   askForMissingScore();
 }
-function ago(m){ return m < 90 ? m + ' minutes' : Math.round(m/60) + ' hours'; }
+function ago(m){ return m < 90 ? m + ' minutes' : m < 2880 ? Math.round(m/60) + ' hours' : Math.round(m/1440) + ' days'; }
 function staleWhy(){
   var fetched = staleMinutes(), published = publishAgeMinutes();
   var why = null;
@@ -2532,10 +2650,21 @@ function openSheet(html, opts){
   document.querySelectorAll('.sheet').forEach(function(n){ n.remove(); });
   SHEET = el('<div class="sheet"><div class="grab"></div>' + html + '</div>');
   SHEET.dataset.mandatory = opts.mandatory ? '1' : '';
+  SHEET.setAttribute('tabindex', '-1');
+  SHEET_OPENER = document.activeElement;
   document.body.appendChild(SHEET);
   document.getElementById('scrim').classList.add('on');
   setTimeout(function(){ if(SHEET) SHEET.classList.add('on'); }, 16);
+  // Focus goes into the sheet, so Tab does not wander the page behind the
+  // scrim. A text field is not focused here: that would raise the keyboard
+  // on the phone before the sheet has finished sliding in.
+  setTimeout(function(){
+    if(!SHEET || SHEET.contains(document.activeElement)) return;
+    var f = SHEET.querySelector('button:not([disabled])');
+    try{ (f || SHEET).focus({preventScroll:true}); }catch(e){}
+  }, 60);
 }
+var SHEET_OPENER = null;
 function closeSheet(force){
   document.querySelectorAll('.nav button').forEach(function(b){
     var g = b.dataset.go;
@@ -2546,8 +2675,20 @@ function closeSheet(force){
   s.classList.remove('on');
   document.getElementById('scrim').classList.remove('on');
   setTimeout(function(){ s.remove(); }, 340);
+  var back = SHEET_OPENER; SHEET_OPENER = null;
+  if(back && back.focus && document.contains(back) && s.contains(document.activeElement)){
+    try{ back.focus({preventScroll:true}); }catch(e){}
+  }
 }
 document.getElementById('scrim').addEventListener('click', function(){ closeSheet(); });
+/* A goal line grows with its text instead of clipping it. */
+function growDrafts(){
+  document.querySelectorAll('textarea[data-draft]').forEach(function(t){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; });
+}
+document.addEventListener('input', function(ev){
+  var t = ev.target;
+  if(t && t.matches && t.matches('textarea[data-draft]')){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+});
 
 /* ── start a session ────────────────────────────────────────────────────── */
 var AREAS = [
@@ -2613,7 +2754,7 @@ document.addEventListener('click', async function(ev){
     var open = VIEW.today.open_session;
     if(!open) return;
     var mins = minsSince(open.start, open.started_iso);
-    if(mins < 1){
+    if(mins < 1 && PEND.some(function(e){ return e.kind === 'session_start' && e.at === open.start; })){
       // Start then Stop inside a minute is a mis-tap. There is nothing to rate.
       // The cancel names the exact pending start, so a fresh start in the same
       // minute is not mistaken for the cancelled one.
@@ -2818,7 +2959,7 @@ document.addEventListener('click', async function(ev){
       if(!s) return;
       var prev = prevBy[s.toLowerCase()];
       vals.push({title:s, bucket:bucket || (prev && prev.bucket) || null,
-                 done:!!(prev && prev.done),
+                 done: percent != null ? percent >= 100 : !!(prev && prev.done),
                  percent: percent != null ? percent : (prev ? null : 0)});
     });
     if(!vals.length){ toast('Type at least one goal first.'); return; }
@@ -2833,14 +2974,14 @@ document.addEventListener('click', async function(ev){
     var cur = VIEW.week.goals.map(function(g){ return g.title; });
     openSheet('<h3>Change this week’s goals</h3><div class="stack" style="margin-top:14px">' +
       [0,1,2,3].map(function(i){
-        return '<input data-draft="'+i+'" value="'+esc(cur[i]||'')+'" placeholder="Goal '+(i+1)+
+        return '<textarea rows="1" dir="auto" data-draft="'+i+'" placeholder="Goal '+(i+1)+
           (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;' +
-          'background:var(--surface)">';
+          'background:var(--surface);resize:none;line-height:1.4;font:inherit;display:block">'+esc(cur[i]||'')+'</textarea>';
       }).join('') + '</div>' +
       '<p class="tiny muted prose" style="margin-top:10px">Keep the wording of a goal you are not ' +
       'changing and its progress stays. You can end a line with a percent, like 40%.</p>' +
       '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save</button>');
-    setTimeout(function(){ var i = SHEET && SHEET.querySelector('[data-draft]'); if(i) i.focus(); }, 380);
+    setTimeout(function(){ growDrafts(); var i = SHEET && SHEET.querySelector('[data-draft]'); if(i) i.focus(); }, 380);
     return;
   }
   if(t.dataset.hist || t.dataset.day){
@@ -2871,6 +3012,17 @@ document.addEventListener('keydown', function(ev){
     return;
   }
   if(!SHEET || !SHEET.classList.contains('on')) return;
+  if(ev.key === 'Tab'){
+    // Tab stays inside the sheet.
+    var fs = Array.prototype.slice.call(SHEET.querySelectorAll('input,textarea,button:not([disabled]),[tabindex="0"]'))
+      .filter(function(x){ return x.offsetParent !== null; });
+    if(fs.length){
+      var fi = fs.indexOf(document.activeElement);
+      if(ev.shiftKey){ if(fi <= 0){ ev.preventDefault(); fs[fs.length - 1].focus(); } }
+      else if(fi === -1 || fi === fs.length - 1){ ev.preventDefault(); fs[0].focus(); }
+    }
+    return;
+  }
   if(ev.key === 'Escape' && !SHEET.dataset.mandatory){
     var ae = document.activeElement;
     if(ae && /textarea|input/i.test(ae.tagName) && String(ae.value || '').trim()) return;   // a draft is not thrown away
@@ -3159,7 +3311,7 @@ function typeInstead(ts){
   openSheet('<h3>Write a note</h3>' +
     '<p class="small muted">It goes where a spoken note goes, tagged with the ' + esc(pageName) +
     ' page. On a keyboard, Cmd or Ctrl and Enter sends it.</p>' +
-    '<textarea id="typedNote" rows="4" placeholder="What happened?" style="width:100%;' +
+    '<textarea id="typedNote" rows="4" dir="auto" placeholder="What happened?" style="width:100%;' +
     'margin-top:14px;padding:13px;border:1px solid var(--line);border-radius:11px;' +
     'background:var(--surface);resize:vertical"></textarea>' +
     '<button class="btn wide primary" id="sendTyped" style="margin-top:12px">Send</button>');
@@ -3218,7 +3370,12 @@ async function refresh(){
     var notesP = refreshNotes().catch(function(){});
     try{
       var st = await getState();
-      if(st){ RAW = st.blob; UPDATED = localStamp(st.updated_at); UPDATED_RAW = String(st.updated_at || ''); LAST_OK = Date.now(); UNREACHABLE = ''; }
+      if(st && st.blob && typeof st.blob === 'object' && !Array.isArray(st.blob)){
+        RAW = st.blob; UPDATED = localStamp(st.updated_at); UPDATED_RAW = String(st.updated_at || ''); LAST_OK = Date.now(); UNREACHABLE = '';
+      } else if(!RAW){
+        // The table answered but holds nothing: the Mac has never published.
+        UNREACHABLE = 'Your computer has not published a picture yet. Run the myday job on the Mac once, then try again.';
+      }
     }catch(e){
       if(!RAW){
         // A toast fades in three seconds and leaves a skeleton that looks
@@ -3277,13 +3434,15 @@ async function checkBuild(){
 
 loadCfg();
 loadPend();
+window.addEventListener('scroll', syncBar, {passive:true});
 render();
 refresh();
 setTimeout(checkBuild, 4000);   // record the tag now, so a deploy in the first five minutes is seen
 setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
-setInterval(checkBuild, 300000);
+setInterval(function(){ if(!document.hidden) checkBuild(); }, 300000);
 document.addEventListener('visibilitychange', function(){
-  if(document.visibilityState === 'visible'){ refresh(); checkBuild(); }
+  if(document.visibilityState === 'visible'){ refresh(); checkBuild(); tickClock(); }
+  else clearInterval(CLOCK_T);   // nobody is looking at the live clock
 });
 window.addEventListener('online', flushPend);
 </script>
