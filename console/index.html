@@ -408,6 +408,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
 .tk .grow .s{text-align:start}
+/* One column on the phone; the Focus side column dissolves so its cards can be ordered. */
+.cols2{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
+.cols2 > *, .cols2 .focus-side > *{margin-top:0}
+.cols2 .focus-side{display:contents}
+.cols2 .sess-card{order:-1}
 .tk .box{position:relative}
 .tk .box.hi::after{content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%; background:var(--consistency); border:1.5px solid var(--surface)}
 .chips-wrap + .chips-wrap{margin-top:-6px}
@@ -489,8 +494,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .split{display:grid; grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr);
     gap:16px; align-items:start}
   .split > *{margin-top:0}
-  .cols2{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px;
-    align-items:start}
+  .cols2{grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start}
   .cols2 > *{margin-top:0}
   .fullstrip{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
   .notespage{max-width:680px; margin:0 auto}
@@ -505,9 +509,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .split > .side > .grid3{margin:0}
   .goal{display:grid; grid-template-columns:minmax(0,1fr) 440px; column-gap:24px; align-items:center}
   .goal .top{grid-column:1} .goal .slider{grid-column:2; width:100%; max-width:420px; margin:0 0 0 auto; display:block}
-  .cols2 .side{display:flex; flex-direction:column; gap:16px}
+  .cols2 .side, .cols2 .focus-side{display:flex; flex-direction:column; gap:16px}
   .cols2 .side > *{margin:0}
-  .cols2 .focus-side{order:2} .cols2 .week-side{order:3}
+  .cols2 .focus-side{order:2} .cols2 .sess-card{order:0}
   main .seg:not(.dayseg){max-width:420px}
   .nav button .ic .badge{position:static; margin-left:6px; display:inline-grid; vertical-align:middle}
   .pgrid{grid-template-columns:repeat(auto-fill, minmax(84px, 1fr))}
@@ -555,7 +559,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c64-2026-09-02-roundC';
+var BUILD = 'c65-2026-09-02-roundC2';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1564,10 +1568,10 @@ function pageTime(v){
   h += '<div class="split"><div class="card"><h2>Today</h2>' +
     '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.work_minutes)+'</div>' +
-      '<div class="small muted">of the 10h floor' + (t.open_session ? '' : '. 12h is a good day') + '. ' + infoBtn('hours') + '</div></div>' +
+      '<div class="small muted">of the 10h floor ' + infoBtn('hours') + '</div></div>' +
       '<div style="text-align:right"><div class="serif" style="font-size:26px;color:var(--consistency)">'+
         pct(Math.min(1,(t.work_minutes||0)/600))+'%</div>' +
-      '<div class="tiny muted" style="white-space:nowrap">of the floor</div></div>' +
+      '<div class="tiny muted" style="white-space:nowrap">done</div></div>' +
     '</div>' +
     '<div class="bar" style="height:8px"><i style="background:var(--consistency)" data-w="'+
       Math.min(100, Math.round((t.work_minutes||0)/600*100))+'"></i></div>' +
@@ -1782,7 +1786,7 @@ function pageFocus(v){
       }).join('') + '</div></div>';
   }
 
-  var sessCard = '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Today’s sessions</h2>' +
+  var sessCard = '<div class="card flush sess-card"><h2 style="padding:18px 16px 0;margin-bottom:8px">Today’s sessions</h2>' +
        (t.sessions.length ? t.sessions.map(sessionRow).join('')
         : emptyBox('🎯','Nothing to rate yet',
             'The app asks for a score the moment you stop a session.')) +
@@ -1790,7 +1794,8 @@ function pageFocus(v){
 
   var hist = v.focus_history || [];
   var shown = SHOW_ALL_HIST ? hist : hist.slice(0, 45);
-  h += '<div class="cols2"><div class="side focus-side">' + sessCard + '</div><div class="card"><h2>Focus, day by day</h2>' +
+  var weekCard = '';
+  var dayCard = '<div class="card"><h2>Focus, day by day</h2>' +
     (hist.length ? sparkHTML(hist, t.date) : '') +
     '<div class="stack" style="margin-top:16px">' + (hist.length ? shown.map(function(d){
       return '<button class="spread" data-hist="'+esc(d.date)+'" style="width:100%;text-align:left;' +
@@ -1810,7 +1815,7 @@ function pageFocus(v){
   // Week by week, the third view the system asks for.
   var wk = (v.weeks || []).slice().reverse();
   if(wk.length){
-    h += '<div class="card week-side"><h2>Focus, week by week</h2><div class="stack" style="gap:0">' +
+    weekCard = '<div class="card week-side"><h2>Focus, week by week</h2><div class="stack" style="gap:0">' +
       wk.map(function(x){
         var f = x.focus > 0 ? (x.focus * 10).toFixed(1) + ' of 10' : 'not rated';
         return '<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line-soft)">' +
@@ -1819,7 +1824,9 @@ function pageFocus(v){
           '<span style="font-weight:600;color:'+(x.focus > 0 ? 'var(--focus)' : 'var(--ink-3)')+'">'+f+'</span></div>';
       }).join('') + '</div></div>';
   }
-  h += '</div>';
+  // Phone: sessions, then the day list, then the weeks. Laptop: the day list on
+  // the left, sessions and weeks stacked on the right.
+  h += '<div class="cols2">' + dayCard + '<div class="side focus-side">' + sessCard + weekCard + '</div></div>';
   return h;
 }
 var SHOW_ALL_HIST = false;
@@ -2233,7 +2240,7 @@ var INFO = {
   plan:['Planned and done', 'The left calendar is what you promised: hold the talk button and say your working blocks, like ' +
     '“nine to eleven, research paper”. Say “tomorrow” and they go on tomorrow’s plan. The right calendar is what actually ' +
     'happened, from Start and Stop. The headers show the hours of each, so the gap is a number.'],
-  hours:['How hours are counted', 'Every finished session counts toward the 10h floor. A session that is still running ' +
+  hours:['How hours are counted', '10h is the floor and 12h is a good day. Every finished session counts. A session that is still running ' +
     'is not counted until you stop it. Personal time is never work, so it never counts. Overhead counts as work but ' +
     'stays out of the 4h academia and 6h AI split.'],
   notes:['How notes work', 'Hold the talk button on any page and talk, or press Type. What you say is written down and ' +
