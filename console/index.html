@@ -274,7 +274,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .sheet h3{font-size:19px; margin-bottom:6px}
 
 /* ── the 1 to 10 focus picker ───────────────────────────────────────────── */
-.seg{display:grid; grid-template-columns:1fr 1fr; gap:4px; background:var(--surface-2);
+.seg{display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; background:var(--surface-2);
   border:1px solid var(--line); border-radius:12px; padding:4px}
 .seg button{padding:9px; border-radius:9px; font-size:13.5px; font-weight:600; color:var(--ink-2)}
 .seg button.on{background:var(--surface); color:var(--ink); box-shadow:var(--shadow)}
@@ -497,7 +497,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c59-2026-09-02-progress';
+var BUILD = 'c60-2026-09-02-seg';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
