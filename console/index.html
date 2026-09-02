@@ -454,12 +454,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c50-2026-09-01-sheet';
+var BUILD = 'c51-2026-09-02-cleanup';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
-/* The Supabase URL and the publishable key ride in the #fragment, exactly as the
-   Apps Script token used to. A fragment is never sent to a server and never
-   committed, so the public repo holds no key. It must stay in the address bar:
+/* The Supabase URL and the publishable key ride in the #fragment. A fragment is
+   never sent to a server and never committed, so the public repo holds no key. It must stay in the address bar:
    iOS gives a Home Screen web app its own storage, so an icon saved without the
    fragment opens to "Not linked yet" no matter what Safari has. */
 var TAB_KEYS = ['home','time','focus','goals','tasks','notes'];
@@ -2258,8 +2257,9 @@ async function startRec(){
   }
   var mime = pickMime();
   CHUNKS = [];
-  // 24 kbps is plenty for speech and the upload is the one leg we control.
-  REC = new MediaRecorder(STREAM, mime ? {mimeType:mime, audioBitsPerSecond:24000} : undefined);
+  // 48 kbps. 24 was tried for upload speed and cost real accuracy: "UCW work"
+  // came back as "UCW award". Speech needs no more than 48.
+  REC = new MediaRecorder(STREAM, mime ? {mimeType:mime, audioBitsPerSecond:48000} : undefined);
   REC.ondataavailable = function(e){ if(e.data && e.data.size) CHUNKS.push(e.data); };
   REC.start();
   RECSTART = Date.now();
