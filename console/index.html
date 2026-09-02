@@ -9,7 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="myday">
 <meta name="theme-color" content="#FBFAF9">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
-<link rel="icon" href="../icon-512.png">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 5 28 26H4z' fill='none' stroke='%23AD5B2B' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preload" href="../fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
@@ -212,6 +212,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .runner.live{border-color:color-mix(in srgb,var(--focus) 40%,var(--line)); background:var(--focus-soft)}
 .runner .clock{font-family:"Instrument Serif",Georgia,serif; font-size:30px; line-height:1;
   font-variant-numeric:tabular-nums}
+@media (prefers-reduced-motion:reduce){ .livedot{animation:none !important} }
 .livedot{width:8px;height:8px;border-radius:50%;background:var(--focus);
   animation:pulse 2s var(--ease) infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
@@ -350,7 +351,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .blk .bt{font-size:11px; font-weight:700}
 .wide-only{display:none; font-weight:500; opacity:.8}
 .blk .bl{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.25; min-width:0}
-.blk.tight .bl{display:block; white-space:nowrap; text-overflow:ellipsis}
+.blk.tight .bl{display:block; white-space:nowrap; text-overflow:clip}
+.blk.bar{padding:0; border-radius:4px}
+.tl-two .blk.tight .bt{display:none}
+.tl-head{min-width:0; flex:1 1 0; padding:6px 6px; letter-spacing:.04em}
+.tl-head .tl-sum{min-width:0; overflow:hidden; text-overflow:ellipsis}
 .blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
 .blk.planned{right:calc(50% + 3px)}
 .blk.actual{left:calc(46px + 50% + 3px)}
@@ -402,6 +407,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
+.tk .grow .s{text-align:start}
 .tk .box{position:relative}
 .tk .box.hi::after{content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%; background:var(--consistency); border:1.5px solid var(--surface)}
 .chips-wrap + .chips-wrap{margin-top:-6px}
@@ -494,9 +500,16 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .nav button .badge{top:-7px; right:-13px}
   .cols2 > :only-child{grid-column:1 / -1}
   .split{align-items:stretch}
-  .split > .side{display:flex; flex-direction:column}
-  .split > .side > .runner{margin-top:auto}
-  .slider{max-width:420px; margin-left:auto}
+  .split > .side{display:flex; flex-direction:column; gap:16px}
+  .split > .side > .runner{flex:1; margin:0; display:flex; flex-direction:column; justify-content:center}
+  .split > .side > .grid3{margin:0}
+  .goal{display:grid; grid-template-columns:minmax(0,1fr) 440px; column-gap:24px; align-items:center}
+  .goal .top{grid-column:1} .goal .slider{grid-column:2; width:100%; max-width:420px; margin:0 0 0 auto; display:block}
+  .cols2 .side{display:flex; flex-direction:column; gap:16px}
+  .cols2 .side > *{margin:0}
+  .cols2 .focus-side{order:2} .cols2 .week-side{order:3}
+  main .seg:not(.dayseg){max-width:420px}
+  .nav button .ic .badge{position:static; margin-left:6px; display:inline-grid; vertical-align:middle}
   .pgrid{grid-template-columns:repeat(auto-fill, minmax(84px, 1fr))}
   .pcell svg{width:58px}
   
@@ -542,7 +555,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c63-2026-09-02-roundB';
+var BUILD = 'c64-2026-09-02-roundC';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -720,14 +733,14 @@ async function record(kind, payload){
     ev.posting = true;
     await postEvent(kind, payload, ev.qid, ev.ts);
     ev.sent = true; ev.posting = false; savePend();
-    if(!stored) toast('Sent, but this phone could not remember it. The screen catches up when your computer publishes.');
+    if(!stored) toast('Sent, but this phone could not remember it. The screen catches up when your computer publishes.', true);
   }catch(e){
     ev.posting = false;
     if(e && e.duplicate){ ev.sent = true; savePend(); return ev; }
     /* savePend can fail on a full or blocked store. Promising it is safe on the
        phone when the write did not happen is the one lie the app must not tell. */
     toast(stored ? 'Saved on this phone. It will be sent as soon as you are back online.'
-                 : 'Could not save that. Check your connection and try again.');
+                 : 'Could not save that. Check your connection and try again.', true);
   }
   return ev;
 }
@@ -771,13 +784,20 @@ function prunePend(st){
   var week = st && st.week;
   var live = {}; tasks.forEach(function(t){ live[t.id]=1; });
   var now = Date.now();
+  // The Mac publishes the taps it has not dealt with yet. A sent tap that is
+  // not on that list, in a picture published after the tap, is done with:
+  // filed, cleared, or deliberately deleted. Without this a wiped history left
+  // the phone saying "saving" for six hours.
+  var openQ = st && Array.isArray(st.open_qids) ? st.open_qids : null;
+  var blobMs = UPDATED ? Date.parse(String(UPDATED).replace(' ', 'T')) : NaN;
+  // Guard against a clock ahead of the phone: a future stamp must not make
+  // every tap look older than the picture. This sits before anything reads
+  // blobMs; it used to sit after, where the hoisted var was still undefined.
+  if(!isNaN(blobMs) && blobMs > now + 5 * 60000) blobMs = now;
   // An undo of something that was itself only pending goes with it. A cancel
   // or a delete used to be judged against the blob, which never held the row,
   // so it was dropped first and the start or the add it undid came back alone
   // with a live Stop button.
-  // Guard against a clock ahead of the phone: a future stamp must not make
-  // every tap look older than the picture.
-  if(!isNaN(blobMs) && blobMs > Date.now() + 5 * 60000) blobMs = Date.now();
   // A start or an add the Mac has already dealt with is not pending, so an undo
   // must NOT be paired away with it: the undo still has to be sent and kept
   // until its own effect shows in the picture.
@@ -801,16 +821,11 @@ function prunePend(st){
       cancelStarts[p.for_qid || ('at:' + p.start)] = 1;
     if(e.kind === 'session_delete' && (p.for_qid ? pendingAdds[p.for_qid] : pendingAdds['k:' + p.start + '|' + p.area])){
       deleteKeys[p.for_qid || ('k:' + p.start + '|' + p.area)] = 1;
+      deleteKeys['k:' + p.start + '|' + p.area] = 1;   // a twice-added row is one row to him
       (p.also_qids || []).forEach(function(q){ alsoDrop[q] = 1; });   // the edits in between
     }
   });
 
-  // The Mac publishes the taps it has not dealt with yet. A sent tap that is
-  // not on that list, in a picture published after the tap, is done with:
-  // filed, cleared, or deliberately deleted. Without this a wiped history left
-  // the phone saying "saving" for six hours.
-  var openQ = st && Array.isArray(st.open_qids) ? st.open_qids : null;
-  var blobMs = UPDATED ? Date.parse(String(UPDATED).replace(' ', 'T')) : NaN;
   PEND = PEND.filter(function(e){
     if(!e.sent) return true;
     if(openQ && openQ.indexOf(e.qid) < 0 && !isNaN(blobMs) && blobMs > Date.parse(e.ts) + 60000) return false;
@@ -894,7 +909,7 @@ function derive(){
   }
   var t = v.today;
   t.sessions = t.sessions || [];
-  v.tasks = v.tasks || [];
+  v.tasks = (v.tasks || []).filter(function(x){ return x && typeof x === 'object'; });
   // Tomorrow is the one other day Amir plans. The Mac publishes its plan when
   // the file exists; a plan spoken today for tomorrow shows here at once.
   v.tomorrow = v.tomorrow || {};
@@ -972,6 +987,7 @@ function derive(){
       var hit = v.tasks.filter(function(x){ return x.id === p.id; })[0];
       if(hit) hit.pending_tick = true;
     } else if(e.kind === 'goals_set'){
+      if(p.week && v.week && v.week.key && p.week !== v.week.key) return;   // last week's list, not this week's
       v.week = v.week || {key:'', start:'', end:'', goals:[], progress:0, hit:0, total:0};
       // Carry the bucket and the progress of a goal whose wording did not
       // change, exactly as apply_goal_events does on the Mac. Showing every goal
@@ -1255,7 +1271,12 @@ function esc(s){
 }
 function el(html){ var d = document.createElement('div'); d.innerHTML = html.trim(); return d.firstChild; }
 var TOAST_T = null;
-function toast(msg){
+var TOAST_HOLD = 0;
+function toast(msg, sticky){
+  // A warning ("saved on this phone") keeps the screen for a few seconds; the
+  // routine success message that follows it must not paint over it.
+  if(!sticky && Date.now() < TOAST_HOLD) return;
+  if(sticky) TOAST_HOLD = Date.now() + 3500;
   var t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('on');
   clearTimeout(TOAST_T);
@@ -1314,7 +1335,8 @@ function pageHome(v){
   h += '<div class="advice"><span class="pip" style="background:'+
        CORNERS.filter(function(c){return c.k===tri.weakest;})[0].hex+'"></span>' +
        '<span>'+adviceHTML(tri.advice) +
-       ((tri.notes||[]).length ? '<br><span class="tiny">'+esc(tri.notes.join(' '))+'</span>' : '') +
+       ((tri.notes||[]).filter(function(x){ return !(/no goals/i.test(x) && !(v.week && v.week.total)); }).length
+         ? '<br><span class="tiny">'+esc(tri.notes.filter(function(x){ return !(/no goals/i.test(x) && !(v.week && v.week.total)); }).join(' '))+'</span>' : '') +
        '</span></div>';
   h += '</div>';
   h += '<div class="side">';
@@ -1377,7 +1399,7 @@ function pageHome(v){
          statLine('Focus', wtri.focus_score == null ? 'not rated'
                              : wtri.focus_score.toFixed(1) + ' of 10') +
          statLine('Goals', v.week && v.week.total
-                            ? v.week.hit + ' of ' + v.week.total + ' done' : 'none set') +
+                            ? v.week.hit + ' of ' + v.week.total + ' done' : '—') +
        '</div></div></div>';
   h += '</div>';
   return h;
@@ -1542,12 +1564,10 @@ function pageTime(v){
   h += '<div class="split"><div class="card"><h2>Today</h2>' +
     '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.work_minutes)+'</div>' +
-      '<div class="small muted">of the 10h floor. Personal time is not counted.' +
-        (t.open_session ? ' The session running now is not counted yet.' : ' 12h is a good day.') +
-        '</div></div>' +
+      '<div class="small muted">of the 10h floor' + (t.open_session ? '' : '. 12h is a good day') + '. ' + infoBtn('hours') + '</div></div>' +
       '<div style="text-align:right"><div class="serif" style="font-size:26px;color:var(--consistency)">'+
         pct(Math.min(1,(t.work_minutes||0)/600))+'%</div>' +
-      '<div class="tiny muted">of the floor</div></div>' +
+      '<div class="tiny muted" style="white-space:nowrap">of the floor</div></div>' +
     '</div>' +
     '<div class="bar" style="height:8px"><i style="background:var(--consistency)" data-w="'+
       Math.min(100, Math.round((t.work_minutes||0)/600*100))+'"></i></div>' +
@@ -1653,7 +1673,8 @@ function timelineHTML(t, planOnly){
     blocks.sort(function(a, b){ return a.m0 - b.m0; });
     out += blocks.map(function(b, i){
       var y1 = (b.m0 - lo0) * PX0, hg = Math.max(30, (b.m1 - b.m0) * PX0 - 3);
-      if(i + 1 < blocks.length) hg = Math.min(hg, Math.max(14, (blocks[i + 1].m0 - lo0) * PX0 - y1 - 2));
+      if(i + 1 < blocks.length) hg = Math.min(hg, Math.max(6, (blocks[i + 1].m0 - lo0) * PX0 - y1 - 2));
+      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px"></div>';
       var fixed = b.status === 'fixed';
       return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
         'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,var(--goals) 12%,#fff)')+';' +
@@ -1691,7 +1712,7 @@ function timelineHTML(t, planOnly){
     // A short block is given room to be read, but never over the next block
     // in the same column.
     var nxt = null; for(var j = i + 1; j < blocks.length; j++){ if(blocks[j].k === b.k){ nxt = blocks[j]; break; } }
-    var maxH = nxt ? Math.max(14, (nxt.m0 - lo) * PX - y - 2) : 1e9;
+    var maxH = nxt ? Math.max(6, (nxt.m0 - lo) * PX - y - 2) : 1e9;
     // Two different things, drawn two different ways: what was promised is an
     // outline in the goals colour, what happened is a solid block in its area's
     // colour. Nobody should have to read a header to tell them apart.
@@ -1702,10 +1723,12 @@ function timelineHTML(t, planOnly){
     // A 15-minute block is 13px tall, which cuts a line of text in half. One
     // line needs about 30px and two need about 46px.
     hgt = Math.min(Math.max(hgt, 30), maxH);
-    var tight = hgt < 46;
-    var lab = tight ? String(b.label).split(/ — | · /)[0] : b.label;
+    var tight = hgt < 46, bar = hgt < 22;
+    var lab = tight ? String(b.label).split(/ — | · /)[0].replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '') : b.label;
     var mins = b.m1 - b.m0;
-    return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" style="top:'+y+'px;height:'+hgt+
+    if(bar) return '<div class="blk '+b.k+' bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
+      'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+'"></div>';
+    return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
       'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+';' +
       'color:var(--ink)">' +
       '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+
@@ -1759,7 +1782,7 @@ function pageFocus(v){
       }).join('') + '</div></div>';
   }
 
-  h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Today’s sessions</h2>' +
+  var sessCard = '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Today’s sessions</h2>' +
        (t.sessions.length ? t.sessions.map(sessionRow).join('')
         : emptyBox('🎯','Nothing to rate yet',
             'The app asks for a score the moment you stop a session.')) +
@@ -1767,7 +1790,7 @@ function pageFocus(v){
 
   var hist = v.focus_history || [];
   var shown = SHOW_ALL_HIST ? hist : hist.slice(0, 45);
-  h += '<div class="cols2"><div class="card"><h2>Focus, day by day</h2>' +
+  h += '<div class="cols2"><div class="side focus-side">' + sessCard + '</div><div class="card"><h2>Focus, day by day</h2>' +
     (hist.length ? sparkHTML(hist, t.date) : '') +
     '<div class="stack" style="margin-top:16px">' + (hist.length ? shown.map(function(d){
       return '<button class="spread" data-hist="'+esc(d.date)+'" style="width:100%;text-align:left;' +
@@ -1787,7 +1810,7 @@ function pageFocus(v){
   // Week by week, the third view the system asks for.
   var wk = (v.weeks || []).slice().reverse();
   if(wk.length){
-    h += '<div class="card"><h2>Focus, week by week</h2><div class="stack" style="gap:0">' +
+    h += '<div class="card week-side"><h2>Focus, week by week</h2><div class="stack" style="gap:0">' +
       wk.map(function(x){
         var f = x.focus > 0 ? (x.focus * 10).toFixed(1) + ' of 10' : 'not rated';
         return '<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line-soft)">' +
@@ -1964,8 +1987,9 @@ function prettyDate(iso){
 }
 function prettyStamp(stamp){
   // "2026-09-01 19:59" → "1 September, 19:59"
-  var m = /^(\d{4}-\d{2}-\d{2})[ T](\d{2}:\d{2})/.exec(String(stamp || ''));
-  return m ? prettyDate(m[1]) + ', ' + m[2] : String(stamp || '');
+  var m = /^(\d{4}-\d{2}-\d{2})[ T]([01]\d|2[0-3]):([0-5]\d)/.exec(String(stamp || ''));
+  if(!m || isNaN(new Date(m[1] + 'T12:00:00'))) return 'time unknown';
+  return prettyDate(m[1]) + ', ' + m[2] + ':' + m[3];
 }
 function weekElapsed(w, onDate){
   var monday = new Date(w.start + 'T00:00:00'), d = new Date(onDate + 'T00:00:00');
@@ -2022,6 +2046,9 @@ function pageTasks(v){
   }).join('') + '</div></div>';
 
   var list = all.filter(function(t){ return matchDue(TASK_FILTER, t) && matchArea(AREA_FILTER, t); });
+  var odAll = all.filter(function(t){ return t.when === 'overdue'; }).length;
+  if(odAll && TASK_FILTER === 'all' && AREA_FILTER === 'all')
+    h += '<p class="small" style="margin:0 4px 12px;color:var(--consistency);font-weight:600">'+odAll+' overdue</p>';
   if(!list.length) return h + '<div class="card">' +
     (TASK_FILTER === 'all' && AREA_FILTER === 'all'
       ? emptyBox('🎙','No tasks yet','Hold the talk button and say a task and where it belongs.')
@@ -2052,7 +2079,7 @@ function pageTasks(v){
     var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
     h += '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
       '<h2 style="margin:0">'+esc(k)+'</h2>' +
-      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · <span style="color:var(--consistency);font-weight:600">'+od+' overdue</span>' : '')+'</span></div>' +
+      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
         var due = t.due
@@ -2067,7 +2094,7 @@ function pageTasks(v){
           '<button class="box'+(on?' on':'')+(t.priority==='high'?' hi':'')+'" data-tick="'+esc(t.id)+'" ' +
           'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
           (on?'✓':'')+'</button>' +
-          '<div class="grow"><div class="t" dir="auto">'+esc(t.title)+'</div>' +
+          '<div class="grow" dir="auto"><div class="t">'+esc(t.title)+'</div>' +
           '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
 
             (t.priority==='high'?' · <span class="muted">high</span>':'')+
@@ -2206,6 +2233,9 @@ var INFO = {
   plan:['Planned and done', 'The left calendar is what you promised: hold the talk button and say your working blocks, like ' +
     '“nine to eleven, research paper”. Say “tomorrow” and they go on tomorrow’s plan. The right calendar is what actually ' +
     'happened, from Start and Stop. The headers show the hours of each, so the gap is a number.'],
+  hours:['How hours are counted', 'Every finished session counts toward the 10h floor. A session that is still running ' +
+    'is not counted until you stop it. Personal time is never work, so it never counts. Overhead counts as work but ' +
+    'stays out of the 4h academia and 6h AI split.'],
   notes:['How notes work', 'Hold the talk button on any page and talk, or press Type. What you say is written down and ' +
     'tagged with the page you were on, so a note on Goals is read as a goal and one on Tasks as a task. A note leaves ' +
     'this list once it has been filed at your computer. Until then you can fix a word or throw the note away.']
@@ -2229,7 +2259,7 @@ function pageNotes(v){
     (NOTES.length ? NOTES.map(function(n){
       return '<div class="item"><div class="grow">' +
         '<div dir="auto" style="line-height:1.45">'+esc(n.text)+'</div>' +
-        '<div class="s">'+esc(prettyStamp(localStamp(n.client_ts)))+
+        '<div class="s">'+esc(n.client_ts ? prettyStamp(localStamp(n.client_ts)) : 'time unknown')+
         (n.page?' · from '+esc(n.page === 'home' ? 'Triangle' : (TITLES[n.page] || n.page)):'')+'</div></div>' +
         '<button class="editbtn" data-noteact="edit" data-id="'+esc(n.id)+'" ' +
         'aria-label="Edit this note">✎</button>' +
@@ -2292,7 +2322,7 @@ function moreSheet(){
     '<button class="btn wide morebtn" data-go="progress"><span class="ic">▤</span><span class="grow" style="text-align:left">Progress' +
       '<span class="tiny muted" style="display:block;font-weight:400">Days, weeks and months as triangles</span></span></button>' +
     '</div>');
-  document.querySelectorAll('.nav [data-go="more"]').forEach(function(b){ b.classList.add('on'); });
+  document.querySelectorAll('.nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.go === 'more'); });
 }
 var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes', progress:'Progress'};
@@ -2338,6 +2368,7 @@ function brokenHTML(msg){
     '</div></main>';
 }
 function render(){
+  try{ LAST_SIG = sigNow(); }catch(e){ LAST_SIG = ''; }
   try{ derive(); }
   catch(e){
     VIEW = null; LAST_ERR = String((e && e.message) || e);
@@ -2499,8 +2530,9 @@ function openSheet(html, opts){
   setTimeout(function(){ if(SHEET) SHEET.classList.add('on'); }, 16);
 }
 function closeSheet(force){
-  document.querySelectorAll('.nav [data-go="more"]').forEach(function(b){
-    b.classList.toggle('on', TAB === 'notes' || TAB === 'progress'); });
+  document.querySelectorAll('.nav button').forEach(function(b){
+    var g = b.dataset.go;
+    b.classList.toggle('on', g === TAB || (g === 'more' && (TAB === 'notes' || TAB === 'progress'))); });
   if(!SHEET) return;
   if(SHEET.dataset.mandatory && !force) return;
   var s = SHEET; SHEET = null;
@@ -2832,7 +2864,11 @@ document.addEventListener('keydown', function(ev){
     return;
   }
   if(!SHEET || !SHEET.classList.contains('on')) return;
-  if(ev.key === 'Escape' && !SHEET.dataset.mandatory){ closeSheet(true); return; }
+  if(ev.key === 'Escape' && !SHEET.dataset.mandatory){
+    var ae = document.activeElement;
+    if(ae && /textarea|input/i.test(ae.tagName) && String(ae.value || '').trim()) return;   // a draft is not thrown away
+    closeSheet(true); return;
+  }
   var scale = SHEET.querySelector('[data-focus]');
   if(scale && /^[0-9]$/.test(ev.key) && !/input|textarea/i.test(document.activeElement.tagName)){
     var n = ev.key === '0' ? 10 : +ev.key;
@@ -3156,6 +3192,16 @@ function bindMic(){
 /* ═════════════════════════════════════════════════════════════ boot ══════ */
 var REFRESHING = false, LAST_OK = 0;
 var LAST_SIG = '', UPDATED_RAW = '';
+function djb2(str){ var h = 5381; for(var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return h; }
+function sigNow(){
+  var pic = RAW ? [RAW.generated_at, djb2(JSON.stringify(RAW.today || '')), djb2(JSON.stringify(RAW.tomorrow || '')),
+                   djb2(JSON.stringify(RAW.week || '')), djb2(JSON.stringify(RAW.tasks || '')),
+                   (RAW.open_qids || []).length].join(':') : '';
+  return [UPDATED_RAW, pic, workingDayOf(new Date().toISOString()),
+          (NOTES || []).map(function(x){ return x.id; }).join(','),
+          PEND.map(function(e){ return e.qid + (e.sent ? '+' : '-'); }).join(','),
+          UNREACHABLE, !!RAW, staleWhy()].join('|');
+}
 async function refresh(){
   if(!CFG || REFRESHING) return;
   REFRESHING = true;
@@ -3182,14 +3228,9 @@ async function refresh(){
     await notesP;
     // Redraw only when something changed. A timer redraw every minute made
     // the page breathe while he read it, for no new information.
-    var pic = RAW ? [RAW.generated_at, JSON.stringify(RAW.today || '').length, JSON.stringify(RAW.tomorrow || '').length,
-                     JSON.stringify(RAW.week || '').length, JSON.stringify(RAW.tasks || '').length,
-                     (RAW.open_qids || []).length].join(':') : '';
-    var sig = [UPDATED_RAW, pic, workingDayOf(new Date().toISOString()),
-               (NOTES || []).map(function(x){ return x.id; }).join(','),
-               PEND.map(function(e){ return e.qid + (e.sent ? '+' : '-'); }).join(','),
-               UNREACHABLE, !!RAW, staleWhy()].join('|');
-    if(sig !== LAST_SIG || !VIEW){ LAST_SIG = sig; render(); }
+    // Compared with what the last render drew, whoever called it, so a prune
+    // that undoes a tap is always painted.
+    if(sigNow() !== LAST_SIG || !VIEW) render();
   } finally { REFRESHING = false; }
 }
 function staleMinutes(){
