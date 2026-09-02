@@ -234,6 +234,14 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   transition:background .18s var(--ease), padding .18s var(--ease);
   touch-action:none; user-select:none; -webkit-user-select:none;
 }
+.microw{display:flex; align-items:stretch}
+.microw .mic{flex:1; min-width:0}
+.typebtn{
+  flex:0 0 58px; background:var(--ink); color:#fff; font-size:26px; font-weight:400; line-height:1;
+  border-left:1px solid rgba(255,255,255,.14); border-top:1px solid rgba(255,255,255,.08);
+  display:grid; place-items:center; touch-action:manipulation;
+}
+.typebtn:active{background:var(--ink-2)}
 .mic .ring{
   width:26px; height:26px; border-radius:50%; flex:0 0 auto;
   background:rgba(255,255,255,.14); border:1.5px solid rgba(255,255,255,.5);
@@ -466,7 +474,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c54-2026-09-02-round3';
+var BUILD = 'c55-2026-09-02-typebtn';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1905,12 +1913,13 @@ var EVENT_NAME = {
 var NOTES = [];
 function pageNotes(v){
   var h = '<div class="card"><h2>How this works</h2>' +
-    '<p class="small dim prose">Hold the talk button on any page and talk. What you say is written down ' +
+    '<p class="small dim prose">Hold the talk button on any page and talk, or press ＋ and type. What you say is written down ' +
     'and tagged with the page you were on, so a note recorded on Goals is read as a goal and one ' +
     'recorded on Tasks is read as a task. A note leaves this list once Claude has filed it. ' +
     'Until then you can fix a word the transcriber got wrong, or throw the note away.' +
     '</p></div>';
 
+  h += '<button class="btn wide primary" data-act="type" style="margin-bottom:14px">＋ Write a note</button>';
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Waiting for Claude</h2>' +
     (NOTES.length ? NOTES.map(function(n){
       return '<div class="item"><div class="grow">' +
@@ -2029,10 +2038,14 @@ function render(){
     '<main><div class="page on">' + staleHTML() + body + '</div>' +
       '<p class="tiny muted" style="text-align:center;margin:22px 0 0">' +
       'Updated '+esc(prettyStamp(UPDATED||v.generated_at))+'</p></main>' +
-    '<div class="micwrap">' +
+    '<div class="micwrap"><div class="microw">' +
     '<button class="mic" id="mic" aria-label="Hold to talk">' +
     '<span class="ring"></span><span><span id="micLabel">Hold to talk</span>' +
-    '<span class="mic-hint" id="micHint">'+esc(micHint())+'</span></span></button></div>';
+    '<span class="mic-hint" id="micHint">'+esc(micHint())+'</span></span></button>' +
+    // The same note, typed. On a laptop, or from a transcriber app, talking
+    // into the page is the slow way.
+    '<button class="typebtn" data-act="type" aria-label="Write a note instead">＋</button>' +
+    '</div></div>';
 
   }catch(err){
     LAST_ERR = String((err && err.message) || err);
@@ -2203,6 +2216,7 @@ document.addEventListener('click', async function(ev){
   // that window used to post the same event again.
   if(t.closest('.sheet') && !t.closest('.sheet.on')) return;
   if(t.dataset.act === 'allhist'){ SHOW_ALL_HIST = true; render(); return; }
+  if(t.dataset.act === 'type'){ typeInstead(null); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go){ TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
@@ -2742,14 +2756,23 @@ async function goalsFromSpeech(text, entryId){
   return true;
 }
 function typeInstead(ts){
-  openSheet('<h3>Type it instead</h3>' +
-    '<p class="small muted">It goes to the same place and is tagged with this page.</p>' +
+  var pageName = TAB === 'home' ? 'Triangle' : TITLES[TAB];
+  openSheet('<h3>Write a note</h3>' +
+    '<p class="small muted">It goes where a spoken note goes, tagged with the ' + esc(pageName) +
+    ' page. On a keyboard, Cmd or Ctrl and Enter sends it.</p>' +
     '<textarea id="typedNote" rows="4" placeholder="What happened?" style="width:100%;' +
     'margin-top:14px;padding:13px;border:1px solid var(--line);border-radius:11px;' +
     'background:var(--surface);resize:vertical"></textarea>' +
     '<button class="btn wide primary" id="sendTyped" style="margin-top:12px">Send</button>');
   setTimeout(function(){
     var b = document.getElementById('sendTyped'); if(!b) return;
+    var ta = document.getElementById('typedNote');
+    if(ta){
+      ta.focus();
+      ta.addEventListener('keydown', function(ev){
+        if(ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)){ ev.preventDefault(); b.click(); }
+      });
+    }
     b.onclick = async function(){
       var v = (document.getElementById('typedNote')||{}).value || '';
       if(!v.trim()) return;
