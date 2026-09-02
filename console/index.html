@@ -334,9 +334,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    one full-width Actual column and lists the plan underneath it. */
 .tl-one{display:block}
 .tl-two{display:none}
-.tl-solo{display:block}
-.seg.dayseg{width:auto; min-width:176px; margin:0; flex:0 0 auto}
-.seg.dayseg button{padding:7px 10px; font-size:12.5px}
+.tl-solo{display:block; margin-top:22px}
+.seg.dayseg{width:auto; min-width:146px; margin:0; flex:0 0 auto}
+.seg.dayseg button{padding:6px 8px; font-size:12px}
 .timeline.solo .blk.actual{right:2px}
 .timeline.solo .blk.planned{display:none !important}
 @media (min-width:640px){ .tl-one{display:none} .tl-two{display:block} }
@@ -477,7 +477,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c57-2026-09-02-tomorrow';
+var BUILD = 'c58-2026-09-02-tomorrow2';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -639,6 +639,13 @@ async function record(kind, payload){
   if(LAST_REC.key === key && Date.now() - LAST_REC.t < 1500) return null;
   LAST_REC = {key:key, t:Date.now()};
   if(kind === 'goal_progress') dropSupersededGoalEvents((payload || {}).title);
+  if(kind === 'plan_set'){
+    // A newer plan for the same day replaces the older one. The older one
+    // could carry a block the merge dropped, which the blob then never shows,
+    // so it was never spent and painted itself over the published plan.
+    var pday = (payload || {}).day;
+    PEND = PEND.filter(function(e){ return !(e.kind === 'plan_set' && (e.payload || {}).day === pday); });
+  }
   var ev = {qid:newQid(), kind:kind, payload:payload||{}, ts:nowISO(),
             at:hhmm(), sent:false};
   PEND.push(ev);
@@ -1450,14 +1457,17 @@ function pageTime(v){
 
   var tm = v.tomorrow || {plan:[]}, hasTm = (tm.plan || []).length > 0, showTm = hasTm && SHOW_TOMORROW;
   h += '<div class="card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
-       '<h2 style="margin:0">' + (showTm ? 'Tomorrow’s plan' : 'Planned and actual') + '</h2>' +
+       '<h2 style="margin:0">' + (showTm ? 'Tomorrow’s plan' : (hasTm ? 'Today’s plan' : 'Planned and actual')) + '</h2>' +
        (hasTm ? '<div class="seg dayseg">' +
           '<button data-act="daytoday"' + (showTm ? '' : ' class="on"') + '>Today</button>' +
           '<button data-act="daytomorrow"' + (showTm ? ' class="on"' : '') + '>Tomorrow</button></div>' : '') +
        '</div>' +
        (showTm
-         ? '<p class="tiny muted" style="margin:-6px 0 12px">' + esc(longDay(tm.date)) +
+         ? '<p class="tiny muted" style="margin:-6px 0 4px">' + esc(longDay(tm.date)) +
            '. Your promise to yourself for the day. Say more here and it is added.</p>' +
+           '<p class="small" style="margin:0 0 6px;font-weight:600">' + hmShort(planWork(tm.plan)) +
+           ' of work planned' + (planWork(tm.plan) < 600 ? ' <span class="muted" style="font-weight:400">· ' +
+           hmShort(600 - planWork(tm.plan)) + ' under the 10h floor</span>' : ' <span class="muted" style="font-weight:400">· past the 10h floor</span>') + '</p>' +
            timelineHTML({plan: tm.plan, sessions: []}, true)
          : '<p class="tiny muted" style="margin:-6px 0 12px">Hold the talk button and say your ' +
            'working blocks, like “nine to eleven, research paper”. They appear here at once. ' +
@@ -1509,6 +1519,10 @@ function sessionRow(s, day, edit){
             'aria-label="Edit this session">✎</button>' : '') + '</div>';
 }
 var SHOW_TOMORROW = false;
+function planWork(plan){
+  var m = 0; (plan || []).forEach(function(b){ if(b.status !== 'fixed') m += b.minutes || minsBetween(b.start, b.end) || 0; });
+  return m;
+}
 function longDay(iso){
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'long'}) + ' ' + prettyDate(iso);
 }
