@@ -582,7 +582,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c68-2026-09-02-goals';
+var BUILD = 'c69-2026-09-02-goals';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2005,8 +2005,8 @@ function pageGoals(v){
 
   if(!w || !w.total){
     h += '<div class="card"><h2>Set this week’s goals</h2>' +
-      '<p class="small dim prose" style="margin-bottom:12px">Hold the talk button and say them, for example ' +
-      '“this week: finish the health paper rebuttal, and ship the landing page”. Or type them here.</p>' +
+      '<p class="small dim prose" style="margin-bottom:12px">Hold the talk button and talk about the week. ' +
+      'Claude writes the goals from what you said, and they appear here once they are filed. Or type them here, one per line.</p>' +
       '<div class="stack" id="goalDraft">' + goalInput(0) + goalInput(1) + goalInput(2) + goalInput(3) + '</div>' +
       '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save</button>' +
       '<p class="tiny muted prose" style="margin-top:10px">Two or three goals are enough. ' +
@@ -3128,7 +3128,6 @@ async function sendAudio(blob, mime){
     var out = await r.json();
     if(!out.text) throw new Error('empty transcript');
     if(await planFromSpeech(out.text, out.id)) return;
-    if(await goalsFromSpeech(out.text, out.id)) return;
     toast('“' + out.text.slice(0, 46) + (out.text.length > 46 ? '…' : '') + '”');
     await refreshNotes();
     if(TAB === 'notes') render();
@@ -3296,35 +3295,10 @@ async function planFromSpeech(text, entryId){
    goal list at once. "This week: finish the rebuttal, and ship the landing
    page" is two goals. Once goals exist, a note there is a review or a change
    for Claude to read. */
-async function goalsFromSpeech(text, entryId){
-  if(TAB !== 'goals') return false;
-  if(VIEW.week && VIEW.week.total) return false;
-  var t = String(text || '').trim()
-    .replace(/^(?:ok(?:ay)?[,.]?\s*)?(?:so\s+)?(?:this week(?:'s goals)?|my goals(?: for this week)?|the goals(?: for this week)?|goals|این هفته|اهداف این هفته|اهداف)\s*(?:are|is)?\s*[:,.،-]?\s*/i, '');
-  // Only a short list is read here: "this week: finish the rebuttal, ship the
-  // page". A spoken paragraph about the week is left for Claude to write into
-  // goals. On 2026-09-02 a two-minute note became five goals made of its first
-  // words ("Okay", "Today is Wednesday"), and the real goals were lost to the page.
-  var words = t.split(/\s+/).filter(Boolean).length;
-  if(words > 40) return false;
-  var parts = t.split(/\s*(?:[,;.،]|\band\b|\bthen\b|\balso\b|\sو\s)\s*/i)
-    .map(function(x){ return x.replace(/^(?:to|i want to|i will|i'll|i need to)\s+/i, '').trim(); })
-    .filter(function(x){ return x.length > 3 && /[a-z\u0600-\u06FF]/i.test(x); })
-    .slice(0, 5);
-  if(!parts.length || parts.length > 4) return false;
-  if(parts.some(function(x){ var w = x.split(/\s+/).length; return w < 2 || w > 14; })) return false;
-  var goals = parts.map(function(pz){
-    var low = pz.toLowerCase(), bucket = null;
-    if(/\b(research|paper|rebuttal|journal|ucw|university|grading|teach|class|busi|cmpt|mhmi|workshop)\b/.test(low)) bucket = 'academia';
-    else if(/\b(ai|business|youtube|channel|shorts?|videos?|landing|product|clients?|website|app|site)\b/.test(low)) bucket = 'ai';
-    return {title: pz.charAt(0).toUpperCase() + pz.slice(1), bucket:bucket, done:false, percent:0};
-  });
-  await record('goals_set', {goals:goals, week: VIEW.week ? VIEW.week.key : null});
-  if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
-  render();
-  toast('Set ' + goals.length + ' goal' + (goals.length > 1 ? 's' : '') + ' for this week.');
-  return true;
-}
+/* Spoken goals are never read by the phone. A goal is a sentence about the
+   week, and the page once cut a two-minute note into five goals made of its
+   first words. The note stays on the Notes page until Claude has written the
+   goals into the week file; only then do they appear here. Amir, 2026-09-02. */
 function typeInstead(ts){
   var pageName = TAB === 'home' ? 'Triangle' : TITLES[TAB];
   openSheet('<h3>Write a note</h3>' +
@@ -3348,7 +3322,6 @@ function typeInstead(ts){
       if(!v.trim()) return;
       try{
         if(await planFromSpeech(v.trim(), null)){ closeSheet(true); return; }
-        if(await goalsFromSpeech(v.trim(), null)){ closeSheet(true); return; }
         await postEntry(v.trim(), TAB, ts || nowISO());
         closeSheet(true); toast('Saved. Claude files it at your computer.');
         await refreshNotes(); if(TAB === 'notes') render();
