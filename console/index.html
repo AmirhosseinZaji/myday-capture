@@ -9,6 +9,7 @@
 <meta name="apple-mobile-web-app-title" content="myday">
 <meta name="theme-color" content="#FBFAF9">
 <link rel="apple-touch-icon" href="../apple-touch-icon.png">
+<link rel="icon" href="../icon-512.png">
 <link rel="preload" href="../fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
@@ -172,6 +173,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   unicode-bidi:plaintext}
 .tk .t, .goal .txt{unicode-bidi:plaintext}
 .item .s{font-size:12px; color:var(--ink-3); margin-top:2px}
+.item .grow > div{overflow-wrap:anywhere}
 .pill{font-size:11px; font-weight:600; padding:3px 8px; border-radius:99px; white-space:nowrap}
 .fscore{
   width:34px; height:34px; flex:0 0 auto; border-radius:10px; display:grid; place-items:center;
@@ -346,6 +348,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   font-size:12px; font-weight:500; border:1px solid transparent;
 }
 .blk .bt{font-size:11px; font-weight:700}
+.wide-only{display:none; font-weight:500; opacity:.8}
 .blk .bl{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.25; min-width:0}
 .blk.tight .bl{display:block; white-space:nowrap; text-overflow:ellipsis}
 .blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
@@ -379,7 +382,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .chips-wrap{position:relative}
 .chips-wrap::after{content:""; position:absolute; right:0; top:0; bottom:12px; width:44px; z-index:1;
   pointer-events:none; background:linear-gradient(to right, transparent, var(--bg))}
-.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 34px 12px 0; scrollbar-width:none}
+.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 34px 12px 0; scrollbar-width:none;
+  -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 30px), transparent); mask-image:linear-gradient(to right, #000 calc(100% - 30px), transparent)}
+.wrapchips .chips{-webkit-mask-image:none; mask-image:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
   flex:0 0 auto; padding:7px 13px; border-radius:99px; border:1px solid var(--line);
@@ -397,13 +402,14 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
-.tk .pri{display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--ink); margin:0 6px 2px 0; vertical-align:middle}
+.tk .box{position:relative}
+.tk .box.hi::after{content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%; background:var(--consistency); border:1.5px solid var(--surface)}
 .chips-wrap + .chips-wrap{margin-top:-6px}
 .wrapchips .chips{flex-wrap:wrap; overflow:visible; padding-right:0}
 .wrapchips::after{display:none}
 .pgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(56px, 1fr)); gap:6px 2px}
 .pcell{text-align:center; padding:4px 0; border-radius:8px}
-.pcell.nodata{opacity:.45}
+.pcell.nodata svg{opacity:.45}
 .pcell .pv:empty::before{content:"·"; color:var(--ink-3)}
 .pcell svg{display:block; width:52px; height:auto; margin:0 auto}
 .pcell .pl{font-size:10.5px; color:var(--ink-3); margin-top:2px}
@@ -482,6 +488,17 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .cols2 > *{margin-top:0}
   .fullstrip{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
   .notespage{max-width:680px; margin:0 auto}
+  .wide-only{display:inline}
+  .blk{font-size:13px; padding:7px 11px}
+  .blk .bt{font-size:12px}
+  .nav button .badge{top:-7px; right:-13px}
+  .cols2 > :only-child{grid-column:1 / -1}
+  .split{align-items:stretch}
+  .split > .side{display:flex; flex-direction:column}
+  .split > .side > .runner{margin-top:auto}
+  .slider{max-width:420px; margin-left:auto}
+  .pgrid{grid-template-columns:repeat(auto-fill, minmax(84px, 1fr))}
+  .pcell svg{width:58px}
   
   main .btn.wide{display:flex; max-width:340px; margin-left:auto !important; margin-right:auto !important}
   .nag .btn.wide{margin-left:0}
@@ -525,7 +542,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c62-2026-09-02-roundA';
+var BUILD = 'c63-2026-09-02-roundB';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -758,14 +775,34 @@ function prunePend(st){
   // or a delete used to be judged against the blob, which never held the row,
   // so it was dropped first and the start or the add it undid came back alone
   // with a live Stop button.
-  var cancelStarts = {}, deleteKeys = {}, pendingStarts = {}, pendingAdds = {};
+  // Guard against a clock ahead of the phone: a future stamp must not make
+  // every tap look older than the picture.
+  if(!isNaN(blobMs) && blobMs > Date.now() + 5 * 60000) blobMs = Date.now();
+  // A start or an add the Mac has already dealt with is not pending, so an undo
+  // must NOT be paired away with it: the undo still has to be sent and kept
+  // until its own effect shows in the picture.
+  var handled = function(e){
+    var p = e.payload || {};
+    if(e.sent && openQ && openQ.indexOf(e.qid) < 0 && !isNaN(blobMs) && blobMs > Date.parse(e.ts) + 60000) return true;
+    if(e.kind === 'session_start') return sessions.some(function(x){ return x.start === e.at; });
+    if(e.kind === 'session_add') return sessions.some(function(x){ return x.start === p.start && x.area === p.area; });
+    return false;
+  };
+  var cancelStarts = {}, deleteKeys = {}, pendingStarts = {}, pendingAdds = {}, alsoDrop = {};
+  PEND.forEach(function(e){
+    var p = e.payload || {};
+    if(e.kind === 'session_start' && !handled(e)) pendingStarts[e.qid] = pendingStarts['at:' + e.at] = 1;
+    if(e.kind === 'session_add' && !handled(e)) pendingAdds[e.qid] = pendingAdds['k:' + p.start + '|' + p.area] = 1;
+  });
   PEND.forEach(function(e){
     var p = e.payload || {};
     // By the exact tap where the undo names it, by the minute only otherwise.
-    if(e.kind === 'session_cancel') cancelStarts[p.for_qid || ('at:' + p.start)] = 1;
-    if(e.kind === 'session_delete') deleteKeys[p.for_qid || ('k:' + p.start + '|' + p.area)] = 1;
-    if(e.kind === 'session_start') pendingStarts[e.qid] = pendingStarts['at:' + e.at] = 1;
-    if(e.kind === 'session_add') pendingAdds[e.qid] = pendingAdds['k:' + p.start + '|' + p.area] = 1;
+    if(e.kind === 'session_cancel' && (p.for_qid ? pendingStarts[p.for_qid] : pendingStarts['at:' + p.start]))
+      cancelStarts[p.for_qid || ('at:' + p.start)] = 1;
+    if(e.kind === 'session_delete' && (p.for_qid ? pendingAdds[p.for_qid] : pendingAdds['k:' + p.start + '|' + p.area])){
+      deleteKeys[p.for_qid || ('k:' + p.start + '|' + p.area)] = 1;
+      (p.also_qids || []).forEach(function(q){ alsoDrop[q] = 1; });   // the edits in between
+    }
   });
 
   // The Mac publishes the taps it has not dealt with yet. A sent tap that is
@@ -778,10 +815,11 @@ function prunePend(st){
     if(!e.sent) return true;
     if(openQ && openQ.indexOf(e.qid) < 0 && !isNaN(blobMs) && blobMs > Date.parse(e.ts) + 60000) return false;
     var pp = e.payload || {};
+    if(alsoDrop[e.qid]) return false;
     if(e.kind === 'session_start' && (cancelStarts[e.qid] || cancelStarts['at:' + e.at])) return false;
-    if(e.kind === 'session_cancel' && (pp.for_qid ? pendingStarts[pp.for_qid] : pendingStarts['at:' + pp.start])) return false;
+    if(e.kind === 'session_cancel' && (pp.for_qid ? cancelStarts[pp.for_qid] : cancelStarts['at:' + pp.start])) return false;
     if(e.kind === 'session_add' && (deleteKeys[e.qid] || deleteKeys['k:' + pp.start + '|' + pp.area])) return false;
-    if(e.kind === 'session_delete' && (pp.for_qid ? pendingAdds[pp.for_qid] : pendingAdds['k:' + pp.start + '|' + pp.area])) return false;
+    if(e.kind === 'session_delete' && (pp.for_qid ? deleteKeys[pp.for_qid] : deleteKeys['k:' + pp.start + '|' + pp.area])) return false;
     var age = now - Date.parse(e.ts);
     var p = e.payload || {};
     // A tick is filed by Claude at the computer, which can be a day or more
@@ -865,9 +903,12 @@ function derive(){
   // A plan block the file could not make sense of is dropped, not drawn as a
   // twenty-hour block.
   var okBlock = function(b){
-    if(!b || !/^\d{2}:\d{2}$/.test(b.start||'') || !/^\d{2}:\d{2}$/.test(b.end||'')) return false;
+    if(!b || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.start||'') || !/^([01]\d|2[0-3]):[0-5]\d$/.test(b.end||'')) return false;
     var a = toMin(b.start), z = toMin(b.end); if(z <= a) z += 1440;
-    return z - a > 0 && z - a <= 14 * 60;
+    if(!(z - a > 0 && z - a <= 14 * 60)) return false;
+    b.activity = String(b.activity == null ? 'work' : b.activity); b.status = String(b.status || '⬜');
+    b.minutes = z - a;
+    return true;
   };
   t.plan = (t.plan || []).filter(okBlock); v.tomorrow.plan = v.tomorrow.plan.filter(okBlock);
 
@@ -1452,7 +1493,7 @@ function paintSessEditor(){
     }).join('') + '</div>' +
     '<div class="row" style="gap:10px;margin-top:18px">' +
       (e.isNew ? '' : '<button class="btn" id="sessDelete" style="color:var(--bad)">Delete</button>') +
-      '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + '>' +
+      '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + (e.isNew ? ' style="width:100%"' : '') + '>' +
         (e.isNew ? 'Add it' : 'Save') + '</button>' +
     '</div>');
   if(open && SHEET) SHEET.classList.add('on');   // no slide-in on a repaint
@@ -1487,7 +1528,7 @@ function runnerHTML(v){
   }
   return '<div class="runner">' +
     '<div class="tiny muted" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase">Not working</div>' +
-    '<div class="clock">'+hmShort(t.work_minutes)+'</div>' +
+    (t.work_minutes ? '<div class="clock">'+hmShort(t.work_minutes)+'</div>' : '') +
     '<div class="small muted">' + shortfallLine(t) + '</div>' +
     '<button class="btn primary wide" id="startBtn" style="margin-top:14px">Start a session</button></div>';
 }
@@ -1523,21 +1564,18 @@ function pageTime(v){
 
   var tm = v.tomorrow || {plan:[]}, hasTm = (tm.plan || []).length > 0, showTm = hasTm && SHOW_TOMORROW;
   h += '<div class="card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
-       '<h2 style="margin:0">' + (showTm ? 'Tomorrow' : (hasTm ? 'Today' : 'Planned and done')) + '</h2>' +
+       '<h2 style="margin:0">' + (showTm ? 'Tomorrow' : (hasTm ? 'Today' : 'Planned and done')) + (showTm ? '' : ' ' + infoBtn('plan')) + '</h2>' +
        (hasTm ? '<div class="seg dayseg">' +
           '<button data-act="daytoday"' + (showTm ? '' : ' class="on"') + '>Today</button>' +
           '<button data-act="daytomorrow"' + (showTm ? ' class="on"' : '') + '>Tomorrow</button></div>' : '') +
        '</div>' +
        (showTm
-         ? '<p class="tiny muted" style="margin:-6px 0 4px">' + esc(longDay(tm.date)) +
-           '. Your promise to yourself for the day. Say more here and it is added.</p>' +
-           '<p class="small" style="margin:0 0 6px;font-weight:600">' + hmShort(planWork(tm.plan)) +
-           ' of work planned' + (planWork(tm.plan) < 600 ? ' <span class="muted" style="font-weight:400">· ' +
-           hmShort(600 - planWork(tm.plan)) + ' under the 10h floor</span>' : ' <span class="muted" style="font-weight:400">· past the 10h floor</span>') + '</p>' +
+         ? '<p class="small" style="margin:-6px 0 8px;font-weight:600">' + esc(longDay(tm.date)) + ' · ' + hmShort(planWork(tm.plan)) +
+           ' planned' + (planWork(tm.plan) < 600 ? ' <span class="muted" style="font-weight:400">· ' +
+           hmShort(600 - planWork(tm.plan)) + ' under the 10h floor</span>' : planWork(tm.plan) === 600 ? ' <span class="muted" style="font-weight:400">· at the 10h floor</span>' : ' <span class="muted" style="font-weight:400">· past the 10h floor</span>') +
+           ' ' + infoBtn('plan') + '</p>' +
            timelineHTML({plan: tm.plan, sessions: []}, true)
-         : '<p class="tiny muted" style="margin:-6px 0 12px">Promised on the left, done on the right. ' +
-           infoBtn('plan') + '</p>' +
-           timelineHTML(t)) + '</div>';
+         : timelineHTML(t)) + '</div>';
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
        (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
@@ -1612,14 +1650,16 @@ function timelineHTML(t, planOnly){
       var y0 = (m2 - lo0) * PX0;
       out += '<div class="hr" style="top:'+y0+'px"></div><div class="hrlab" style="top:'+y0+'px">'+pad(Math.floor(m2/60)%24)+':00</div>';
     }
-    out += blocks.map(function(b){
+    blocks.sort(function(a, b){ return a.m0 - b.m0; });
+    out += blocks.map(function(b, i){
       var y1 = (b.m0 - lo0) * PX0, hg = Math.max(30, (b.m1 - b.m0) * PX0 - 3);
+      if(i + 1 < blocks.length) hg = Math.min(hg, Math.max(14, (blocks[i + 1].m0 - lo0) * PX0 - y1 - 2));
       var fixed = b.status === 'fixed';
       return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
         'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,var(--goals) 12%,#fff)')+';' +
         'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,var(--goals) 35%,transparent)')+';color:var(--ink)">' +
         '<div class="bt" style="color:'+(fixed ? 'var(--ink-3)' : 'var(--goals)')+';flex:0 0 auto">'+esc(b.s)+'–'+esc(b.e)+'</div>' +
-        '<div dir="auto" class="bl">'+esc(b.label)+'</div></div>';
+        '<div dir="auto" class="bl">'+esc(hg < 46 ? String(b.label).split(/ — | · /)[0] : b.label)+'</div></div>';
     }).join('');
     return '<div class="tl-solo"><div class="timeline solo" style="height:'+H0+'px">'+out+'</div></div>';
   }
@@ -1645,8 +1685,13 @@ function timelineHTML(t, planOnly){
     lines += '<div class="hr" style="top:'+y+'px"></div>' +
              '<div class="hrlab" style="top:'+y+'px">'+pad(Math.floor(m/60)%24)+':00</div>';
   }
-  var bh = blocks.map(function(b){
+  blocks.sort(function(a, b){ return a.m0 - b.m0 || (a.k < b.k ? -1 : 1); });
+  var bh = blocks.map(function(b, i){
     var y = (b.m0 - lo) * PX, hgt = Math.max(20, (b.m1 - b.m0) * PX - 3);
+    // A short block is given room to be read, but never over the next block
+    // in the same column.
+    var nxt = null; for(var j = i + 1; j < blocks.length; j++){ if(blocks[j].k === b.k){ nxt = blocks[j]; break; } }
+    var maxH = nxt ? Math.max(14, (nxt.m0 - lo) * PX - y - 2) : 1e9;
     // Two different things, drawn two different ways: what was promised is an
     // outline in the goals colour, what happened is a solid block in its area's
     // colour. Nobody should have to read a header to tell them apart.
@@ -1656,13 +1701,16 @@ function timelineHTML(t, planOnly){
     // label share it instead of the label spilling past the block's edge.
     // A 15-minute block is 13px tall, which cuts a line of text in half. One
     // line needs about 30px and two need about 46px.
-    hgt = Math.max(hgt, 30);
+    hgt = Math.min(Math.max(hgt, 30), maxH);
     var tight = hgt < 46;
+    var lab = tight ? String(b.label).split(/ — | · /)[0] : b.label;
+    var mins = b.m1 - b.m0;
     return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" style="top:'+y+'px;height:'+hgt+
-      'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);' +
+      'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+';' +
       'color:var(--ink)">' +
-      '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
-      '<div dir="auto" class="bl">' + esc(b.label)+'</div></div>';
+      '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+
+        (b.open ? ' · now' : (tight ? '' : '<span class="wide-only">–'+esc(b.e)+' · '+hm(mins)+'</span>'))+'</div>' +
+      '<div dir="auto" class="bl">' + esc(lab)+'</div></div>';
   }).join('');
 
   // Two columns of the same width, each header centred over its own column.
@@ -1885,7 +1933,7 @@ function pageGoals(v){
       'and it shows here under this week from then on.</p></div>';
   }
   var past = (v.weeks||[]).filter(function(x){ return !x.current; }).reverse();
-  h += '<div class="card"><h2>Every week so far</h2>' +
+  if(past.length) h += '<div class="card"><h2>Every week so far</h2>' +
     (past.length ? '<div class="stack" style="gap:0;divide:0">' + past.map(function(x){
       return '<div class="spread" style="padding:11px 0;align-items:flex-start">' +
         '<div style="min-width:0"><div style="font-weight:600">Week of '+esc(prettyDate(x.start))+'</div>' +
@@ -2004,24 +2052,25 @@ function pageTasks(v){
     var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
     h += '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
       '<h2 style="margin:0">'+esc(k)+'</h2>' +
-      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
+      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · <span style="color:var(--consistency);font-weight:600">'+od+' overdue</span>' : '')+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
         var due = t.due
           ? (t.when === 'overdue'
-              ? '<span style="color:var(--consistency);font-weight:600">'+t.overdue_days+
+              ? '<span style="color:'+(t.overdue_days >= 7 ? 'var(--consistency)' : 'var(--ink-2)')+';font-weight:600">'+t.overdue_days+
                 ' day'+(t.overdue_days===1?'':'s')+'</span> <span class="muted">overdue</span>'
               : t.when === 'today'
                 ? '<span style="color:var(--consistency);font-weight:600">due today</span>'
                 : '<span class="muted">due '+esc(prettyDate(t.due))+'</span>')
           : '<span class="muted">no date</span>';
         return '<div class="tk'+(on?' ticked':'')+'">' +
-          '<button class="box'+(on?' on':'')+'" data-tick="'+esc(t.id)+'" ' +
+          '<button class="box'+(on?' on':'')+(t.priority==='high'?' hi':'')+'" data-tick="'+esc(t.id)+'" ' +
           'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
           (on?'✓':'')+'</button>' +
-          '<div class="grow"><div class="t" dir="auto">'+(t.priority==='high' ? '<span class="pri" title="High priority"></span>' : '')+esc(t.title)+'</div>' +
+          '<div class="grow"><div class="t" dir="auto">'+esc(t.title)+'</div>' +
           '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
 
+            (t.priority==='high'?' · <span class="muted">high</span>':'')+
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
           '</div></div></div>';
       }).join('') + '</div>';
@@ -2078,7 +2127,7 @@ function pageProgress(v){
   var raw = Array.isArray(v.history) && v.history.length ? v.history : (Array.isArray(v.month) ? v.month : []);
   // One bad row must not cost the page: keep well-formed dates, in order, once.
   var seen = {}, days = [];
-  raw.filter(function(d){ return d && typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date); })
+  raw.filter(function(d){ return d && typeof d.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(d.date) && !isNaN(new Date(d.date + 'T12:00:00')) && new Date(d.date + 'T12:00:00').toISOString().slice(0, 10) === d.date; })
      .sort(function(a, b){ return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; })
      .forEach(function(d){ if(seen[d.date]) days[seen[d.date] - 1] = d; else { days.push(d); seen[d.date] = days.length; } });
   var buckets = progressBuckets(days, P_RANGE);
@@ -2237,13 +2286,13 @@ var TABS = [
    Progress live behind More, which opens a sheet with room for both. */
 function moreSheet(){
   var waiting = (NOTES || []).length;
-  document.querySelectorAll('.nav [data-go="more"]').forEach(function(b){ b.classList.add('on'); });
   openSheet('<h3>More</h3><div class="stack" style="margin-top:14px">' +
     '<button class="btn wide morebtn" data-go="notes"><span class="ic">◍</span><span class="grow" style="text-align:left">Notes' +
       '<span class="tiny muted" style="display:block;font-weight:400">' + (waiting ? waiting + ' waiting for Claude' : 'Nothing waiting') + '</span></span></button>' +
     '<button class="btn wide morebtn" data-go="progress"><span class="ic">▤</span><span class="grow" style="text-align:left">Progress' +
       '<span class="tiny muted" style="display:block;font-weight:400">Days, weeks and months as triangles</span></span></button>' +
     '</div>');
+  document.querySelectorAll('.nav [data-go="more"]').forEach(function(b){ b.classList.add('on'); });
 }
 var TITLES = {home:'myday', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes', progress:'Progress'};
@@ -2647,8 +2696,17 @@ document.addEventListener('click', async function(ev){
     }
     var w = EDIT.was || {};
     closeSheet(true);
-    var padd = PEND.filter(function(e){ return e.kind === 'session_add' && (e.payload||{}).start === w.start && (e.payload||{}).area === w.area; }).slice(-1)[0];
-    await record('session_delete', {start:w.start, end:w.end, area:w.area, day:VIEW.today.date, for_qid: padd ? padd.qid : null});
+    // Follow the edits back to the add they changed, so a session corrected
+    // and then deleted before the Mac saw it is undone as one thing.
+    var os = w.start, oa = w.area, alsoQ = [], guard = 0, ed;
+    while(guard++ < 12){
+      ed = PEND.filter(function(e){ var q = e.payload || {}; return e.kind === 'session_edit' && (q.now||{}).start === os && (q.now||{}).area === oa; }).slice(-1)[0];
+      if(!ed) break;
+      alsoQ.push(ed.qid); os = (ed.payload.was||{}).start; oa = (ed.payload.was||{}).area;
+    }
+    var padd = PEND.filter(function(e){ return e.kind === 'session_add' && (e.payload||{}).start === os && (e.payload||{}).area === oa; }).slice(-1)[0];
+    await record('session_delete', {start:w.start, end:w.end, area:w.area, day:VIEW.today.date,
+                                    for_qid: padd ? padd.qid : null, also_qids: padd ? alsoQ : []});
     toast('Session deleted.');
     render();
     return;
@@ -2687,7 +2745,7 @@ document.addEventListener('click', async function(ev){
     var tev = await record('task_tick', task ? {id:task.id, title:task.title, area:task.area,
                                       section:task.section} : {id:id});
     render();
-    if(!tev || !PEND.some(function(e){ return e.kind === 'task_tick' && (e.payload||{}).id === id; })) return;
+    if(!tev || !tev.sent || !PEND.some(function(e){ return e.kind === 'task_tick' && (e.payload||{}).id === id; })) return;
     toast('Ticked. Claude will file it the next time you are at your computer.');
     return;
   }
@@ -3097,7 +3155,7 @@ function bindMic(){
 
 /* ═════════════════════════════════════════════════════════════ boot ══════ */
 var REFRESHING = false, LAST_OK = 0;
-var LAST_SIG = '';
+var LAST_SIG = '', UPDATED_RAW = '';
 async function refresh(){
   if(!CFG || REFRESHING) return;
   REFRESHING = true;
@@ -3107,7 +3165,7 @@ async function refresh(){
     var notesP = refreshNotes().catch(function(){});
     try{
       var st = await getState();
-      if(st){ RAW = st.blob; UPDATED = localStamp(st.updated_at); LAST_OK = Date.now(); UNREACHABLE = ''; }
+      if(st){ RAW = st.blob; UPDATED = localStamp(st.updated_at); UPDATED_RAW = String(st.updated_at || ''); LAST_OK = Date.now(); UNREACHABLE = ''; }
     }catch(e){
       if(!RAW){
         // A toast fades in three seconds and leaves a skeleton that looks
@@ -3124,8 +3182,13 @@ async function refresh(){
     await notesP;
     // Redraw only when something changed. A timer redraw every minute made
     // the page breathe while he read it, for no new information.
-    var sig = [UPDATED, workingDayOf(new Date().toISOString()), (NOTES || []).map(function(x){ return x.id; }).join(','),
-               PEND.length, UNREACHABLE, !!RAW].join('|');
+    var pic = RAW ? [RAW.generated_at, JSON.stringify(RAW.today || '').length, JSON.stringify(RAW.tomorrow || '').length,
+                     JSON.stringify(RAW.week || '').length, JSON.stringify(RAW.tasks || '').length,
+                     (RAW.open_qids || []).length].join(':') : '';
+    var sig = [UPDATED_RAW, pic, workingDayOf(new Date().toISOString()),
+               (NOTES || []).map(function(x){ return x.id; }).join(','),
+               PEND.map(function(e){ return e.qid + (e.sent ? '+' : '-'); }).join(','),
+               UNREACHABLE, !!RAW, staleWhy()].join('|');
     if(sig !== LAST_SIG || !VIEW){ LAST_SIG = sig; render(); }
   } finally { REFRESHING = false; }
 }
@@ -3168,6 +3231,7 @@ loadCfg();
 loadPend();
 render();
 refresh();
+setTimeout(checkBuild, 4000);   // record the tag now, so a deploy in the first five minutes is seen
 setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
 setInterval(checkBuild, 300000);
 document.addEventListener('visibilitychange', function(){
