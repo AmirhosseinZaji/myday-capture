@@ -154,17 +154,10 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .strip-head{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px 2px; text-align:center;
   font-size:10.5px; font-weight:600; letter-spacing:.06em; color:var(--ink-3); margin-bottom:4px}
 .strip .d.pad{visibility:hidden}
-.strip-wrap{position:relative}
-.strip-wrap::after, .strip-wrap::before{
-  content:""; position:absolute; top:0; bottom:8px; width:26px; pointer-events:none;
-}
-.strip-wrap::after{right:0; background:linear-gradient(to right, transparent, var(--surface))}
-.strip-wrap::before{left:0; z-index:1; background:linear-gradient(to left, transparent, var(--surface))}
-/* Padding inside the scroller, so today (the last cell) stops clear of the fade. */
 .strip{display:grid; grid-template-columns:repeat(7,minmax(0,1fr)); gap:4px 2px; padding:2px 0 4px}
 .strip .d{width:auto; text-align:center; cursor:pointer; border-radius:8px; padding:3px 0; transition:background .16s}
 .strip .d:hover{background:var(--surface-2)}
-.strip .d svg{display:block; width:100%; max-width:40px; height:auto; margin:0 auto}
+.strip .d svg{display:block; width:40px; height:auto; margin:0 auto}
 .strip .d .dl{font-size:11px; color:var(--ink-3); margin-top:2px}
 .strip .d.sel .dl{color:var(--ink); font-weight:700}
 
@@ -230,7 +223,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 }
 .nav button{
   flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; min-height:46px;
-  padding:5px 0; min-width:0; border-radius:12px; color:var(--ink-3); font-size:11px; font-weight:600;
+  padding:5px 0; min-width:0; border-radius:12px; color:var(--ink-3); font-size:10.5px; font-weight:600;
   letter-spacing:-.02em; transition:color .18s, background .18s; position:relative;
 }
 .nav button .ic{line-height:0; position:relative}
@@ -364,7 +357,8 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .blk .bl{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.25; min-width:0}
 .blk.tight .bl{display:block; white-space:nowrap; text-overflow:clip}
 .blk.bar{padding:0; border-radius:4px}
-.tl-two .blk.tight .bt{display:none}
+.tl-two .blk.tight{display:flex; flex-direction:row; align-items:baseline; gap:5px}
+.tl-two .blk.tight .bt{display:block; flex:0 0 auto}
 .tl-head{min-width:0; flex:1 1 0; padding:6px 6px; letter-spacing:.04em; font-size:11px; gap:5px}
 .tl-head .tl-sum{flex:0 0 auto; white-space:nowrap}
 .tl-head .wide-only{font-weight:inherit; opacity:1}
@@ -422,25 +416,27 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk .t{display:block; overflow-wrap:anywhere}
 .tk .grow .s{direction:ltr; unicode-bidi:isolate; text-align:left}
 .tk .grow:dir(rtl) .s{text-align:right}
+.tk:has(.grow:dir(rtl)){flex-direction:row-reverse}
 /* One column on the phone; the side columns dissolve so their cards can be ordered. */
 .split{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
 .split > *, .split > .side > *{margin:0}
 .split > .side{display:contents}
-.split .plan-card{order:2} .split .sess-card{order:3}
+.split .sess-card{order:2} .split .plan-card{order:3}
 .cols2{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
 .cols2 > *, .cols2 .focus-side > *{margin-top:0}
 .cols2 .focus-side{display:contents}
 .cols2 .sess-card{order:-1}
 .tk .box{position:relative}
 /* Hit areas: the control stays small on screen and grows for the finger. */
-.ibtn::before, .tk .box::before, .goal .tick::before, .editbtn::before{content:""; position:absolute; inset:-12px}
+.ibtn::before, .tk .box::before, .goal .tick::before, .editbtn::before{content:""; position:absolute; inset:-13px}
 .goal .tick, .editbtn{position:relative}
 .tk .box.hi::after{content:""; position:absolute; top:-4px; right:-4px; width:7px; height:7px; border-radius:50%; background:var(--consistency); border:1.5px solid var(--surface)}
 .chips-wrap + .chips-wrap{margin-top:-6px}
 .wrapchips .chips{flex-wrap:wrap; overflow:visible; padding-right:0}
 .wrapchips::after{display:none}
 .pgrid{display:grid; grid-template-columns:repeat(auto-fill, minmax(56px, 1fr)); gap:6px 2px}
-.pcell{text-align:center; padding:4px 0; border-radius:8px}
+.pcell{text-align:center; padding:4px 0; border-radius:8px; width:100%; display:block}
+button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pgrid.pweek{grid-template-columns:repeat(7,minmax(0,1fr))}
 .pgrid.pweek .pcell svg{width:100%; max-width:52px; height:auto}
 .pcell.pad{visibility:hidden}
@@ -537,6 +533,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .cols2 .focus-side{order:2} .cols2 .sess-card{order:0}
   main .seg:not(.dayseg){max-width:420px}
   .nav button .ic .badge{position:static; margin-left:6px; display:inline-grid; vertical-align:middle}
+  .strip .d svg{width:76px}
+  .strip .d .dl{font-size:12px}
+  .pgrid{grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:10px 4px}
+  .pgrid .pcell svg{width:100%; max-width:96px; height:auto}
+  .pgrid.pweek .pcell svg{max-width:96px}
   .nav .wide-tab{display:flex}
   .nav .narrow-tab{display:none}
   .sheet .grab{display:none}
@@ -550,15 +551,12 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   .taskcols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 16px; align-items:start}
   .taskcol > .card{margin-top:0; margin-bottom:16px}
   .chips-wrap::after{display:none}
-  .strip-wrap::after, .strip-wrap::before{display:none}
   .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:480px;
     border-radius:22px; bottom:110px}
   .sheet.on{transform:translate(-50%,0)}
   .toast{bottom:132px}
 }
 @media (min-width:1180px){
-  .strip .d{width:38px}
-  .strip .d svg{width:38px}
 }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
@@ -584,7 +582,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c66-2026-09-02-roundD';
+var BUILD = 'c67-2026-09-02-roundE';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -966,6 +964,7 @@ function derive(){
     if(!okT(x.start)){ x.malformed = true; x.start = String(x.start || '??:??'); x.open = false; }
     if(x.end != null && !okT(x.end)){ x.malformed = true; x.end = null; x.open = false; }
     var mm = Number(x.minutes); x.minutes = (x.minutes == null || !isFinite(mm)) ? null : mm;
+    if(x.minutes == null && okT(x.start) && okT(x.end)) x.minutes = minsBetween(x.start, x.end);
     var ff = Number(x.focus); x.focus = (x.focus == null || !isFinite(ff) || ff < 1 || ff > 10) ? null : ff;
     if(x.malformed) x.minutes = null;
   });
@@ -1055,10 +1054,11 @@ function derive(){
       // showing nothing at all.
       var old = {};
       (v.week.goals || []).forEach(function(g){ old[(g.title||'').trim().toLowerCase()] = g; });
-      v.week.goals = (p.goals || []).map(function(g){
+      if(p.goals != null && !Array.isArray(p.goals)) throw new Error('goals_set goals is not a list');
+      v.week.goals = (p.goals || []).filter(function(g){ return g && typeof g === 'object'; }).map(function(g){
         var prev = old[(g.title||'').trim().toLowerCase()];
         return {title:g.title, bucket:g.bucket || (prev && prev.bucket) || null,
-                done: !!(g.done || (prev && prev.done)),
+                done: g.done === true || (g.percent == null && !!(prev && prev.done)),
                 percent: g.percent != null ? g.percent : ((prev && prev.percent) || 0)};
       });
       v.week.total = v.week.goals.length;
@@ -1070,6 +1070,7 @@ function derive(){
       }
       if(v.week) v.week.pending = true;
     } else if(e.kind === 'plan_set'){
+      if(p.blocks != null && !Array.isArray(p.blocks)) throw new Error('plan_set blocks is not a list');
       if(!p.day || p.day === t.date) t.plan = p.blocks || t.plan;
       else if(p.day === v.tomorrow.date) v.tomorrow.plan = p.blocks || v.tomorrow.plan;
     }
@@ -1799,9 +1800,10 @@ function timelineHTML(t, planOnly){
              '<div class="hrlab" style="top:'+y+'px">'+pad(Math.floor(m/60)%24)+':00</div>';
   }
   blocks.sort(function(a, b){ return a.m0 - b.m0 || (a.k < b.k ? -1 : 1); });
-  var anyBar = false;
+  var anyBar = false, lastBar = {};
   var bh = blocks.map(function(b, i){
-    var y = (b.m0 - lo) * PX, hgt = Math.max(20, (b.m1 - b.m0) * PX - 3);
+    var natural = (b.m1 - b.m0) * PX - 3;
+    var y = (b.m0 - lo) * PX, hgt = Math.max(20, natural);
     // A short block is given room to be read, but never over the next block
     // in the same column.
     var nxt = null; for(var j = i + 1; j < blocks.length; j++){ if(blocks[j].k === b.k){ nxt = blocks[j]; break; } }
@@ -1817,6 +1819,10 @@ function timelineHTML(t, planOnly){
     // line needs about 30px and two need about 46px.
     hgt = Math.min(Math.max(hgt, 30), maxH);
     var tight = hgt < 46, bar = hgt < 22;
+    // The last of six ten-minute blocks has nothing under it, so it would be
+    // stretched to a labelled block while its five siblings are bars.
+    if(!bar && lastBar[b.k] && natural < 13){ bar = true; hgt = Math.max(6, natural); }
+    lastBar[b.k] = bar;
     var lab = tight ? String(b.label).split(/ — | · /)[0].replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '') : b.label;
     var mins = b.m1 - b.m0;
     if(bar) anyBar = true;
@@ -1840,7 +1846,7 @@ function timelineHTML(t, planOnly){
   var plannedMin = planWork(t.plan);
   var doneMin = t.work_minutes || 0;
   return '<div class="tl-two">' +
-    '<div class="tl-heads"><div class="tl-head plan"><span class="sw plan"></span><span class="wide-only">Planned</span><span class="narrow-only">Plan</span>' +
+    '<div class="tl-heads"><div class="tl-head plan"><span class="sw plan"></span>Planned' +
       '<span class="tl-sum">'+hmShort(plannedMin)+'</span></div>' +
     '<div class="tl-head actual"><span class="sw actual"></span>Done' +
       '<span class="tl-sum">'+hmShort(doneMin)+'</span></div></div>' +
@@ -1911,7 +1917,7 @@ function pageFocus(v){
         return '<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line-soft)">' +
           '<span><span style="font-weight:600">Week of '+esc(prettyDate(x.start))+'</span>' +
           (x.current ? ' <span class="tiny muted">this week</span>' : '') + '</span>' +
-          '<span style="font-weight:600;color:'+(x.focus > 0 ? 'var(--focus)' : 'var(--ink-3)')+'">'+f+'</span></div>';
+          '<span style="font-weight:600;color:'+(x.focus > 0 ? 'var(--ink)' : 'var(--ink-3)')+'">'+f+'</span></div>';
       }).join('') + '</div></div>';
   }
   // Phone: sessions, then the day list, then the weeks. Laptop: the day list on
@@ -2190,9 +2196,9 @@ function pageTasks(v){
           'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
           (on?'✓':'')+'</button>' +
           '<div class="grow" dir="auto"><div class="t">'+esc(t.title)+'</div>' +
-          '<div class="s">'+due+(t.repeat?' · 🔁 '+esc(t.repeat):'')+
+          '<div class="s">'+due+(t.repeat?'<span style="white-space:nowrap"> · 🔁 '+esc(t.repeat)+'</span>':'')+
 
-            (t.priority==='high'?' · <span class="muted">high</span>':'')+
+            (t.priority==='high'?'<span class="muted" style="white-space:nowrap"> · high</span>':'')+
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
           '</div></div></div>';
       }).join('') + '</div>';
@@ -2208,7 +2214,7 @@ function pageTasks(v){
     h += '<div class="taskcols">' + cards.map(function(c){ return c.html; }).join('') + '</div>';
   }
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking marks it done; it is filed at the next sync. ' +
-       'Tap it again to undo. ' + '<span hidden>Ticking sends it to Claude, who ' +
+       'Tick it again to undo. ' + '<span hidden>Ticking sends it to Claude, who ' +
        'files it properly at your computer. Tap it again to undo before that happens.</p>';
   return h;
 }
@@ -2295,10 +2301,12 @@ function pageProgress(v){
     h += '<div class="pgrid' + (unit === 'day' ? ' pweek' : '') + '">' + padP + buckets.map(function(b){
       var tri = {consistency:b.consistency || 0, focus:b.focus || 0, goals:b.goals || 0,
                  scored: b.area != null, unknown: [].concat(b.focus == null ? ['focus'] : [], b.goals == null ? ['goals'] : [])};
-      return '<div class="pcell' + (b.dayCount ? '' : ' nodata') + '" title="'+esc(b.title + (b.area != null ? ' · ' + pct(b.area) + '%' : ' · not scored'))+'">' +
+      var dayKey = unit === 'day' && b.days && b.days[0] && b.dayCount ? String(b.days[0].date) : '';
+      return (dayKey ? '<button class="pcell" data-day="'+esc(dayKey)+'"' : '<div class="pcell' + (b.dayCount ? '' : ' nodata') + '"') +
+        ' title="'+esc(b.title + (b.area != null ? ' · ' + pct(b.area) + '%' : ' · not scored'))+'">' +
         triSVG(tri, {size:52, r:19, labels:false}) +
         '<div class="pl">'+esc(b.label)+'</div>' +
-        '<div class="pv">'+(b.area != null ? pct(b.area) + '%' : (b.dayCount ? '·' : ''))+'</div></div>';
+        '<div class="pv">'+(b.area != null ? pct(b.area) + '%' : (b.dayCount ? '·' : ''))+'</div>' + (dayKey ? '</button>' : '</div>');
     }).join('') + '</div>';
   } else {
     var c = CORNERS.filter(function(x){ return x.k === P_CORNER; })[0];
@@ -2478,11 +2486,13 @@ function micHint(){
 }
 var LAST_ERR = '', UNREACHABLE = '';
 function unreachableHTML(msg){
+  var empty = /not published/.test(String(msg || ''));
   return '<div class="topbar"><h1>myday</h1></div><main><div class="card">' +
-    '<h2>Cannot reach your data</h2>' +
-    '<p class="small dim prose">The page loaded, but the database did not answer. Either there is ' +
+    '<h2>' + (empty ? 'Nothing published yet' : 'Cannot reach your data') + '</h2>' +
+    (empty ? '<p class="small dim prose">The database answered, but it holds no picture of your days yet.</p>'
+           : '<p class="small dim prose">The page loaded, but the database did not answer. Either there is ' +
     'no connection, or the link is missing its key: everything after the # in the address has to ' +
-    'be there. Open the link again from the QR code or the link you saved.</p>' +
+    'be there. Open the link again from the QR code or the link you saved.</p>') +
     (msg ? '<p class="tiny muted" style="margin-top:10px">'+esc(msg)+'</p>' : '') +
     '<button class="btn wide primary" style="margin-top:14px" id="reloadBtn">Try again</button>' +
     '</div></main>';
@@ -2974,7 +2984,7 @@ document.addEventListener('click', async function(ev){
     var cur = VIEW.week.goals.map(function(g){ return g.title; });
     openSheet('<h3>Change this week’s goals</h3><div class="stack" style="margin-top:14px">' +
       [0,1,2,3].map(function(i){
-        return '<textarea rows="1" dir="auto" data-draft="'+i+'" placeholder="Goal '+(i+1)+
+        return '<textarea rows="1" dir="auto" data-draft="'+i+'" data-initial="'+esc(cur[i]||'')+'" placeholder="Goal '+(i+1)+
           (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;' +
           'background:var(--surface);resize:none;line-height:1.4;font:inherit;display:block">'+esc(cur[i]||'')+'</textarea>';
       }).join('') + '</div>' +
@@ -3020,12 +3030,14 @@ document.addEventListener('keydown', function(ev){
       var fi = fs.indexOf(document.activeElement);
       if(ev.shiftKey){ if(fi <= 0){ ev.preventDefault(); fs[fs.length - 1].focus(); } }
       else if(fi === -1 || fi === fs.length - 1){ ev.preventDefault(); fs[0].focus(); }
-    }
+    } else ev.preventDefault();   // an info sheet has nothing to tab to; focus stays on it
     return;
   }
   if(ev.key === 'Escape' && !SHEET.dataset.mandatory){
     var ae = document.activeElement;
-    if(ae && /textarea|input/i.test(ae.tagName) && String(ae.value || '').trim()) return;   // a draft is not thrown away
+    // A draft is not thrown away; a field still holding what it opened with is not a draft.
+    if(ae && /textarea|input/i.test(ae.tagName) && String(ae.value || '').trim() &&
+       String(ae.value) !== String(ae.getAttribute('data-initial') == null ? '' : ae.getAttribute('data-initial'))) return;
     closeSheet(true); return;
   }
   var scale = SHEET.querySelector('[data-focus]');
@@ -3311,7 +3323,7 @@ function typeInstead(ts){
   openSheet('<h3>Write a note</h3>' +
     '<p class="small muted">It goes where a spoken note goes, tagged with the ' + esc(pageName) +
     ' page. On a keyboard, Cmd or Ctrl and Enter sends it.</p>' +
-    '<textarea id="typedNote" rows="4" dir="auto" placeholder="What happened?" style="width:100%;' +
+    '<textarea id="typedNote" rows="4" dir="auto" placeholder="What happened?" style="width:100%;resize:none;' +
     'margin-top:14px;padding:13px;border:1px solid var(--line);border-radius:11px;' +
     'background:var(--surface);resize:vertical"></textarea>' +
     '<button class="btn wide primary" id="sendTyped" style="margin-top:12px">Send</button>');
