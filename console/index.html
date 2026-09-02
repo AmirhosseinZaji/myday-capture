@@ -334,6 +334,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    one full-width Actual column and lists the plan underneath it. */
 .tl-one{display:block}
 .tl-two{display:none}
+.tl-solo{display:block}
+.seg.dayseg{width:auto; min-width:176px; margin:0; flex:0 0 auto}
+.seg.dayseg button{padding:7px 10px; font-size:12.5px}
 .timeline.solo .blk.actual{right:2px}
 .timeline.solo .blk.planned{display:none !important}
 @media (min-width:640px){ .tl-one{display:none} .tl-two{display:block} }
@@ -474,7 +477,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c56-2026-09-02-onebutton';
+var BUILD = 'c57-2026-09-02-tomorrow';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -751,7 +754,8 @@ function prunePend(st){
         return g.title === p.title && (g.done ? 100 : g.percent) === p.percent; }));
     if(e.kind === 'plan_set'){
       // Spent only when the published plan holds every block it carried.
-      var plan = (st && st.today && st.today.plan) || [];
+      var plan = (p.day && st && st.tomorrow && p.day === st.tomorrow.date)
+        ? (st.tomorrow.plan || []) : ((st && st.today && st.today.plan) || []);
       return !(p.blocks || []).every(function(b){
         return plan.some(function(x){ return x.start === b.start && x.end === b.end; });
       });
@@ -787,6 +791,11 @@ function derive(){
   var t = v.today;
   t.sessions = t.sessions || [];
   v.tasks = v.tasks || [];
+  // Tomorrow is the one other day Amir plans. The Mac publishes its plan when
+  // the file exists; a plan spoken today for tomorrow shows here at once.
+  v.tomorrow = v.tomorrow || {};
+  v.tomorrow.date = v.tomorrow.date || nextDate(t.date);
+  v.tomorrow.plan = v.tomorrow.plan || [];
 
   PEND.forEach(function(e){
     var p = e.payload || {};
@@ -871,6 +880,7 @@ function derive(){
       if(v.week) v.week.pending = true;
     } else if(e.kind === 'plan_set'){
       if(!p.day || p.day === t.date) t.plan = p.blocks || t.plan;
+      else if(p.day === v.tomorrow.date) v.tomorrow.plan = p.blocks || v.tomorrow.plan;
     }
   });
 
@@ -1438,11 +1448,21 @@ function pageTime(v){
 
   h += runnerHTML(v);
 
-  h += '<div class="card"><div class="spread" style="margin-bottom:14px">' +
-       '<h2 style="margin:0">Planned and actual</h2></div>' +
-       '<p class="tiny muted" style="margin:-6px 0 12px">Hold the talk button and say your ' +
-       'working blocks, like “nine to eleven, research paper”. They appear here at once.</p>' +
-       timelineHTML(t) + '</div>';
+  var tm = v.tomorrow || {plan:[]}, hasTm = (tm.plan || []).length > 0, showTm = hasTm && SHOW_TOMORROW;
+  h += '<div class="card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
+       '<h2 style="margin:0">' + (showTm ? 'Tomorrow’s plan' : 'Planned and actual') + '</h2>' +
+       (hasTm ? '<div class="seg dayseg">' +
+          '<button data-act="daytoday"' + (showTm ? '' : ' class="on"') + '>Today</button>' +
+          '<button data-act="daytomorrow"' + (showTm ? ' class="on"' : '') + '>Tomorrow</button></div>' : '') +
+       '</div>' +
+       (showTm
+         ? '<p class="tiny muted" style="margin:-6px 0 12px">' + esc(longDay(tm.date)) +
+           '. Your promise to yourself for the day. Say more here and it is added.</p>' +
+           timelineHTML({plan: tm.plan, sessions: []}, true)
+         : '<p class="tiny muted" style="margin:-6px 0 12px">Hold the talk button and say your ' +
+           'working blocks, like “nine to eleven, research paper”. They appear here at once. ' +
+           'Say “tomorrow” and they go on tomorrow’s plan.</p>' +
+           timelineHTML(t)) + '</div>';
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
        (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
@@ -1488,7 +1508,11 @@ function sessionRow(s, day, edit){
     (edit ? '<button class="editbtn" data-editsess="'+esc(s.start)+'" ' +
             'aria-label="Edit this session">✎</button>' : '') + '</div>';
 }
-function timelineHTML(t){
+var SHOW_TOMORROW = false;
+function longDay(iso){
+  return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'long'}) + ' ' + prettyDate(iso);
+}
+function timelineHTML(t, planOnly){
   var blocks = [];
   (t.plan||[]).forEach(function(p){ blocks.push({k:'planned', s:p.start, e:p.end,
     label:p.activity.replace(/\*\*/g,''), status:p.status}); });
@@ -1497,6 +1521,28 @@ function timelineHTML(t){
   if(!blocks.length){
     return emptyBox('🗓', 'Nothing planned yet',
       'Hold the talk button and say something like “nine to eleven, research paper”.');
+  }
+  if(planOnly){
+    // Tomorrow has no actual lane. One lane, the plan across it.
+    var toM0 = function(x){ var q = x.split(':'), m0 = (+q[0])*60 + (+q[1]); return m0 < 300 ? m0 + 1440 : m0; };
+    blocks.forEach(function(b){ b.m0 = toM0(b.s); b.m1 = toM0(b.e); if(b.m1 < b.m0) b.m1 += 1440; });
+    var lo0 = Math.floor(Math.min.apply(null, blocks.map(function(b){ return b.m0; }))/60)*60;
+    var hi0 = Math.ceil(Math.max.apply(null, blocks.map(function(b){ return Math.max(b.m1, b.m0+15); }))/60)*60;
+    var PX0 = 0.85, H0 = (hi0 - lo0) * PX0, out = '';
+    for(var m2 = lo0; m2 <= hi0; m2 += 60){
+      var y0 = (m2 - lo0) * PX0;
+      out += '<div class="hr" style="top:'+y0+'px"></div><div class="hrlab" style="top:'+y0+'px">'+pad(Math.floor(m2/60)%24)+':00</div>';
+    }
+    out += blocks.map(function(b){
+      var y1 = (b.m0 - lo0) * PX0, hg = Math.max(30, (b.m1 - b.m0) * PX0 - 3);
+      var fixed = b.status === 'fixed';
+      return '<div class="blk actual'+(hg < 46 ? ' tight' : '')+'" style="top:'+y1+'px;height:'+hg+'px;right:2px;' +
+        'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,var(--goals) 12%,#fff)')+';' +
+        'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,var(--goals) 35%,transparent)')+';color:var(--ink)">' +
+        '<div class="bt" style="color:'+(fixed ? 'var(--ink-3)' : 'var(--goals)')+';flex:0 0 auto">'+esc(b.s)+'–'+esc(b.e)+'</div>' +
+        '<div dir="auto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">'+esc(b.label)+'</div></div>';
+    }).join('');
+    return '<div class="tl-solo"><div class="timeline solo" style="height:'+H0+'px">'+out+'</div></div>';
   }
   /* Minutes since 05:00, the start of Amir's working day, so a block that runs
      from 22:00 to 01:15 is 195 minutes long rather than a negative number
@@ -1981,6 +2027,8 @@ var MIC_HINT = {
 };
 
 function micHint(){
+  if(TAB === 'time' && SHOW_TOMORROW && VIEW && VIEW.tomorrow && (VIEW.tomorrow.plan || []).length)
+    return 'Say tomorrow’s working blocks.';
   if(TAB === 'goals' && VIEW && VIEW.today && VIEW.today.weekday === 'Sunday' && VIEW.week && VIEW.week.total)
     return 'Say how the week went. Then next week’s goals.';
   if(TAB === 'goals' && VIEW && !(VIEW.week && VIEW.week.total))
@@ -2216,6 +2264,8 @@ document.addEventListener('click', async function(ev){
   if(t.closest('.sheet') && !t.closest('.sheet.on')) return;
   if(t.dataset.act === 'allhist'){ SHOW_ALL_HIST = true; render(); return; }
   if(t.dataset.act === 'type'){ typeInstead(null); return; }
+  if(t.dataset.act === 'daytoday'){ SHOW_TOMORROW = false; render(); return; }
+  if(t.dataset.act === 'daytomorrow'){ SHOW_TOMORROW = true; render(); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go){ TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
@@ -2710,11 +2760,12 @@ async function planFromSpeech(text, entryId){
   if(!blocks.length) return false;
   // "tomorrow 9 to 11 research" is tomorrow's plan. It goes to the Mac under
   // that date and is not drawn on today's timeline.
-  var tomorrow = /\btomorrow\b/i.test(text);
-  var forDay = tomorrow ? nextDate(VIEW.today.date) : VIEW.today.date;
+  // Said "tomorrow", or spoken while looking at tomorrow's plan.
+  var tomorrow = /\btomorrow\b/i.test(text) || (SHOW_TOMORROW && (VIEW.tomorrow.plan || []).length > 0);
+  var forDay = tomorrow ? VIEW.tomorrow.date : VIEW.today.date;
   // A second sentence adds to the plan; it only replaces the blocks it
   // overlaps. The whole merged list goes to the Mac, which writes the table.
-  var kept = (tomorrow ? [] : (VIEW.today.plan || [])).filter(function(e){
+  var kept = (tomorrow ? (VIEW.tomorrow.plan || []) : (VIEW.today.plan || [])).filter(function(e){
     return e.start && e.end && !blocks.some(function(b){ return planOverlap(e, b); });
   }).map(function(e){ return {start:e.start, end:e.end, minutes:e.minutes, activity:e.activity,
                               duration:e.duration, status:e.status}; });
@@ -2724,6 +2775,7 @@ async function planFromSpeech(text, entryId){
   });
   await record('plan_set', {blocks:blocks, day:forDay});
   if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
+  if(tomorrow){ SHOW_TOMORROW = true; if(TAB !== 'time'){ TAB = 'time'; } }
   render();
   toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + (tomorrow ? ' for tomorrow.' : ' for today.'));
   return true;
