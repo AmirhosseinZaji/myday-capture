@@ -582,7 +582,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c67-2026-09-02-roundE';
+var BUILD = 'c68-2026-09-02-goals';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3301,11 +3301,18 @@ async function goalsFromSpeech(text, entryId){
   if(VIEW.week && VIEW.week.total) return false;
   var t = String(text || '').trim()
     .replace(/^(?:ok(?:ay)?[,.]?\s*)?(?:so\s+)?(?:this week(?:'s goals)?|my goals(?: for this week)?|the goals(?: for this week)?|goals|این هفته|اهداف این هفته|اهداف)\s*(?:are|is)?\s*[:,.،-]?\s*/i, '');
+  // Only a short list is read here: "this week: finish the rebuttal, ship the
+  // page". A spoken paragraph about the week is left for Claude to write into
+  // goals. On 2026-09-02 a two-minute note became five goals made of its first
+  // words ("Okay", "Today is Wednesday"), and the real goals were lost to the page.
+  var words = t.split(/\s+/).filter(Boolean).length;
+  if(words > 40) return false;
   var parts = t.split(/\s*(?:[,;.،]|\band\b|\bthen\b|\balso\b|\sو\s)\s*/i)
     .map(function(x){ return x.replace(/^(?:to|i want to|i will|i'll|i need to)\s+/i, '').trim(); })
     .filter(function(x){ return x.length > 3 && /[a-z\u0600-\u06FF]/i.test(x); })
     .slice(0, 5);
-  if(!parts.length) return false;
+  if(!parts.length || parts.length > 4) return false;
+  if(parts.some(function(x){ var w = x.split(/\s+/).length; return w < 2 || w > 14; })) return false;
   var goals = parts.map(function(pz){
     var low = pz.toLowerCase(), bucket = null;
     if(/\b(research|paper|rebuttal|journal|ucw|university|grading|teach|class|busi|cmpt|mhmi|workshop)\b/.test(low)) bucket = 'academia';
