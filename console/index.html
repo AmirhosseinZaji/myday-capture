@@ -25,7 +25,7 @@
   /* paper and ink */
   --bg:#FBFAF9; --surface:#FFFFFF; --surface-2:#F6F4F1;
   --line:#EAE6E1; --line-soft:#F2EFEB;
-  --ink:#1C1917; --ink-2:#57534E; --ink-3:#8C8681;
+  --ink:#1C1917; --ink-2:#57534E; --ink-3:#6F6963;
 
   /* the three corners. same colour, same meaning, everywhere. */
   --consistency:#C2703D; --consistency-soft:#FBF0E8;
@@ -109,7 +109,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tri-dot{stroke:#fff; stroke-width:2.5}
 .tri-label{font-size:10.5px; font-weight:600; letter-spacing:.07em; text-transform:uppercase}
 .tri-val{font-family:"Instrument Serif",Georgia,serif; font-size:19px}
-.tri-unit{font-size:8.5px; letter-spacing:.05em; text-transform:uppercase}
+.tri-unit{font-size:9.5px; letter-spacing:.05em; text-transform:uppercase}
 .tri-score{text-align:center; margin-top:2px}
 .tri-score .n{font-family:"Instrument Serif",Georgia,serif; font-size:56px; line-height:1;
   letter-spacing:-.02em}
@@ -142,11 +142,13 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 
 /* ── month strip ────────────────────────────────────────────────────────── */
 .strip-wrap{position:relative}
-.strip-wrap::after{
-  content:""; position:absolute; right:0; top:0; bottom:8px; width:34px; pointer-events:none;
-  background:linear-gradient(to right, transparent, var(--surface));
+.strip-wrap::after, .strip-wrap::before{
+  content:""; position:absolute; top:0; bottom:8px; width:26px; pointer-events:none;
 }
-.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 0 8px; scrollbar-width:none;
+.strip-wrap::after{right:0; background:linear-gradient(to right, transparent, var(--surface))}
+.strip-wrap::before{left:0; z-index:1; background:linear-gradient(to left, transparent, var(--surface))}
+/* Padding inside the scroller, so today (the last cell) stops clear of the fade. */
+.strip{display:flex; gap:3px; overflow-x:auto; padding:4px 30px 8px 0; scrollbar-width:none;
   scroll-snap-type:x proximity}
 .strip::-webkit-scrollbar{display:none}
 .strip .d{scroll-snap-align:end}
@@ -154,7 +156,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   border-radius:8px; padding:2px 0; transition:background .16s}
 .strip .d:hover{background:var(--surface-2)}
 .strip .d svg{display:block; width:34px; height:auto}
-.strip .d .dl{font-size:9px; color:var(--ink-3); margin-top:2px}
+.strip .d .dl{font-size:10px; color:var(--ink-3); margin-top:2px}
 .strip .d.sel .dl{color:var(--ink); font-weight:700}
 
 /* ── session / list rows ────────────────────────────────────────────────── */
@@ -294,12 +296,12 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   transition:.18s var(--ease); margin-top:1px;
 }
 .goal .tick.on{background:var(--goals); border-color:var(--goals)}
-.goal .txt{flex:1; font-weight:500; line-height:1.4}
+.goal .txt{flex:1; min-width:0; font-weight:500; line-height:1.4; overflow-wrap:anywhere}
 .goal.done .txt{color:var(--ink-3)}
 .goal.done .txt .gt{text-decoration:line-through}
 .goal .pct{font-variant-numeric:tabular-nums; font-size:13px; color:var(--ink-3); font-weight:600}
 .slider{width:calc(100% - 33px); margin:12px 0 0 33px; accent-color:var(--goals)}
-.slider[disabled]{opacity:.55}
+.slider[data-locked]{pointer-events:none}
 .goal .bar{margin-left:33px; width:calc(100% - 33px)}
 .nag{
   background:var(--goals-soft); border:1px solid color-mix(in srgb,var(--goals) 26%,transparent);
@@ -316,7 +318,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   position:absolute; left:46px; right:2px; border-radius:9px; padding:5px 9px; overflow:hidden;
   font-size:12px; font-weight:500; border:1px solid transparent;
 }
-.blk .bt{font-size:10px; opacity:.75; font-weight:600}
+.blk .bt{font-size:11px; font-weight:700}
 .blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
 .blk.actual{right:calc(50% + 3px)}
 .blk.planned{left:calc(46px + 50% + 3px)}
@@ -332,7 +334,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .chips-wrap{position:relative}
 .chips-wrap::after{content:""; position:absolute; right:0; top:0; bottom:12px; width:30px;
   pointer-events:none; background:linear-gradient(to right, transparent, var(--bg))}
-.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 0 12px; scrollbar-width:none}
+.chips{display:flex; gap:7px; overflow-x:auto; padding:2px 34px 12px 0; scrollbar-width:none}
 .chips::-webkit-scrollbar{display:none}
 .chip{
   flex:0 0 auto; padding:7px 13px; border-radius:99px; border:1px solid var(--line);
@@ -346,6 +348,8 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   display:grid;place-items:center;background:var(--surface);transition:.18s;margin-top:1px}
 .tk .box.on{background:var(--ink);border-color:var(--ink);color:#fff;font-size:12px}
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
+.tk .grow{flex:1; min-width:0}
+.tk .t{display:block; overflow-wrap:anywhere}
 .chips-wrap + .chips-wrap{margin-top:-6px}
 
 /* ── misc ───────────────────────────────────────────────────────────────── */
@@ -420,7 +424,13 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
     align-items:start}
   .cols2 > *{margin-top:0}
   
-  main > .btn.wide{max-width:340px}
+  main .btn.wide{max-width:340px; margin-left:auto; margin-right:auto}
+  .nag .btn.wide{margin-left:0}
+  .today-hero{justify-content:flex-start; gap:56px}
+  .taskcols{columns:2; column-gap:16px}
+  .taskcols > .card{break-inside:avoid; margin-top:0; margin-bottom:16px}
+  .strip{flex-wrap:wrap; overflow:visible; padding-right:0}
+  .strip-wrap::after, .strip-wrap::before{display:none}
   .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:480px;
     border-radius:22px; bottom:110px}
   .sheet.on{transform:translate(-50%,0)}
@@ -454,7 +464,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c51-2026-09-02-cleanup';
+var BUILD = 'c52-2026-09-02-round1';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -550,9 +560,11 @@ function hm(m){
   return Math.floor(m/60)+'h'+pad(m%60)+'m';
 }
 function hmShort(m){
-  if(!m) return '0h';
-  var h = Math.floor(m/60), r = m%60;
-  return h ? (r ? h+'h'+pad(r) : h+'h') : r+'m';
+  /* One spelling everywhere: 8h20m. Only a round number of hours drops the
+     minutes, so a target reads "10h" and a day reads "8h20m". */
+  m = Math.max(0, Math.round(m || 0));
+  if(m === 0) return '0h';
+  return m % 60 === 0 ? (m/60)+'h' : hm(m);
 }
 function minsSince(hhmmStr, sinceIso){
   if(!hhmmStr) return 0;
@@ -606,7 +618,13 @@ function dropSupersededGoalEvents(title){
              ((e.payload || {}).title || '').trim().toLowerCase() === key);
   });
 }
+var LAST_REC = {key:'', t:0};
 async function record(kind, payload){
+  // Five fast taps on one button are one tap. The screen showed one session
+  // either way; the Mac used to receive five starts.
+  var key = kind + JSON.stringify(payload || {});
+  if(LAST_REC.key === key && Date.now() - LAST_REC.t < 1500) return null;
+  LAST_REC = {key:key, t:Date.now()};
   if(kind === 'goal_progress') dropSupersededGoalEvents((payload || {}).title);
   var ev = {qid:newQid(), kind:kind, payload:payload||{}, ts:nowISO(),
             at:hhmm(), sent:false};
@@ -707,9 +725,26 @@ function prunePend(st){
 /* ── derived view: published state + what has not landed yet ────────────── */
 var RAW = null, VIEW = null, UPDATED = null;
 
+function emptyToday(dateStr){
+  var d = new Date(dateStr + 'T12:00:00');
+  return {date:dateStr, weekday:d.toLocaleDateString('en-GB', {weekday:'long'}),
+    pretty:d.toLocaleDateString('en-GB', {weekday:'long', day:'numeric', month:'long'}),
+    target:null, exists:false, closed_minutes:0, work_minutes:0, personal_minutes:0,
+    overhead_minutes:0, focus_coverage:0, overlaps:[], malformed_rows:[], impossible_total:false,
+    buckets:{academia:0, dog:0, ai:0}, focus:null, sessions:[], open_session:null, unscored:[],
+    plan:[], stale:true};
+}
 function derive(){
   if(!RAW){ VIEW = null; return; }
   var v = JSON.parse(JSON.stringify(RAW));
+  // The Mac may not have published since yesterday. Then the blob's "today" is
+  // stale, and a Start tapped this morning used to be dropped by the day check
+  // below while the event still went out, so the screen showed nothing running
+  // and a second tap sent a second start. The phone knows what day it is.
+  var phoneDay = workingDayOf(new Date().toISOString());
+  if(v.today && v.today.date && phoneDay && v.today.date < phoneDay){
+    v.today = emptyToday(phoneDay);
+  }
   var t = v.today;
   t.sessions = t.sessions || [];
   v.tasks = v.tasks || [];
@@ -788,13 +823,22 @@ function derive(){
       v.week.total = v.week.goals.length;
       v.week.pending = true;
     } else if(e.kind === 'goal_progress'){
-      if(v.week && v.week.goals[p.index]) v.week.goals[p.index].percent = p.percent;
+      if(v.week && v.week.goals[p.index]){
+        v.week.goals[p.index].percent = p.percent;
+        v.week.goals[p.index].done = p.percent >= 100;
+      }
       if(v.week) v.week.pending = true;
     } else if(e.kind === 'plan_set'){
       t.plan = p.blocks || t.plan;
     }
   });
 
+  // A row the Mac could not make sense of must not poison the totals: a
+  // negative length once subtracted from the day and inflated the focus score.
+  t.sessions.forEach(function(s){
+    if(s.end == null && !s.open){ s.open = true; s.minutes = null; }
+    if(s.minutes != null && s.minutes < 0){ s.minutes = null; s.malformed = true; }
+  });
   // Recompute everything the overlay could have changed, so the triangle, the
   // totals and the balance never disagree with the list right above them.
   var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0, personal = 0;
@@ -991,25 +1035,27 @@ function triSVG(tri, opts){
   var text = '';
   if(labels){
     CORNERS.forEach(function(c, i){
-      var p = ptAt(c.ang, R + (c.ang === -90 ? 20 : 24), cx, cy);
+      var p = ptAt(c.ang, R + (c.ang === -90 ? 30 : 24), cx, cy);
+      var unknown = (tri.unknown || []).indexOf(c.k) > -1;
       var anchor = c.ang === -90 ? 'middle' : (c.ang === 30 ? 'start' : 'end');
       var dy = c.ang === -90 ? -6 : 4;
       text += '<text class="tri-label" x="'+p[0]+'" y="'+(+p[1]+dy)+'" text-anchor="'+anchor+
               '" fill="'+c.hex+'">'+c.label+'</text>' +
               '<text class="tri-val" x="'+p[0]+'" y="'+(+p[1]+dy+17)+'" text-anchor="'+anchor+
-              '" fill="var(--ink)">'+pct(tri[c.k])+'%</text>' +
+              '" fill="'+(unknown ? 'var(--ink-3)' : 'var(--ink)')+'">'+(unknown ? '—' : pct(tri[c.k])+'%')+'</text>' +
               // What the percentage is measured against, which the Goals corner
               // in particular needs: it is progress against pace, while the tile
               // beside it shows raw progress.
               '<text class="tri-unit" x="'+p[0]+'" y="'+(+p[1]+dy+29)+'" text-anchor="'+anchor+
-              '" fill="var(--ink-3)">'+c.unit+'</text>';
+              '" fill="var(--ink-3)">'+(unknown ? (c.k === 'goals' ? 'no goals set' : 'not rated') : c.unit)+'</text>';
     });
   }
-  var padTop = labels ? 34 : 8, padBot = labels ? 58 : 8;
+  var padTop = labels ? 44 : 8, padBot = labels ? 58 : 8;
   var vbY = cy - R - padTop, vbH = R * 1.5 + padTop + padBot;
   return '<svg class="tri-svg" viewBox="0 '+vbY.toFixed(1)+' '+S+' '+vbH.toFixed(1)+'" role="img" aria-label="'+
-    'Triangle. Consistency '+pct(tri.consistency)+' percent, focus '+pct(tri.focus)+
-    ' percent, goals '+pct(tri.goals)+' percent.">' +
+    'Triangle. Consistency '+pct(tri.consistency)+' percent, focus '+
+    ((tri.unknown||[]).indexOf('focus') > -1 ? 'not rated' : pct(tri.focus)+' percent')+
+    ', goals '+((tri.unknown||[]).indexOf('goals') > -1 ? 'no goals set' : pct(tri.goals)+' percent')+'.">' +
     '<defs>'+defs+'</defs>' + rings +
     (tiny ? '<polygon points="'+full+'" fill="none" stroke="var(--line-soft)" stroke-width="1"/>'
           : '<polygon class="tri-guide" points="'+full+'"/>') + axes +
@@ -1067,6 +1113,13 @@ function emptyBox(icon, title, sub){
 function pageHome(v){
   var t = v.today, tri = v.triangle.day, wtri = v.triangle.week;
   var h = '';
+  if(!v.week || !v.week.total){
+    h += '<div class="nag"><h3>This week has no goals</h3>' +
+         '<p class="small dim prose">Hours and focus on their own do not show what you ' +
+         'finished. Set two or three goals for the week and the third corner starts filling.</p>' +
+         '<button class="btn wide primary" style="margin-top:13px" data-go="goals">Set this week’s goals</button></div>';
+  }
+
 
   h += '<div class="split"><div class="card"><div class="tri-wrap">' + triSVG(tri, {size:230, r:74}) +
        '<div class="tri-score">' +
@@ -1075,7 +1128,7 @@ function pageHome(v){
          : '<div class="n" style="color:var(--ink-3)">—</div>' +
            '<div class="cap">Not scored</div>') +
        '<p class="tiny muted prose" style="margin:9px auto 0">Each corner is scored ' +
-       'against what today needs. Hours count towards 10. Focus is your own score out of 10. ' +
+       'against what today needs. Hours count towards the 10h floor. Focus is your own score out of 10. ' +
        'Goals are measured against the pace this week has to keep. The big number is how much ' +
        'of the full triangle the three corners fill.</p></div></div>';
   h += '<div class="advice"><span class="pip" style="background:'+
@@ -1131,13 +1184,6 @@ function pageHome(v){
       }).join('') + '</div></div>';
   }
 
-  if(!v.week || !v.week.total){
-    h += '<div class="nag"><h3>This week has no goals</h3>' +
-         '<p class="small dim prose">Hours and focus on their own do not show what you ' +
-         'finished. Set two or three goals for the week and the third corner starts filling.</p>' +
-         '<button class="btn wide primary" style="margin-top:13px" data-go="goals">Set this week’s goals</button></div>';
-  }
-
   h += '<div class="cols2">';
   h += '<div class="card"><h2>The last 30 days</h2>' + stripHTML(v) + '</div>';
 
@@ -1148,7 +1194,7 @@ function pageHome(v){
          statLine('Hours', hmShort(wtri.worked_minutes) + ' over ' + wtri.days_elapsed +
                   (wtri.days_elapsed === 1 ? ' day' : ' days')) +
          statLine('Focus', wtri.focus_score == null ? 'not rated'
-                             : wtri.focus_score.toFixed(1) + ' / 10') +
+                             : wtri.focus_score.toFixed(1) + ' of 10') +
          statLine('Goals', v.week && v.week.total
                             ? v.week.hit + ' of ' + v.week.total + ' done' : 'none set') +
        '</div></div></div>';
@@ -1168,7 +1214,7 @@ function statLine(k, val){
          '<span style="font-weight:600">'+esc(val)+'</span></div>';
 }
 function stripHTML(v){
-  return '<div class="strip-wrap"><div class="strip" id="strip">' + v.month.map(function(d){
+  return '<div class="strip-wrap"><div class="strip" id="strip">' + (v.month||[]).map(function(d){
     var t = {consistency:d.consistency, focus:d.focus, goals:d.goals};
     var label = d.scored === false ? 'not scored' : pct(d.area) + '%';
     return '<button class="d' + (d.date === v.today.date ? ' sel' : '') + '" data-day="'+esc(d.date)+'" ' +
@@ -1195,9 +1241,11 @@ function sessProblem(st, en, running){
     // A start in the future is a mis-spun wheel, not a 23-hour session.
     var now = new Date().getHours() * 60 + new Date().getMinutes();
     if(toMin(st) > now && (now + 1440 - toMin(st)) > 12 * 60) return 'That start is in the future.';
+    if(minsSince(st) > 14 * 60) return 'That started more than fourteen hours ago.';
     return '';
   }
   if(!en) return 'It needs an end time.';
+  if(minsBetween(st, en) === 0) return 'That is zero minutes.';
   // A real session can cross midnight, so the test is length, not order.
   // 09:00 to 08:00 is 23 hours, and 23 hours would wreck the day's totals.
   if(toMin(en) < toMin(st) && minsBetween(st, en) > 12 * 60) return 'It ends before it starts.';
@@ -1213,10 +1261,25 @@ function openSessEditor(sess){
   paintSessEditor();
 }
 
+function overlapWith(st, en, was){
+  /* Named, not refused: a genuine overlap is rare and Amir may mean it, but a
+     silent double count of the shared hour is how the day's total lies. */
+  var nowM = new Date().getHours() * 60 + new Date().getMinutes();
+  var a1 = toMin(st), a2 = en ? toMin(en) : nowM; if(a2 < a1) a2 += 1440;
+  var hit = null;
+  ((VIEW && VIEW.today.sessions) || []).forEach(function(s){
+    if(hit) return;
+    if(was && s.start === was.start && s.area === was.area) return;
+    var b1 = toMin(s.start), b2 = s.end ? toMin(s.end) : nowM; if(b2 < b1) b2 += 1440;
+    if(a1 < b2 && b1 < a2) hit = s;
+  });
+  return hit;
+}
 function paintSessEditor(){
   var e = EDIT, bad = sessProblem(e.start, e.running ? null : e.end, e.running);
   var open = !!(SHEET && SHEET.classList.contains('on'));
   var mins = e.running ? minsSince(e.start) : minsBetween(e.start, e.end);
+  var ov = bad ? null : overlapWith(e.start, e.running ? null : e.end, e.was);
   openSheet(
     '<h3>' + (e.isNew ? 'Add a session' : 'Edit this session') + '</h3>' +
     '<p class="small muted">' + (e.isNew
@@ -1233,9 +1296,10 @@ function paintSessEditor(){
         '<span class="tiny muted">End</span>' +
         '<input type="time" id="sEnd" value="' + esc(e.end || hhmm()) + '"></label>' +
     '</div>' +
-    '<div class="tiny" style="margin-top:8px;color:' + (bad ? 'var(--bad)' : 'var(--ink-3)') + '">' +
-      esc(bad || (hm(mins) + (mins === 0 ? ' · that is zero minutes' : '') +
-        (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : ''))) + '</div>' +
+    '<div class="tiny" style="margin-top:8px;color:' + (bad ? 'var(--bad)' : (ov ? 'var(--notice)' : 'var(--ink-3)')) + '">' +
+      esc(bad || (hm(mins) +
+        (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : '') +
+        (ov ? ' · overlaps the ' + ov.start + ' ' + (ov.area_label || ov.area) + ' session' : ''))) + '</div>' +
     '<div class="tiny muted" style="margin:16px 0 8px">Area</div>' +
     '<div class="grid2">' + AREAS.map(function(a){
       return '<button class="btn' + (a[0] === e.area ? ' primary' : '') + '" data-sarea="' + a[0] +
@@ -1291,7 +1355,7 @@ function pageTime(v){
   var h = '';
 
   h += '<div class="card"><h2>Today</h2>' +
-    '<div class="spread" style="align-items:flex-end;margin-bottom:16px">' +
+    '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.closed_minutes)+'</div>' +
       '<div class="small muted">of the 10h floor.' +
         (t.open_session ? ' The session running now is not counted yet.' : ' 12h is a good day.') +
@@ -1306,7 +1370,7 @@ function pageTime(v){
     '<div class="stack">' +
       splitBar('Academia', b.academia, sp.academia, AREA_COLOUR.ucw) +
       splitBar('AI Business', b.ai, sp.ai, AREA_COLOUR.ai) +
-      splitBar('Dog Business (no target today)', b.dog, 0, AREA_COLOUR.dog) +
+      splitBar('Dog Business (paused)', b.dog, 0, AREA_COLOUR.dog) +
       (t.overhead_minutes ? '<div class="spread small"><span class="muted">Overhead</span>' +
         '<span class="dim">'+hmShort(t.overhead_minutes)+' · counts as work, not in the split</span></div>' : '') +
     '</div></div>';
@@ -1316,7 +1380,7 @@ function pageTime(v){
   h += '<div class="card"><div class="spread" style="margin-bottom:14px">' +
        '<h2 style="margin:0">Planned and actual</h2></div>' +
        '<p class="tiny muted" style="margin:-6px 0 12px">Hold the bar below and say your ' +
-       'working hours.</p>' +
+       'working blocks, like “nine to eleven, research paper”. They appear here at once.</p>' +
        timelineHTML(t) + '</div>';
 
   h += '<div class="card flush"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
@@ -1331,7 +1395,8 @@ function splitBar(label, got, target, colour){
   var p = target ? Math.min(100, Math.round(got/target*100)) : 0;
   return '<div><div class="spread small" style="margin-bottom:5px"><span class="muted">'+esc(label)+'</span>' +
     '<span style="font-weight:600">'+hmShort(got)+(target?' <span class="muted" style="font-weight:400">of '+
-      hmShort(target)+'</span>':'')+'</span></div>' +
+      hmShort(target)+'</span>':'')+(target && got < target ? ' <span class="muted" style="font-weight:400">· '+
+      hmShort(target-got)+' short</span>' : '')+'</span></div>' +
     '<div class="bar"><i style="background:'+colour+'" data-w="'+p+'"></i></div></div>';
 }
 function rateRow(u){
@@ -1407,7 +1472,7 @@ function timelineHTML(t){
     return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" style="top:'+y+'px;height:'+hgt+
       'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);' +
       'color:var(--ink)">' +
-      '<div class="bt" style="color:'+col+';flex:0 0 auto">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
+      '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+(b.open?' · now':'')+'</div>' +
       '<div dir="auto" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0">' +
       esc(b.label)+'</div></div>';
   }).join('');
@@ -1438,7 +1503,7 @@ function pageFocus(v){
     '<div><div class="serif" style="font-size:52px;line-height:1;color:' +
       (t.focus == null ? 'var(--ink-3)' : 'var(--focus)') + '">' +
       (t.focus == null ? 'not rated' : t.focus.toFixed(1)) +
-      (t.focus == null ? '' : '<span style="font-size:22px;color:var(--ink-3)"> / 10</span>') +
+      (t.focus == null ? '' : '<span style="font-size:22px;color:var(--ink-3)"> of 10</span>') +
       '</div>' +
     '<div class="small muted prose" style="margin-top:6px">A four-hour session at 10 counts ' +
       'far more than a fifteen-minute one at 2.</div></div></div></div>';
@@ -1460,23 +1525,40 @@ function pageFocus(v){
        '</div>';
 
   var hist = v.focus_history || [];
+  var shown = SHOW_ALL_HIST ? hist : hist.slice(0, 45);
   h += '<div class="card"><h2>Focus, day by day</h2>' +
-    (hist.length ? sparkHTML(hist) : '') +
-    '<div class="stack" style="margin-top:16px">' + (hist.length ? hist.map(function(d){
+    (hist.length ? sparkHTML(hist, t.date) : '') +
+    '<div class="stack" style="margin-top:16px">' + (hist.length ? shown.map(function(d){
       return '<button class="spread" data-hist="'+esc(d.date)+'" style="width:100%;text-align:left;' +
         'padding:11px 0;border-bottom:1px solid var(--line-soft)">' +
         '<span><span style="font-weight:600">'+esc(d.weekday)+'</span> ' +
-        '<span class="tiny muted">'+esc(d.date)+'</span></span>' +
+        '<span class="tiny muted">'+esc(prettyDate(d.date))+'</span></span>' +
         '<span class="row" style="gap:12px"><span class="small muted">'+hmShort(d.worked_minutes)+'</span>' +
         (d.focus == null
           ? '<span class="fscore none" style="width:auto;padding:0 9px;height:30px">not rated</span>'
           : '<span class="fscore" style="background:'+focusBg(d.focus)+';color:'+focusColour(d.focus)+
             ';width:34px;height:30px;font-size:15px">'+d.focus.toFixed(1)+'</span>') +
         '</span></button>';
-    }).join('') : emptyBox('📈','No history yet','This fills in as you rate your sessions.')) + '</div></div>';
+    }).join('') : emptyBox('📈','No history yet','This fills in as you rate your sessions.')) + '</div>' +
+    (hist.length > shown.length ? '<button class="btn wide" data-act="allhist" style="margin-top:12px">' +
+      'Show all '+hist.length+' days</button>' : '') + '</div>';
+
+  // Week by week, the third view the system asks for.
+  var wk = (v.weeks || []).slice().reverse();
+  if(wk.length){
+    h += '<div class="card"><h2>Focus, week by week</h2><div class="stack" style="gap:0">' +
+      wk.map(function(x){
+        var f = x.focus > 0 ? (x.focus * 10).toFixed(1) + ' of 10' : 'not rated';
+        return '<div class="spread" style="padding:10px 0;border-bottom:1px solid var(--line-soft)">' +
+          '<span><span style="font-weight:600">Week of '+esc(prettyDate(x.start))+'</span>' +
+          (x.current ? ' <span class="tiny muted">this week</span>' : '') + '</span>' +
+          '<span style="font-weight:600;color:'+(x.focus > 0 ? 'var(--focus)' : 'var(--ink-3)')+'">'+f+'</span></div>';
+      }).join('') + '</div></div>';
+  }
   return h;
 }
-function sparkHTML(hist){
+var SHOW_ALL_HIST = false;
+function sparkHTML(hist, today){
   /* Fourteen slots, always, including the days with nothing in them. The line
      is drawn in segments so a gap really does mean "not rated", which is what
      the caption promises.
@@ -1488,7 +1570,10 @@ function sparkHTML(hist){
      line. */
   var byDate = {};
   hist.forEach(function(d){ byDate[d.date] = d; });
-  var last = hist.length ? new Date(hist[0].date + 'T00:00:00') : new Date();
+  // Always ends today, so an empty day is a visible gap rather than a chart
+  // that quietly stops at the last day with data.
+  var last = new Date((today || (hist.length ? hist[0].date : '')) + 'T00:00:00');
+  if(isNaN(last)) last = new Date();
   var days = [];
   for(var i = 13; i >= 0; i--){
     var dt = new Date(last.getTime() - i * 86400000);
@@ -1542,8 +1627,8 @@ function sparkHTML(hist){
       'aria-label="Focus score per day over fourteen days, with hours behind it">' +
       grid + bars + line + '</svg>' +
     '</div>' +
-    '<div class="spark-x"><span>'+esc(days[0].date)+'</span>' +
-    '<span>'+esc(days[days.length - 1].date)+'</span></div>';
+    '<div class="spark-x"><span>'+esc(prettyDate(days[0].date))+'</span>' +
+    '<span>'+esc(prettyDate(days[days.length - 1].date))+'</span></div>';
 }
 
 </script>
@@ -1567,7 +1652,7 @@ function pageGoals(v){
     h += '<div class="card"><div class="spread" style="align-items:flex-end;margin-bottom:14px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+w.progress+'<span style="font-size:22px">%</span></div>' +
       '<div class="small muted">Week of '+esc(prettyDate(w.start))+' · day '+elapsed+' of 7</div></div>' +
-      '<div style="text-align:right"><div style="font-weight:700;font-size:19px">'+w.hit+' / '+w.total+'</div>' +
+      '<div style="text-align:right"><div style="font-weight:700;font-size:19px">'+w.hit+' of '+w.total+'</div>' +
       '<div class="tiny muted">done</div></div></div>' +
       '<div class="bar" style="height:8px;position:relative;overflow:visible">' +
         '<i style="background:var(--goals)" data-w="'+Math.round(w.progress)+'"></i>' +
@@ -1576,13 +1661,13 @@ function pageGoals(v){
         '<span style="position:absolute;top:-4px;bottom:-4px;width:2px;border-radius:2px;' +
         'background:var(--ink);left:'+Math.round(elapsed/7*100)+'%"></span></div>' +
       '<div class="spread tiny muted" style="margin-top:7px">' +
-      '<span>you are at '+w.progress+'%</span>' +
-      '<span>day '+elapsed+' of 7 needs '+Math.round(elapsed/7*100)+'%</span></div></div>';
+      '<span>You are at '+w.progress+'%</span>' +
+      '<span>Day '+elapsed+' of 7 needs '+Math.round(elapsed/7*100)+'%</span></div></div>';
 
     h += '<div class="card flush">' + w.goals.map(function(g, i){
       return '<div class="goal'+(g.done?' done':'')+'"><div class="top">' +
         '<button class="tick'+(g.done||g.percent>=100?' on':'')+'" data-goaltick="'+i+'" ' +
-        'aria-label="Mark done">'+((g.done||g.percent>=100)?'✓':'')+'</button>' +
+        'aria-label="'+((g.done||g.percent>=100)?'Mark not done':'Mark done')+'">'+((g.done||g.percent>=100)?'✓':'')+'</button>' +
         '<span class="txt"><span class="gt" dir="auto">'+esc(g.title)+'</span>'+
           (g.bucket?'<br><span class="pill" style="background:var(--goals-soft);color:var(--goals);' +
             'display:inline-block;margin-top:5px">'+esc(AREA_NAME[g.bucket]||g.bucket)+
@@ -1592,7 +1677,7 @@ function pageGoals(v){
         // disabled, not replaced by a different-looking control.
         '<input class="slider" type="range" min="0" max="100" step="5" value="'+
           (g.done || g.percent >= 100 ? 100 : (g.percent||0))+'" data-goalpct="'+i+'"' +
-          (g.done || g.percent >= 100 ? ' disabled' : '') +
+          (g.done || g.percent >= 100 ? ' data-locked="1"' : '') +
           ' aria-label="Progress on '+esc(g.title)+'">' +
         '</div>';
     }).join('') + '</div>';
@@ -1607,7 +1692,7 @@ function pageGoals(v){
         '<div><div style="font-weight:600">Week of '+esc(prettyDate(x.start))+'</div>' +
         '<div class="tiny muted">'+esc(x.start)+' to '+esc(x.end)+'</div></div>' +
         '<div class="row" style="gap:14px">' +
-        '<span class="small"><b>'+x.hit+'</b><span class="muted"> / '+x.total+'</span></span>' +
+        '<span class="small"><b>'+x.hit+'</b><span class="muted"> of '+x.total+'</span></span>' +
         '<span style="width:44px">'+triSVG({consistency:x.consistency,focus:x.focus,goals:x.goals},
           {size:44, r:17, labels:false})+'</span></div></div>';
     }).join('') + '</div>' +
@@ -1685,7 +1770,7 @@ function pageTasks(v){
 
   var groups = {};
   list.forEach(function(t){
-    var k = t.area_label + ' — ' + t.section;
+    var k = t.area_label + ' · ' + t.section;
     (groups[k] = groups[k] || []).push(t);
   });
   // The most overdue list first. Alphabetical order buried the thing that was
@@ -1697,6 +1782,7 @@ function pageTasks(v){
     return worst(b) - worst(a) || (a < b ? -1 : 1);
   });
 
+  h += '<div class="taskcols">';
   order.forEach(function(k){
     var rows = groups[k].slice().sort(function(a, b){
       if(!a.due && !b.due) return 0;
@@ -1707,7 +1793,7 @@ function pageTasks(v){
     var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
     h += '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
       '<h2 style="margin:0">'+esc(k)+'</h2>' +
-      '<span class="tiny muted">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
+      '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+rows.length+(od ? ' · '+od+' overdue' : '')+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
         var due = t.due
@@ -1730,6 +1816,7 @@ function pageTasks(v){
       }).join('') + '</div>';
   });
 
+  h += '</div>';
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking sends it to Claude, who ' +
        'files it properly at your Mac. Tap it again to undo before that happens.</p>';
   return h;
@@ -1738,8 +1825,11 @@ function pageTasks(v){
 /* ═══════════════════════════════════════════════════════════════ notes ═══ */
 var EVENT_NAME = {
   session_start:'Session started', session_stop:'Session stopped',
-  session_focus:'Session score', task_tick:'Task ticked',
-  goals_set:'Goals for the week', goal_progress:'Goal progress'
+  session_focus:'Session score', session_add:'Session added',
+  session_edit:'Session corrected', session_delete:'Session deleted',
+  task_tick:'Task ticked', task_untick:'Tick undone',
+  goals_set:'Goals for the week', goal_progress:'Goal progress',
+  plan_set:'Plan for the day'
 };
 var NOTES = [];
 function pageNotes(v){
@@ -1812,6 +1902,16 @@ var MIC_HINT = {
 };
 
 var LAST_ERR = '';
+function unreachableHTML(msg){
+  return '<div class="topbar"><h1>myday</h1></div><main><div class="card">' +
+    '<h2>Cannot reach your data</h2>' +
+    '<p class="small dim prose">The page loaded, but the database did not answer. Either there is ' +
+    'no connection, or the link is missing its key: everything after the # in the address has to ' +
+    'be there. Open the link again from the QR code or from phone/console-link.txt if it is not.</p>' +
+    (msg ? '<p class="tiny muted" style="margin-top:10px">'+esc(msg)+'</p>' : '') +
+    '<button class="btn wide primary" style="margin-top:14px" id="reloadBtn">Try again</button>' +
+    '</div></main>';
+}
 function brokenHTML(msg){
   return '<div class="topbar"><h1>myday</h1></div><main><div class="card">' +
     '<h2>Something in the data does not fit</h2>' +
@@ -1916,13 +2016,30 @@ function askForMissingScore(){
      out from under the sheet. Anything older gets the banner instead, because a
      modal that opens by itself every time the app is opened is hostile. */
   if(SHEET || !VIEW) return;
-  var u = (VIEW.today.unscored || [])[0];
-  if(!u || ASKED_FOR === u.start) return;
-  if(!u.end || !u.ended_iso) return;
-  var ended = Math.round((Date.now() - Date.parse(u.ended_iso)) / 60000);
-  if(!(ended >= 0 && ended <= 3)) return;
-  ASKED_FOR = u.start;
-  askFocus(u.start, u.minutes, false);
+  // A stop that is still in the pending queue with no score after it means the
+  // app was closed under the mandatory sheet. Ask again, mandatorily.
+  var stops = PEND.filter(function(e){ return e.kind === 'session_stop'; });
+  for(var i = stops.length - 1; i >= 0; i--){
+    var st = (stops[i].payload || {}).start;
+    var rated = PEND.some(function(f){ return f.kind === 'session_focus' && (f.payload||{}).start === st; });
+    if(rated || ASKED_FOR === st) continue;
+    var row = (VIEW.today.sessions || []).filter(function(x){ return x.start === st; })[0];
+    if(row && row.focus == null){
+      ASKED_FOR = st;
+      askFocus(st, row.minutes, true, (stops[i].payload || {}).day || VIEW.today.date);
+      return;
+    }
+  }
+  var us = VIEW.today.unscored || [];
+  for(var j = 0; j < us.length; j++){
+    var u = us[j];
+    if(ASKED_FOR === u.start || !u.end || !u.ended_iso) continue;
+    var ended = Math.round((Date.now() - Date.parse(u.ended_iso)) / 60000);
+    if(!(ended >= 0 && ended <= 3)) continue;
+    ASKED_FOR = u.start;
+    askFocus(u.start, u.minutes, false);
+    return;
+  }
 }
 function tickClock(){
   clearInterval(CLOCK_T);
@@ -2001,8 +2118,12 @@ document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],#startBtn,#stopBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
-    '#sessSave,#sessDelete,[data-sarea],[data-sstate]');
+    '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act]');
   if(!t) return;
+  // A sheet keeps its buttons for 340ms while it slides out. A second tap in
+  // that window used to post the same event again.
+  if(t.closest('.sheet') && !t.closest('.sheet.on')) return;
+  if(t.dataset.act === 'allhist'){ SHOW_ALL_HIST = true; render(); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go){ TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
@@ -2054,7 +2175,7 @@ document.addEventListener('click', async function(ev){
     var note = (NOTES||[]).filter(function(x){ return String(x.id) === String(id); })[0];
     if(t.dataset.noteact === 'delete'){
       if(!t.dataset.armed){
-        t.dataset.armed = '1'; t.textContent = '✓?';
+        t.dataset.armed = '1'; t.textContent = 'Sure?';
         setTimeout(function(){ if(t){ t.dataset.armed = ''; t.textContent = '✕'; } }, 4000);
         return;
       }
@@ -2068,7 +2189,7 @@ document.addEventListener('click', async function(ev){
       return;
     }
     openSheet('<h3>Edit this note</h3>' +
-      '<p class="small muted">Fixing a word the transcriber got wrong, before Claude files it.</p>' +
+      '<p class="small muted">Fix a word the transcriber got wrong. Claude reads the corrected text.</p>' +
       '<textarea id="noteText" rows="4" style="width:100%;margin-top:14px;padding:13px;' +
       'border:1px solid var(--line);border-radius:11px;background:var(--surface);resize:vertical">' +
       esc(note ? note.text : '') + '</textarea>' +
@@ -2182,8 +2303,22 @@ document.addEventListener('click', async function(ev){
     // a dismissed sheet still in the DOM during its 340ms exit and saved the old
     // titles alongside the new ones.
     var scope = t.closest('.sheet') || t.closest('main') || document;
+    var prevBy = {};
+    ((VIEW.week && VIEW.week.goals) || []).forEach(function(g){ prevBy[(g.title||'').trim().toLowerCase()] = g; });
     scope.querySelectorAll('[data-draft]').forEach(function(inp){
-      var s = inp.value.trim(); if(s) vals.push({title:s, bucket:null, done:false, percent:0});
+      var s = inp.value.trim(); if(!s) return;
+      // `academia` / `ai` and a trailing 40% are read out of the line, the way
+      // the weekly file writes them. An unchanged goal keeps its progress:
+      // percent null tells both this page and the Mac to leave it alone.
+      var bucket = null, percent = null;
+      s = s.replace(/`\s*(academia|ai|dog|personal)\s*`/i, function(_, b){ bucket = b.toLowerCase(); return ' '; });
+      s = s.replace(/(^|\s)(\d{1,3})\s*%\s*$/, function(_, sp, d){ percent = Math.max(0, Math.min(100, +d)); return ''; });
+      s = s.replace(/\s+/g, ' ').trim();
+      if(!s) return;
+      var prev = prevBy[s.toLowerCase()];
+      vals.push({title:s, bucket:bucket || (prev && prev.bucket) || null,
+                 done:!!(prev && prev.done),
+                 percent: percent != null ? percent : (prev ? null : 0)});
     });
     if(!vals.length){ toast('Type at least one goal first.'); return; }
     t.disabled = true;
@@ -2198,9 +2333,11 @@ document.addEventListener('click', async function(ev){
     openSheet('<h3>Change this week’s goals</h3><div class="stack" style="margin-top:14px">' +
       [0,1,2,3].map(function(i){
         return '<input data-draft="'+i+'" value="'+esc(cur[i]||'')+'" placeholder="Goal '+(i+1)+
-          '" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;' +
+          (i?' (optional)':'')+'" style="width:100%;padding:13px;border:1px solid var(--line);border-radius:11px;' +
           'background:var(--surface)">';
       }).join('') + '</div>' +
+      '<p class="tiny muted prose" style="margin-top:10px">Keep the wording of a goal you are not ' +
+      'changing and its progress stays. Add an area with `academia` or `ai`, and a percent if you like.</p>' +
       '<button class="btn wide primary" id="saveGoals" style="margin-top:14px">Save</button>');
     return;
   }
@@ -2208,18 +2345,32 @@ document.addEventListener('click', async function(ev){
     var key = t.dataset.hist || t.dataset.day;
     var d = (VIEW.focus_history||[]).filter(function(x){ return x.date === key; })[0];
     var m = (VIEW.month||[]).filter(function(x){ return x.date === key; })[0];
-    openSheet('<h3>'+esc(key)+'</h3>' +
+    var dayTitle = (d ? d.weekday : (m ? m.weekday : '')) + ' ' + prettyDate(key);
+    openSheet('<h3>'+esc(dayTitle.trim())+'</h3>' +
       (m ? '<div class="row" style="gap:16px;margin:12px 0 4px">' +
         '<span style="flex:0 0 96px">'+triSVG(m,{size:96,r:31,labels:false})+'</span>' +
         '<div class="grow stack" style="gap:7px">' +
-          statLine('Score', pct(m.area)+'%') +
+          statLine('Score', m.scored === false ? 'not scored' : pct(m.area)+'%') +
           statLine('Hours', hmShort(m.worked_minutes)) +
-          statLine('Focus', d && d.focus != null ? d.focus.toFixed(1)+' / 10' : 'not rated') +
+          statLine('Focus', d && d.focus != null ? d.focus.toFixed(1)+' of 10' : 'not rated') +
         '</div></div>' : '') +
       (d && d.sessions.length ? '<div style="margin-top:12px;border-top:1px solid var(--line)">' +
         d.sessions.map(function(x){ return sessionRow(x, key); }).join('') + '</div>'
         : '<p class="small muted" style="margin-top:12px">No sessions recorded.</p>'));
     return;
+  }
+});
+document.addEventListener('keydown', function(ev){
+  // A laptop has keys. 1 to 9 and 0 score the session; Enter saves the goals.
+  if(!SHEET || !SHEET.classList.contains('on')) return;
+  var scale = SHEET.querySelector('[data-focus]');
+  if(scale && /^[0-9]$/.test(ev.key) && !/input|textarea/i.test(document.activeElement.tagName)){
+    var n = ev.key === '0' ? 10 : +ev.key;
+    var b = SHEET.querySelector('[data-focus="'+n+'"]'); if(b){ ev.preventDefault(); b.click(); }
+    return;
+  }
+  if(ev.key === 'Enter' && ev.target.closest('[data-draft]')){
+    var save = SHEET.querySelector('#saveGoals'); if(save){ ev.preventDefault(); save.click(); }
   }
 });
 document.addEventListener('change', async function(ev){
@@ -2267,7 +2418,7 @@ async function startRec(){
   if(m) m.classList.add('rec');
   var lab = document.getElementById('micLabel');
   if(lab) lab.textContent = 'Listening… let go to send';
-  if(hint) hint.textContent = 'Speaking on the ' + TITLES[TAB] + ' page';
+  if(hint) hint.textContent = 'Speaking on the ' + (TAB === 'home' ? 'Triangle' : TITLES[TAB]) + ' page';
   if(navigator.vibrate) navigator.vibrate(12);
 }
 function stopRec(){
@@ -2302,6 +2453,7 @@ async function sendAudio(blob, mime){
     if(!r.ok) throw new Error(await r.text());
     var out = await r.json();
     if(!out.text) throw new Error('empty transcript');
+    if(await planFromSpeech(out.text, out.id)) return;
     toast('“' + out.text.slice(0, 46) + (out.text.length > 46 ? '…' : '') + '”');
     await refreshNotes();
     if(TAB === 'notes') render();
@@ -2309,6 +2461,93 @@ async function sendAudio(blob, mime){
     toast('Could not transcribe that. Type it instead.');
     typeInstead(ts);
   }
+}
+/* ═════════════════════════════════════ the spoken plan ═════════════════ */
+/* "nine to eleven research, then one to four AI business" on the Consistency
+   page becomes plan blocks on the timeline at once, and a plan_set event the
+   Mac files into the day's plan table. Nothing here needs a chat. A sentence
+   with no time range in it is left as an ordinary note for Claude. */
+var NUM_WORDS = {zero:0, one:1, two:2, three:3, four:4, five:5, six:6, seven:7, eight:8,
+  nine:9, ten:10, eleven:11, twelve:12, thirteen:13, fourteen:14, fifteen:15, sixteen:16,
+  seventeen:17, eighteen:18, nineteen:19, twenty:20, thirty:30, forty:40, fifty:50, noon:12,
+  midday:12, midnight:0};
+var AREA_WORDS = [
+  [/\b(research|paper|rebuttal|journal|manuscript|reviewer|conference|chapter)\b/, '🔬 Research'],
+  [/\b(ucw|university|teach|teaching|grading|grade|class|lecture|students?|busi|cmpt|mhmi|mofit|workshop|committee|emails?)\b/, '🎓 UCW'],
+  [/\b(ai|a\.i\.|business|youtube|channel|shorts?|videos?|landing|product|clients?|website|app|site|code|coding|build)\b/, '🤖 AI Business'],
+  [/\b(dog|dogs|off.?leash|obedience|poodi|collie)\b/, '🐕 Dog Business'],
+  [/\b(walk|lunch|dinner|breakfast|break|gym|nap|rest|personal|bank|shopping|errand)\b/, '🏠 Personal'],
+];
+function planWords(text){
+  // "nine thirty" → "9:30", "half past nine" → "9:30", "quarter to ten" → "9:45".
+  var t = ' ' + String(text || '').toLowerCase().replace(/[\u2013\u2014]/g, '-') + ' ';
+  t = t.replace(/\bhalf past (\w+)\b/g, function(_, w){ return (NUM_WORDS[w] != null ? NUM_WORDS[w] : w) + ':30'; });
+  t = t.replace(/\bquarter past (\w+)\b/g, function(_, w){ return (NUM_WORDS[w] != null ? NUM_WORDS[w] : w) + ':15'; });
+  t = t.replace(/\bquarter to (\w+)\b/g, function(_, w){ var h = NUM_WORDS[w] != null ? NUM_WORDS[w] : +w; return (h - 1) + ':45'; });
+  t = t.replace(/\b(twenty|thirty|forty|fifty)[ -](one|two|three|four|five|six|seven|eight|nine)\b/g,
+    function(_, a, b){ return NUM_WORDS[a] + NUM_WORDS[b]; });
+  t = t.replace(/\b(one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|thirty|forty|fifty|noon|midday|midnight)\b/g,
+    function(w){ return NUM_WORDS[w]; });
+  // "9 30" → "9:30" when the second number is minutes.
+  t = t.replace(/\b(\d{1,2}) (00|15|30|45)\b/g, '$1:$2');
+  t = t.replace(/\b(\d{1,2}) o'?clock\b/g, '$1');
+  return t;
+}
+function planHour(h, m, ap, after){
+  // No am/pm: Amir's day starts at 05:00, so 1 to 4 mean the afternoon, and an
+  // end that lands before its start means the afternoon too.
+  h = +h; m = +(m || 0);
+  if(ap === 'pm' && h < 12) h += 12;
+  if(ap === 'am' && h === 12) h = 0;
+  if(!ap && h >= 1 && h <= 4) h += 12;
+  var mins = h * 60 + m;
+  if(after != null && !ap && mins <= after && h < 12) mins += 12 * 60;
+  return mins;
+}
+function parsePlan(text){
+  var t = planWords(text);
+  var re = /(?:from\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?\s*(?:to|till|until|through|-)\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)?/g;
+  var hits = [], m;
+  while((m = re.exec(t))) hits.push({i:m.index, j:re.lastIndex, m:m});
+  if(!hits.length) return [];
+  var blocks = [], prevEnd = null;
+  hits.forEach(function(h, k){
+    var mm = h.m, ap1 = (mm[3]||'').replace(/\./g,''), ap2 = (mm[6]||'').replace(/\./g,'');
+    if(!ap1 && ap2) ap1 = ap2 === 'pm' && +mm[1] >= 8 && +mm[1] <= 11 && +mm[4] <= 12 && +mm[1] > +mm[4] ? 'am' : ap2;
+    var a = planHour(mm[1], mm[2], ap1, null);
+    var b = planHour(mm[4], mm[5], ap2, a);
+    // Blocks are spoken in order. "9 to 5, then 7 to 10" means the evening.
+    if(!ap1 && prevEnd != null && a < prevEnd && a + 720 < 29 * 60){ a += 720; b += 720; }
+    if(b <= a) return;
+    prevEnd = b;
+    if(b - a > 14 * 60) return;
+    // The words after this range and before the next one are what he does then.
+    var tail = t.slice(h.j, k + 1 < hits.length ? hits[k + 1].i : t.length);
+    tail = tail.replace(/^[\s,:;.-]*(?:(?:i will work on|i'll work on|i work on|i will|i'll|i'm going to|i am going to|i want to|work on|working on|i do|do|doing|on|the)\b)?\s*/,'')
+               .replace(/\b(and )?then\b.*$/, '').replace(/[\s,;.]+$/, '').trim();
+    var label = tail || 'work';
+    var area = null;
+    AREA_WORDS.forEach(function(p){ if(!area && p[0].test(label)) area = p[1]; });
+    var pretty = label.charAt(0).toUpperCase() + label.slice(1);
+    // "one to four AI business" needs no "AI Business · Ai business".
+    var bare = /^(ai|a\.i\.|ai business|my business|business|research|ucw|university|dog|dogs|dog business|personal)$/i.test(label);
+    var activity = area ? (bare ? area : area + ' · ' + pretty) : pretty;
+    var s0 = pad(Math.floor(a / 60) % 24) + ':' + pad(a % 60), e0 = pad(Math.floor(b / 60) % 24) + ':' + pad(b % 60);
+    blocks.push({start:s0, end:e0, minutes:b - a, activity:activity, duration:hm(b - a),
+                 status:/walk|lunch|dinner|breakfast|break/.test(label) ? 'fixed' : '⬜'});
+  });
+  blocks.sort(function(x, y){ return x.start < y.start ? -1 : 1; });
+  return blocks;
+}
+async function planFromSpeech(text, entryId){
+  if(TAB !== 'time') return false;
+  var blocks = parsePlan(text);
+  if(!blocks.length) return false;
+  await record('plan_set', {blocks:blocks, day:VIEW.today.date});
+  if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
+  render();
+  toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + '.');
+  return true;
 }
 function typeInstead(ts){
   openSheet('<h3>Type it instead</h3>' +
@@ -2323,6 +2562,7 @@ function typeInstead(ts){
       var v = (document.getElementById('typedNote')||{}).value || '';
       if(!v.trim()) return;
       try{
+        if(await planFromSpeech(v.trim(), null)){ closeSheet(true); return; }
         await postEntry(v.trim(), TAB, ts || nowISO());
         closeSheet(true); toast('Saved. Claude files it at the computer.');
         await refreshNotes(); if(TAB === 'notes') render();
@@ -2351,7 +2591,11 @@ async function refresh(){
       var st = await getState();
       if(st){ RAW = st.blob; UPDATED = localStamp(st.updated_at); LAST_OK = Date.now(); }
     }catch(e){
-      if(!RAW) toast('Cannot reach your data. This page shows nothing rather than something out of date.');
+      if(!RAW){
+        // A toast fades in three seconds and leaves a skeleton that looks
+        // broken for ever. The failure has to stay on the page, with a way back.
+        document.getElementById('app').innerHTML = unreachableHTML(String((e && e.message) || e));
+      }
     }
     try{ prunePend(RAW); }catch(e){ console.error('prune failed', e); }
     flushPend();
