@@ -582,7 +582,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c69-2026-09-02-goals';
+var BUILD = 'c70-2026-09-02-wheel';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1556,6 +1556,27 @@ function overlapWith(st, en, was){
   });
   return hit;
 }
+function sessLengthHTML(e){
+  var bad = sessProblem(e.start, e.running ? null : e.end, e.running);
+  var mins = e.running ? minsSince(e.start) : minsBetween(e.start, e.end);
+  var ov = bad ? null : overlapWith(e.start, e.running ? null : e.end, e.was);
+  return {bad: bad, html:
+    '<span class="muted">' + (bad ? 'Problem' : 'Length') + '</span>' +
+    '<span style="text-align:right;font-weight:600;color:' + (bad ? 'var(--bad)' : (ov ? 'var(--notice)' : 'var(--ink-2)')) + '">' +
+      esc(bad || (hm(mins) +
+        (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : '') +
+        (ov ? ' · overlaps the ' + ov.start + ' ' + (ov.area_label || ov.area) + ' session' : ''))) + '</span>'};
+}
+/* A time wheel on iOS fires `change` every time it settles, which is the moment
+   the finger lifts. Rebuilding the sheet then destroyed the input under the
+   wheel and the picker snapped shut, so every adjustment took two taps. The
+   length line and the Save button are updated in place instead. */
+function sessEditorBits(){
+  if(!EDIT) return;
+  var r = sessLengthHTML(EDIT);
+  var L = document.getElementById('sLen'); if(L) L.innerHTML = r.html;
+  var S = document.getElementById('sessSave'); if(S) S.disabled = !!r.bad;
+}
 function paintSessEditor(){
   var e = EDIT, bad = sessProblem(e.start, e.running ? null : e.end, e.running);
   var open = !!(SHEET && SHEET.classList.contains('on'));
@@ -1577,11 +1598,7 @@ function paintSessEditor(){
         '<span class="tiny muted">End</span>' +
         '<input type="time" id="sEnd" value="' + esc(e.end || hhmm()) + '"></label>' +
     '</div>' +
-    '<div class="spread tiny" style="margin-top:8px"><span class="muted">' + (bad ? 'Problem' : 'Length') + '</span>' +
-    '<span style="text-align:right;font-weight:600;color:' + (bad ? 'var(--bad)' : (ov ? 'var(--notice)' : 'var(--ink-2)')) + '">' +
-      esc(bad || (hm(mins) +
-        (!e.running && toMin(e.end) < toMin(e.start) ? ' · crosses midnight' : '') +
-        (ov ? ' · overlaps the ' + ov.start + ' ' + (ov.area_label || ov.area) + ' session' : ''))) + '</span></div>' +
+    '<div class="spread tiny" style="margin-top:8px" id="sLen">' + sessLengthHTML(e).html + '</div>' +
     '<div class="tiny muted" style="margin:16px 0 8px">Area</div>' +
     '<div class="grid2">' + AREAS.map(function(a){
       return '<button class="btn' + (a[0] === e.area ? ' primary' : '') + '" data-sarea="' + a[0] +
@@ -1597,10 +1614,11 @@ function paintSessEditor(){
   setTimeout(function(){
     ['sStart','sEnd'].forEach(function(id){
       var n = document.getElementById(id);
-      if(n) n.addEventListener('change', function(){
+      if(n) ['input', 'change'].forEach(function(evn){ n.addEventListener(evn, function(){
+        if(!n.value) return;
         EDIT[id === 'sStart' ? 'start' : 'end'] = n.value;
-        paintSessEditor();
-      });
+        sessEditorBits();
+      }); });
     });
   }, 30);
 }
