@@ -209,6 +209,9 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .runner .clock{font-family:"Instrument Serif",Georgia,serif; font-size:30px; line-height:1;
   font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){ .livedot{animation:none !important} }
+.runner .area-big{font-size:24px; font-weight:700; letter-spacing:-.01em; margin:8px 0 2px; overflow-wrap:anywhere}
+.runner .clock{font-variant-numeric:tabular-nums}
+.runner .clock .secs{font-size:.6em; color:var(--ink-3); margin-left:2px}
 .livedot{width:8px;height:8px;border-radius:50%;background:var(--focus);
   animation:pulse 2s var(--ease) infinite}
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.8)}}
@@ -582,7 +585,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c71-2026-09-02-tab';
+var BUILD = 'c72-2026-09-02-live';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -613,6 +616,18 @@ function loadCfg(){
 }
 function restoreTab(){
   try{ var lt = localStorage.getItem('myday_tab'); if(lt && TAB_KEYS.indexOf(lt) >= 0) TAB = lt; }catch(e){}
+  // The filters and the Progress view come back too. A refresh on Tasks with
+  // UCW selected used to land on All areas.
+  try{
+    var vw = JSON.parse(localStorage.getItem('myday_view') || '{}') || {};
+    if(typeof vw.task === 'string') TASK_FILTER = vw.task;
+    if(typeof vw.area === 'string') AREA_FILTER = vw.area;
+    if(typeof vw.range === 'string') P_RANGE = vw.range;
+    if(typeof vw.corner === 'string') P_CORNER = vw.corner;
+  }catch(e){}
+}
+function rememberView(){
+  try{ localStorage.setItem('myday_view', JSON.stringify({task:TASK_FILTER, area:AREA_FILTER, range:P_RANGE, corner:P_CORNER})); }catch(e){}
 }
 function rememberTab(){
   try{ localStorage.setItem('myday_tab', TAB); }catch(e){}
@@ -695,6 +710,14 @@ function hmShort(m){
   m = Math.max(0, Math.round(m || 0));
   if(m === 0) return '0h';
   return m % 60 === 0 ? (m/60)+'h' : hm(m);
+}
+function secsSince(hhmmStr, sinceIso){
+  if(sinceIso){ var t = Date.parse(sinceIso); if(!isNaN(t)) return Math.max(0, Math.floor((Date.now() - t) / 1000)); }
+  return minsSince(hhmmStr, null) * 60 + new Date().getSeconds();
+}
+function hms(sec){
+  var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s2 = sec % 60;
+  return (h ? h + 'h ' : '') + pad(m) + 'm <span class="secs">' + pad(s2) + 's</span>';
 }
 function minsSince(hhmmStr, sinceIso){
   if(!hhmmStr) return 0;
@@ -1008,7 +1031,7 @@ function derive(){
         t.sessions.push({start:e.at, end:null, minutes:null, focus:null,
           area:p.area||'ai', area_label:(v.areas||{})[p.area]||p.area,
           bucket:({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[p.area]||null,
-          task:(v.areas||{})[p.area]||p.area, notes:'', open:true, pending:true});
+          task:(v.areas||{})[p.area]||p.area, notes:'', open:true, pending:true, started_iso:e.ts});
       }
     } else if(e.kind === 'session_stop'){
       for(var i=t.sessions.length-1;i>=0;i--){
@@ -1088,7 +1111,7 @@ function derive(){
   };
   // A malformed pending event is skipped, not allowed to brick every tab. It
   // used to survive in localStorage, so Try again reloaded the same crash.
-  PEND.forEach(function(e){ try{ overlayOne(e); }catch(err){ console.error('pending event skipped', err); e.dead = true; } });
+  allEvents().forEach(function(e){ try{ overlayOne(e); }catch(err){ console.error('pending event skipped', err); if(!e.remote) e.dead = true; } });
   if(PEND.some(function(e){ return e.dead; })){ PEND = PEND.filter(function(e){ return !e.dead; }); savePend(); }
 
   // A row the Mac could not make sense of must not poison the totals: a
@@ -1648,9 +1671,10 @@ function runnerHTML(v){
     return '<div class="runner live">' +
       '<div class="row" style="gap:7px"><span class="livedot"></span>' +
       '<span class="tiny" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--focus)">Working</span></div>' +
+      '<div class="area-big">'+esc(o.area_label||o.area)+'</div>' +
       '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" ' +
-      'data-since="'+esc(o.started_iso||'')+'">'+hm(live)+'</div>' +
-      '<div class="small muted">'+esc(o.area_label||o.area)+' · started '+esc(o.start)+'</div>' +
+      'data-since="'+esc(o.started_iso||'')+'">'+hms(secsSince(o.start, o.started_iso))+'</div>' +
+      '<div class="small muted">started '+esc(o.start)+'</div>' +
       '<button class="btn primary wide" id="stopBtn" style="margin-top:14px">Stop and rate this session</button></div>';
   }
   return '<div class="runner">' +
@@ -2430,6 +2454,33 @@ async function patchNote(id, fields){
   return api('/rest/v1/entries?id=eq.' + encodeURIComponent(id),
     {method:'PATCH', headers:{Prefer:'return=minimal'}, body:fields});
 }
+/* Taps made on another device. They sit in the events table as `new` until
+   the Mac files them, so reading that table every twenty seconds shows a
+   session started on the laptop on the phone within seconds, instead of after
+   the next quarter-hour run. They are drawn through the same overlay as this
+   device's own pending taps. */
+var REMOTE = [];
+async function refreshRemote(){
+  try{
+    var rows = await api('/rest/v1/events?status=eq.new&select=id,kind,payload,qid,client_ts&order=id.asc&limit=100');
+    REMOTE = (Array.isArray(rows) ? rows : []).filter(function(r){ return r && typeof r === 'object' && r.kind && r.client_ts; })
+      .map(function(r){
+        var ts = new Date(r.client_ts), iso = isNaN(ts) ? String(r.client_ts) : ts.toISOString();
+        var at = isNaN(ts) ? '' : pad(ts.getHours()) + ':' + pad(ts.getMinutes());
+        var pl = (r.payload && typeof r.payload === 'object' && !Array.isArray(r.payload)) ? r.payload : {};
+        return {qid: String(r.qid || ('r' + r.id)), kind: String(r.kind), payload: pl, ts: iso, at: at, sent: true, remote: true};
+      });
+  }catch(e){ /* keep the last list */ }
+}
+function allEvents(){
+  var mine = {}; PEND.forEach(function(e){ mine[e.qid] = 1; });
+  return PEND.concat(REMOTE.filter(function(e){ return !mine[e.qid]; }))
+    .sort(function(a, b){ return String(a.ts).localeCompare(String(b.ts)); });
+}
+async function pollRemote(){
+  if(!CFG || REFRESHING) return;
+  try{ await refreshRemote(); if(sigNow() !== LAST_SIG) render(); }catch(e){}
+}
 async function refreshNotes(){
   try{
     NOTES = await api('/rest/v1/entries?status=eq.new&select=id,text,page,client_ts&order=id.desc&limit=40');
@@ -2665,11 +2716,10 @@ function tickClock(){
   var upd = function(){
     var n = document.getElementById('liveclock');
     if(!n){ clearInterval(CLOCK_T); return; }
-    n.textContent = hm(minsSince(n.getAttribute('data-start'),
-                                 n.getAttribute('data-since') || null));
+    n.innerHTML = hms(secsSince(n.getAttribute('data-start'), n.getAttribute('data-since') || null));
   };
   upd();
-  CLOCK_T = setInterval(upd, 15000);
+  CLOCK_T = setInterval(upd, 1000);   // seconds, so a running box visibly runs
 }
 
 /* ── sheets ─────────────────────────────────────────────────────────────── */
@@ -2771,16 +2821,16 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.act === 'type'){ typeInstead(null); return; }
   if(t.dataset.info){ var inf = INFO[t.dataset.info]; openSheet('<h3>'+esc(inf[0])+'</h3><p class="small dim prose" style="margin-top:10px">'+esc(inf[1])+'</p>'); return; }
   if(t.dataset.act === 'daytoday'){ SHOW_TOMORROW = false; render(); return; }
-  if(t.dataset.range){ P_RANGE = t.dataset.range; render(); return; }
-  if(t.dataset.corner){ P_CORNER = t.dataset.corner; render(); return; }
+  if(t.dataset.range){ P_RANGE = t.dataset.range; rememberView(); render(); return; }
+  if(t.dataset.corner){ P_CORNER = t.dataset.corner; rememberView(); render(); return; }
   if(t.dataset.act === 'daytomorrow'){ SHOW_TOMORROW = true; render(); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go && SHEET && SHEET.dataset.mandatory){ toast('Give the session a score first.'); return; }
   if(t.dataset.go === 'more'){ moreSheet(); return; }
   if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; rememberTab(); window.scrollTo(0,0); render(); return; }
-  if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; render(); return; }
-  if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; render(); return; }
+  if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; rememberView(); render(); return; }
+  if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; rememberView(); render(); return; }
 
   if(t.id === 'startBtn'){ askArea(); return; }
   if(t.dataset.area){
@@ -3380,6 +3430,7 @@ function sigNow(){
   return [UPDATED_RAW, pic, workingDayOf(new Date().toISOString()),
           (NOTES || []).map(function(x){ return x.id; }).join(','),
           PEND.map(function(e){ return e.qid + (e.sent ? '+' : '-'); }).join(','),
+          REMOTE.map(function(e){ return e.qid; }).join(','),
           UNREACHABLE, !!RAW, staleWhy()].join('|');
 }
 async function refresh(){
@@ -3388,7 +3439,7 @@ async function refresh(){
   try{
     // Both fetches at once: the notes used to wait for the state, and the
     // first paint waited for both.
-    var notesP = refreshNotes().catch(function(){});
+    var notesP = Promise.all([refreshNotes(), refreshRemote()]).catch(function(){});
     try{
       var st = await getState();
       if(st && st.blob && typeof st.blob === 'object' && !Array.isArray(st.blob)){
@@ -3460,6 +3511,7 @@ render();
 refresh();
 setTimeout(checkBuild, 4000);   // record the tag now, so a deploy in the first five minutes is seen
 setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
+setInterval(function(){ if(!document.hidden) pollRemote(); }, 20000);
 setInterval(function(){ if(!document.hidden) checkBuild(); }, 300000);
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'visible'){ refresh(); checkBuild(); tickClock(); }
