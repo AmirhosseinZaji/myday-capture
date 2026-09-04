@@ -210,6 +210,20 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
   font-variant-numeric:tabular-nums}
 @media (prefers-reduced-motion:reduce){ .livedot{animation:none !important} }
 .runner .area-big{font-size:24px; font-weight:700; letter-spacing:-.01em; margin:8px 0 2px; overflow-wrap:anywhere}
+.runner .runlab{font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--focus)}
+.runner .runlab #pauseclock{font-weight:600; letter-spacing:0; text-transform:none; margin-left:6px; color:var(--notice)}
+.runner.paused{border-color:var(--notice-line); background:var(--notice-bg)}
+.runner.paused .runlab{color:var(--notice)}
+.runner.paused .livedot{background:var(--notice); animation:none}
+.runner.paused .clock{color:var(--ink-2)}
+.run-grid{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:end}
+.run-side{text-align:right; min-width:104px}
+.run-side .eyebrow{font-weight:700; letter-spacing:.08em; text-transform:uppercase}
+.run-side .today-live{font-size:26px; line-height:1.1; margin:6px 0 2px}
+.run-side .bar{margin-top:8px; width:104px; margin-left:auto}
+.run-btns{gap:10px; margin-top:16px}
+.run-btns .btn{flex:1}
+.run-btns .btn.primary{flex:1.6}
 .runner .clock{font-variant-numeric:tabular-nums}
 .runner .clock .secs{font-size:.6em; color:var(--ink-3); margin-left:2px}
 .livedot{width:8px;height:8px;border-radius:50%;background:var(--focus);
@@ -585,7 +599,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c72-2026-09-02-live';
+var BUILD = 'c73-2026-09-03-pause';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -710,6 +724,13 @@ function hmShort(m){
   m = Math.max(0, Math.round(m || 0));
   if(m === 0) return '0h';
   return m % 60 === 0 ? (m/60)+'h' : hm(m);
+}
+/* Seconds actually worked in an open session: since its start, minus the
+   pauses so far, minus the pause running now. */
+function workedSecs(o){
+  var total = secsSince(o.start, o.started_iso) - (o.paused_min || 0) * 60;
+  if(o.paused_at) total -= secsSince(o.paused_at, o.paused_iso);
+  return Math.max(0, total);
 }
 function secsSince(hhmmStr, sinceIso){
   if(sinceIso){ var t = Date.parse(sinceIso); if(!isNaN(t)) return Math.max(0, Math.floor((Date.now() - t) / 1000)); }
@@ -917,6 +938,10 @@ function prunePend(st){
       return !sessions.some(function(x){ return x.start === p.start && !x.open; });
     if(e.kind === 'session_cancel')
       return sessions.some(function(x){ return x.start === p.start && x.open; });
+    if(e.kind === 'session_pause')
+      return sessions.some(function(x){ return x.start === p.start && x.open && !x.paused_at; });
+    if(e.kind === 'session_resume')
+      return sessions.some(function(x){ return x.start === p.start && x.open && !!x.paused_at; });
     if(e.kind === 'session_focus')   // spent only when the row carries THIS number, so a re-rating is not undone
       return !sessions.some(function(x){ return x.start === p.start && x.focus === p.focus; });
     if(e.kind === 'session_add')
@@ -1037,11 +1062,20 @@ function derive(){
       for(var i=t.sessions.length-1;i>=0;i--){
         if(t.sessions[i].open && (!p.start || t.sessions[i].start === p.start)){
           var s = t.sessions[i];
+          if(s.paused_at){ s.paused_min = (s.paused_min || 0) + minsBetween(s.paused_at, e.at); s.paused_at = null; s.paused_iso = null; }
           s.end = e.at; s.open = false; s.pending = true;
-          s.minutes = minsBetween(s.start, s.end);
+          s.minutes = Math.max(0, minsBetween(s.start, s.end) - (s.paused_min || 0));
           if(p.focus) s.focus = p.focus;
           break;
         }
+      }
+    } else if(e.kind === 'session_pause' || e.kind === 'session_resume'){
+      for(var i2=t.sessions.length-1;i2>=0;i2--){
+        var so = t.sessions[i2];
+        if(!so.open || (p.start && so.start !== p.start)) continue;
+        if(e.kind === 'session_pause'){ if(!so.paused_at){ so.paused_at = e.at; so.paused_iso = e.ts; } }
+        else if(so.paused_at){ so.paused_min = (so.paused_min || 0) + minsBetween(so.paused_at, e.at); so.paused_at = null; so.paused_iso = null; }
+        break;
       }
     } else if(e.kind === 'session_add'){
       if(!t.sessions.some(function(x){ return x.start === p.start && x.area === p.area; })){
@@ -1152,6 +1186,10 @@ function derive(){
   });
   t.focus_coverage = t.work_minutes ? Math.round(scoredMin / t.work_minutes * 1000) / 1000 : 0;
   t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
+  if(t.open_session && t.open_session.paused_at && !t.open_session.paused_iso && t.open_session.started_iso){
+    // The Mac gives the pause a clock time only; anchor it to the session's date.
+    t.open_session.paused_iso = String(t.open_session.started_iso).slice(0, 10) + 'T' + t.open_session.paused_at + ':00';
+  }
   t.unscored = t.sessions.filter(function(s){ return !s.open && s.minutes && s.focus == null; });
   t.focus = weightedFocus(t.sessions);
 
@@ -1667,15 +1705,28 @@ function shortfallLine(t){
 function runnerHTML(v){
   var t = v.today, o = t.open_session;
   if(o){
-    var live = minsSince(o.start, o.started_iso);
-    return '<div class="runner live">' +
+    var paused = !!o.paused_at, pm = o.paused_min || 0;
+    var worked = workedSecs(o), todayMin = (t.work_minutes || 0) + Math.floor(worked / 60);
+    // Two columns: the session on the left, the day on the right. The right
+    // half used to be empty, and the day's total is the one number that gives
+    // the running session its meaning.
+    return '<div class="runner live' + (paused ? ' paused' : '') + '">' +
+      '<div class="run-grid"><div class="run-main">' +
       '<div class="row" style="gap:7px"><span class="livedot"></span>' +
-      '<span class="tiny" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--focus)">Working</span></div>' +
+      '<span class="tiny runlab">' + (paused ? 'Paused <span id="pauseclock">' + hms(secsSince(o.paused_at, o.paused_iso)) + '</span>' : 'Working') + '</span></div>' +
       '<div class="area-big">'+esc(o.area_label||o.area)+'</div>' +
-      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" ' +
-      'data-since="'+esc(o.started_iso||'')+'">'+hms(secsSince(o.start, o.started_iso))+'</div>' +
-      '<div class="small muted">started '+esc(o.start)+'</div>' +
-      '<button class="btn primary wide" id="stopBtn" style="margin-top:14px">Stop and rate this session</button></div>';
+      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" data-since="'+esc(o.started_iso||'')+'" ' +
+      'data-paused="'+pm+'" data-pausedat="'+esc(o.paused_at||'')+'" data-pausediso="'+esc(o.paused_iso||'')+'">'+hms(worked)+'</div>' +
+      '<div class="small muted">started '+esc(o.start)+(pm ? ' · paused ' + hmShort(pm) + ' so far' : '')+'</div>' +
+      '</div><div class="run-side">' +
+      '<div class="tiny muted eyebrow">Today</div>' +
+      '<div class="serif today-live" id="todaylive">'+hmShort(todayMin)+'</div>' +
+      '<div class="tiny muted">of 10h</div>' +
+      '<div class="bar"><i id="todaybar" style="background:var(--consistency)" data-w="'+Math.min(100, Math.round(todayMin/600*100))+'"></i></div>' +
+      '</div></div>' +
+      '<div class="row run-btns">' +
+      (paused ? '<button class="btn" id="resumeBtn">Resume</button>' : '<button class="btn" id="pauseBtn">Pause</button>') +
+      '<button class="btn primary grow" id="stopBtn">Stop and rate</button></div></div>';
   }
   return '<div class="runner">' +
     '<div class="tiny muted" style="font-weight:700;letter-spacing:.08em;text-transform:uppercase">Not working</div>' +
@@ -2415,7 +2466,7 @@ function infoBtn(key){
   return '<button class="ibtn" data-info="'+key+'" aria-label="'+esc(INFO[key][0])+'">i</button>';
 }
 var EVENT_NAME = {
-  session_start:'Session started', session_stop:'Session stopped',
+  session_start:'Session started', session_stop:'Session stopped', session_pause:'Session paused', session_resume:'Session resumed',
   session_focus:'Session score', session_add:'Session added',
   session_edit:'Session corrected', session_delete:'Session deleted',
   task_tick:'Task ticked', task_untick:'Tick undone',
@@ -2716,7 +2767,16 @@ function tickClock(){
   var upd = function(){
     var n = document.getElementById('liveclock');
     if(!n){ clearInterval(CLOCK_T); return; }
-    n.innerHTML = hms(secsSince(n.getAttribute('data-start'), n.getAttribute('data-since') || null));
+    var o = {start:n.getAttribute('data-start'), started_iso:n.getAttribute('data-since') || null,
+             paused_min:+n.getAttribute('data-paused') || 0, paused_at:n.getAttribute('data-pausedat') || null,
+             paused_iso:n.getAttribute('data-pausediso') || null};
+    var w = workedSecs(o);
+    n.innerHTML = hms(w);
+    var pc = document.getElementById('pauseclock');
+    if(pc && o.paused_at) pc.innerHTML = hms(secsSince(o.paused_at, o.paused_iso));
+    var tl = document.getElementById('todaylive');
+    if(tl && VIEW){ var tm = (VIEW.today.work_minutes || 0) + Math.floor(w / 60); tl.textContent = hmShort(tm);
+      var tb = document.getElementById('todaybar'); if(tb) tb.style.width = Math.min(100, Math.round(tm / 600 * 100)) + '%'; }
   };
   upd();
   CLOCK_T = setInterval(upd, 1000);   // seconds, so a running box visibly runs
@@ -2811,7 +2871,7 @@ function askFocus(sessionStart, mins, mandatory, forDay){
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
-    '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
+    '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
     '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act],[data-info]');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
@@ -2839,10 +2899,18 @@ document.addEventListener('click', async function(ev){
     toast('Started at ' + hhmm());
     return;
   }
+  if(t.id === 'pauseBtn' || t.id === 'resumeBtn'){
+    var os = VIEW.today.open_session;
+    if(!os) return;
+    await record(t.id === 'pauseBtn' ? 'session_pause' : 'session_resume', {start: os.start, day: VIEW.today.date});
+    toast(t.id === 'pauseBtn' ? 'Paused. The clock waits for you.' : 'Back to work.');
+    render();
+    return;
+  }
   if(t.id === 'stopBtn'){
     var open = VIEW.today.open_session;
     if(!open) return;
-    var mins = minsSince(open.start, open.started_iso);
+    var mins = Math.floor(workedSecs(open) / 60);
     if(mins < 1 && PEND.some(function(e){ return e.kind === 'session_start' && e.at === open.start; })){
       // Start then Stop inside a minute is a mis-tap. There is nothing to rate.
       // The cancel names the exact pending start, so a fresh start in the same
