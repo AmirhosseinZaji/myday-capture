@@ -433,6 +433,24 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk .t{display:block; overflow-wrap:anywhere}
 .tk .grow .s{direction:ltr; unicode-bidi:isolate; text-align:left}
 .tk .grow:dir(rtl) .s{text-align:right}
+/* The board: one column per area, scrolled sideways, snapping column by column. */
+.board{display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; margin:0 -20px; padding:2px 20px 16px;
+  scrollbar-width:thin; -webkit-overflow-scrolling:touch}
+.bcol{flex:0 0 min(84vw, 330px); scroll-snap-align:start; display:flex; flex-direction:column; gap:12px; min-width:0}
+/* On the phone the board is one screen tall and each column scrolls inside
+   itself, so a two-task column next to a seven-task one leaves no blank page. */
+@media (max-width:899px){
+  .board{max-height:calc(100dvh - 390px); min-height:320px; align-items:stretch}
+  .bcol{overflow-y:auto; scrollbar-width:none; padding-bottom:4px}
+  .bcol > *{flex:0 0 auto}   /* a scrolling column must not squash its cards to fit */
+  .bcol::-webkit-scrollbar{display:none}
+  .bcol .bhead{position:sticky; top:0; background:var(--bg); z-index:1; padding-bottom:6px}
+}
+.bcol > .card{margin:0}
+.bhead{display:flex; align-items:baseline; justify-content:space-between; gap:10px; padding:2px 4px 0}
+.bhead .bname{font-size:15px; font-weight:700; display:flex; align-items:center; gap:8px; min-width:0}
+.bhead .bdot{width:9px; height:9px; border-radius:50%; flex:0 0 auto}
+.bhead .bcount{font-size:12px; color:var(--ink-3); white-space:nowrap}
 .tk:has(.grow:dir(rtl)){flex-direction:row-reverse}
 /* One column on the phone; the side columns dissolve so their cards can be ordered. */
 .split{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
@@ -566,6 +584,8 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .nag .btn.wide{margin-left:0}
   .today-hero{justify-content:flex-start; gap:56px}
   .taskcols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 16px; align-items:start}
+  .board{margin:0; padding:2px 0 16px}
+  .bcol{flex:0 0 310px}
   .taskcol > .card{margin-top:0; margin-bottom:16px}
   .chips-wrap::after{display:none}
   .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:480px;
@@ -599,7 +619,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c73-2026-09-03-pause';
+var BUILD = 'c74-2026-09-03-board';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2259,11 +2279,18 @@ function pageTasks(v){
       ? emptyBox('🎙','No tasks yet','Hold the talk button and say a task and where it belongs.')
       : emptyBox('🔍','Nothing in this filter','Try another one.')) + '</div>';
 
-  var groups = {};
+  var groups = {}, areaOf = {}, sectionOf = {}, areaLabel = {};
   list.forEach(function(t){
-    var k = (t.area_label || (v.areas || {})[t.area] || t.area || 'Other') + ' · ' + (t.section || 'General');
+    var al = t.area_label || (v.areas || {})[t.area] || t.area || 'Other';
+    var k = al + ' · ' + (t.section || 'General');
     (groups[k] = groups[k] || []).push(t);
+    areaOf[k] = t.area || 'other'; sectionOf[k] = t.section || 'General'; areaLabel[t.area || 'other'] = al;
   });
+  var areasHere = Object.keys(areaLabel);
+  // Every area at once is a board: one column per area, the lists stacked
+  // inside it, scrolled sideways. Sixteen cards in two long columns were
+  // unreadable; five named columns are a map.
+  var board = AREA_FILTER === 'all' && areasHere.length > 1;
   // The most overdue list first. Alphabetical order buried the thing that was
   // three weeks late under a list that was not late at all.
   var order = Object.keys(groups).sort(function(a, b){
@@ -2283,7 +2310,7 @@ function pageTasks(v){
     });
     var od = rows.filter(function(t){ return t.when === 'overdue'; }).length;
     var card = '<div class="card flush"><div class="spread" style="padding:16px 16px 4px">' +
-      '<h2 style="margin:0">'+esc(k)+'</h2>' +
+      '<h2 style="margin:0">'+esc(board ? sectionOf[k] : k)+'</h2>' +
       '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+(od === rows.length ? od + ' overdue' : rows.length + ' task' + (rows.length === 1 ? '' : 's') + (od ? ' · ' + od + ' overdue' : ''))+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
@@ -2306,8 +2333,24 @@ function pageTasks(v){
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
           '</div></div></div>';
       }).join('') + '</div>';
-    cards.push({html:card, rows:rows.length});
+    cards.push({html:card, rows:rows.length, area:areaOf[k], od:od});
   });
+  if(board){
+    // `order` above is the list of cards; the areas have their own rank.
+    var AREA_RANK = {ai:0, ucw:1, research:2, dog:3, personal:4};
+    var colOrder = areasHere.slice().sort(function(a, b){
+      return (AREA_RANK[a] != null ? AREA_RANK[a] : 9) - (AREA_RANK[b] != null ? AREA_RANK[b] : 9) || (a < b ? -1 : 1);
+    });
+    h += '<div class="board">' + colOrder.map(function(a){
+      var cs = cards.filter(function(c){ return c.area === a; });
+      if(!cs.length) return '';
+      var nRows = 0, nOd = 0; cs.forEach(function(c){ nRows += c.rows; nOd += c.od; });
+      return '<div class="bcol"><div class="bhead">' +
+        '<span class="bname"><span class="bdot" style="background:'+areaColour(a)+'"></span>'+esc(areaLabel[a])+'</span>' +
+        '<span class="bcount">'+nRows+(nOd ? ' · <span style="color:var(--consistency);font-weight:600">'+nOd+' overdue</span>' : '')+'</span></div>' +
+        cs.map(function(c){ return c.html; }).join('') + '</div>';
+    }).join('') + '</div>';
+  } else
   // Two columns on a laptop, filled shortest first so they end near the same
   // line. CSS columns split by height and left one column 190px short.
   if(window.innerWidth >= 900 && cards.length > 1){
@@ -2525,12 +2568,25 @@ async function refreshRemote(){
 }
 function allEvents(){
   var mine = {}; PEND.forEach(function(e){ mine[e.qid] = 1; });
+  // By the moment, not the text: this phone stamps local time with an offset,
+  // the cloud hands back UTC, and a string sort put a fresh pause before an
+  // older resume, which then undid it on the same screen.
+  var when = function(e){ var t = Date.parse(e.ts); return isNaN(t) ? 0 : t; };
   return PEND.concat(REMOTE.filter(function(e){ return !mine[e.qid]; }))
-    .sort(function(a, b){ return String(a.ts).localeCompare(String(b.ts)); });
+    .sort(function(a, b){ return when(a) - when(b); });
 }
 async function pollRemote(){
   if(!CFG || REFRESHING) return;
-  try{ await refreshRemote(); if(sigNow() !== LAST_SIG) render(); }catch(e){}
+  try{
+    var before = REMOTE.map(function(e){ return e.qid; });
+    await refreshRemote();
+    var now = {}; REMOTE.forEach(function(e){ now[e.qid] = 1; });
+    // A remote tap that vanished was just filed and published by the Mac.
+    // Without the new picture the session it carried would blink out until
+    // the minute refresh.
+    if(before.some(function(q){ return !now[q]; })){ await refresh(); return; }
+    if(sigNow() !== LAST_SIG) render();
+  }catch(e){}
 }
 async function refreshNotes(){
   try{
