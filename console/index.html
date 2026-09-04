@@ -586,6 +586,8 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .taskcols{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 16px; align-items:start}
   .board{margin:0; padding:2px 0 16px}
   .bcol{flex:0 0 310px}
+  /* When the columns fit, they share the width; when they do not, they scroll. */
+  .board.fits .bcol{flex:1 1 0; min-width:0}
   .taskcol > .card{margin-top:0; margin-bottom:16px}
   .chips-wrap::after{display:none}
   .sheet{left:50%; right:auto; transform:translate(-50%,102%); width:480px;
@@ -593,8 +595,11 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .sheet.on{transform:translate(-50%,0)}
   .toast{bottom:132px}
 }
-@media (min-width:1180px){
-}
+/* The column grows with the window. It was pinned at 1040px, so a full-screen
+   browser used the middle half and the task board still had to scroll. */
+@media (min-width:1400px){ :root{ --col: 1300px; } }
+@media (min-width:1700px){ :root{ --col: 1640px; } }
+@media (min-width:2000px){ :root{ --col: 1800px; } }
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
@@ -619,7 +624,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c74-2026-09-03-board';
+var BUILD = 'c75-2026-09-03-wide';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2341,7 +2346,11 @@ function pageTasks(v){
     var colOrder = areasHere.slice().sort(function(a, b){
       return (AREA_RANK[a] != null ? AREA_RANK[a] : 9) - (AREA_RANK[b] != null ? AREA_RANK[b] : 9) || (a < b ? -1 : 1);
     });
-    h += '<div class="board">' + colOrder.map(function(a){
+    var colsShown = colOrder.filter(function(a){ return cards.some(function(c){ return c.area === a; }); }).length;
+    var mainEl = document.querySelector('main');
+    var mainW = mainEl ? mainEl.clientWidth - 48 : window.innerWidth - 48;
+    var fits = window.innerWidth >= 900 && colsShown * 300 + (colsShown - 1) * 14 <= mainW;
+    h += '<div class="board' + (fits ? ' fits' : '') + '">' + colOrder.map(function(a){
       var cs = cards.filter(function(c){ return c.area === a; });
       if(!cs.length) return '';
       var nRows = 0, nOd = 0; cs.forEach(function(c){ nRows += c.rows; nOd += c.od; });
@@ -3631,6 +3640,17 @@ async function checkBuild(){
 loadCfg();
 loadPend();
 window.addEventListener('scroll', syncBar, {passive:true});
+// A resized window is a new layout: the task columns and the board's fit are
+// decided at render time.
+var RESIZE_T = null, LAST_W = window.innerWidth;
+window.addEventListener('resize', function(){
+  clearTimeout(RESIZE_T);
+  RESIZE_T = setTimeout(function(){
+    if(window.innerWidth === LAST_W) return;
+    LAST_W = window.innerWidth;
+    if(!(SHEET && SHEET.classList.contains('on'))) render();
+  }, 250);
+});
 render();
 refresh();
 setTimeout(checkBuild, 4000);   // record the tag now, so a deploy in the first five minutes is seen
