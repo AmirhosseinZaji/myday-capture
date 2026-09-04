@@ -624,7 +624,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c75-2026-09-03-wide';
+var BUILD = 'c76-2026-09-03-inplace';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2724,7 +2724,7 @@ function render(){
            : TAB === 'progress' ? pageProgress(v)
            : pageNotes(v);
 
-  app.innerHTML =
+  setApp(
     '<div class="topbar'+(staleWhy() ? ' stale' : '')+'" id="topbar"><h1>'+esc(TITLES[TAB])+'</h1>' +
       '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
     '<nav class="nav">' + TABS.map(function(t){
@@ -2744,7 +2744,7 @@ function render(){
     // The same note, typed. On a laptop, or from a transcriber app, talking
     // into the page is the slow way.
     '<button class="typebtn" data-act="type" aria-label="Write a note instead"><span>＋</span><small>Type</small></button>' +
-    '</div></div>';
+    '</div></div>');
 
   }catch(err){
     LAST_ERR = String((err && err.message) || err);
@@ -3541,9 +3541,55 @@ function typeInstead(ts){
     };
   }, 60);
 }
+/* The page is updated in place. Replacing the whole of #app on every change
+   made a pause look like a reload: every element was thrown away and drawn
+   again, scroll and focus with it. Here the new HTML is built off screen and
+   the live tree is walked against it, so only what changed is touched. */
+function setApp(html){
+  var app = document.getElementById('app');
+  if(!app.firstChild){ app.innerHTML = html; return; }
+  var tpl = document.createElement('div'); tpl.innerHTML = html;
+  morphChildren(app, tpl);
+}
+function morphChildren(from, to){
+  var fc = Array.prototype.slice.call(from.childNodes), tc = Array.prototype.slice.call(to.childNodes);
+  for(var i = 0; i < tc.length; i++){
+    var f = fc[i], t = tc[i];
+    if(!f){ from.appendChild(t.cloneNode(true)); continue; }
+    var same = f.nodeType === t.nodeType && f.nodeName === t.nodeName &&
+               (f.nodeType !== 1 || ((f.id || t.id) ? f.id === t.id : true));
+    if(!same){ from.replaceChild(t.cloneNode(true), f); continue; }
+    morphNode(f, t);
+  }
+  while(from.childNodes.length > tc.length) from.removeChild(from.lastChild);
+}
+function morphNode(f, t){
+  if(f.nodeType === 3){ if(f.nodeValue !== t.nodeValue) f.nodeValue = t.nodeValue; return; }
+  if(f.nodeType !== 1) return;
+  var keepStyle = f.hasAttribute('data-w');   // the bar's width is set after the render and must not be reset
+  Array.prototype.slice.call(f.attributes).forEach(function(a){
+    if(!t.hasAttribute(a.name) && !(keepStyle && a.name === 'style')) f.removeAttribute(a.name);
+  });
+  Array.prototype.slice.call(t.attributes).forEach(function(a){
+    if(keepStyle && a.name === 'style') return;
+    if(f.getAttribute(a.name) !== a.value) f.setAttribute(a.name, a.value);
+  });
+  // A field he is typing in keeps its text; the rest follows the new HTML.
+  if(f.tagName === 'TEXTAREA' || f.tagName === 'INPUT'){
+    if(document.activeElement !== f && f.type !== 'range'){ if(f.value !== t.value) f.value = t.value; }
+    if(f.type === 'range' && document.activeElement !== f && f.value !== t.value) f.value = t.value;
+    return;
+  }
+  if(f.tagName === 'SVG' || f.namespaceURI === 'http://www.w3.org/2000/svg'){
+    if(f.outerHTML !== t.outerHTML) f.replaceWith(t.cloneNode(true));
+    return;
+  }
+  morphChildren(f, t);
+}
 function bindMic(){
   var m = document.getElementById('mic');
-  if(!m) return;
+  if(!m || m.dataset.bound) return;   // the element now survives a redraw, so bind it once
+  m.dataset.bound = '1';
   m.addEventListener('pointerdown', function(e){ e.preventDefault(); startRec(); });
   ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
     m.addEventListener(ev, function(e){ e.preventDefault(); stopRec(); });
