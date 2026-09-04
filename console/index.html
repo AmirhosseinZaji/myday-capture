@@ -624,7 +624,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c76-2026-09-03-inplace';
+var BUILD = 'c77-2026-09-04-dayscore';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1279,16 +1279,18 @@ function triScores(today, week, onDate){
 
   // Unknown is not zero. Ten hours of work must never read as a nought-per-cent
   // day just because the sessions have not been rated yet.
+  // A day is scored on two corners. Goals are weekly, so the goals corner is
+  // drawn as the week's pace but does not enter the day's number, and unset
+  // goals no longer withhold it. Weeks and months score all three (Progress).
   var unknown = [];
   if(today.focus == null) unknown.push('focus');
-  if(!hasGoals) unknown.push('goals');
 
   var corners = {consistency:consistency, focus:focus, goals:goals};
-  var weakest = Object.keys(corners).sort(function(a,b){ return corners[a]-corners[b]; })[0];
+  var weakest = consistency <= focus ? 'consistency' : 'focus';
   return {
     date:onDate,
     consistency:consistency, focus:focus, goals:goals,
-    area: Math.round((consistency*focus + focus*goals + goals*consistency)/3 * 10000)/10000,
+    area: Math.round(consistency * focus * 10000)/10000,
     scored: unknown.length === 0,
     unknown: unknown,
     weakest: weakest,
@@ -1316,7 +1318,7 @@ var ADVICE = {
   focus_unknown:'Nothing is rated yet, so today has no score. Rate your sessions.',
   goals:'The goals corner is the shortest one. Make progress on this week’s goals, not just hours.',
   goals_unknown:'No goals are set for this week, so the third corner cannot be measured.',
-  all_short:'All three corners are short today. The day needs hours before anything else.',
+  all_short:'Both corners are short today. The day needs hours before anything else.',
   low_coverage:'The focus score covers less than half the day. Rate the rest of your sessions.'
 };
 function adviceFor(weakest, today, week, corners, unknown){
@@ -1345,7 +1347,7 @@ function adviceFor(weakest, today, week, corners, unknown){
 var CORNERS = [
   {k:'consistency', label:'Consistency', unit:'of 10h',  ang:-90, col:'var(--consistency)', hex:'#AD5B2B'},
   {k:'focus',       label:'Focus',       unit:'of a full 10', ang:30,  col:'var(--focus)',       hex:'#33695C'},
-  {k:'goals',       label:'Goals',       unit:'of pace', ang:150, col:'var(--goals)',       hex:'#6B5CA5'}
+  {k:'goals',       label:'Goals',       unit:'week pace', ang:150, col:'var(--goals)',       hex:'#6B5CA5'}
 ];
 function ptAt(ang, r, cx, cy){
   var a = ang * Math.PI / 180;
@@ -1501,7 +1503,7 @@ function pageHome(v){
   h += '<div class="split"><div class="card"><div class="tri-wrap">' + triSVG(tri, {size:230, r:74}) +
        '<div class="tri-score">' +
        (tri.scored
-         ? '<div class="n">'+pct(tri.area)+'<sup>%</sup></div><div class="cap">Today’s score</div>'
+         ? '<div class="n">'+pct(tri.area)+'<sup>%</sup></div><div class="cap">Today’s score · consistency × focus</div>'
          : '<div class="n" style="color:var(--ink-3)">—</div>' +
            '<div class="cap">Not scored</div>') +
        '<p class="tiny muted" style="margin:9px auto 0">How the score works ' + infoBtn('triangle') + '</p></div></div>';
@@ -2404,7 +2406,12 @@ function progressBuckets(days, range){
       if(d.scored) acc.area.push(d.area || 0);
     });
     var mean = function(a){ return a.length ? a.reduce(function(x, y){ return x + y; }, 0) / a.length : null; };
-    b.consistency = mean(acc.consistency); b.focus = mean(acc.focus); b.goals = mean(acc.goals); b.area = mean(acc.area);
+    b.consistency = mean(acc.consistency); b.focus = mean(acc.focus); b.goals = mean(acc.goals);
+    // A day is consistency times focus. A week or a month brings the goals
+    // corner in and is the area of the three-corner triangle.
+    b.area = range === 'day' ? mean(acc.area)
+           : (b.consistency != null && b.focus != null && b.goals != null)
+             ? Math.round((b.consistency*b.focus + b.focus*b.goals + b.goals*b.consistency)/3 * 10000)/10000 : null;
     b.worked = b.days.reduce(function(x, d){ return x + (d.worked_minutes || 0); }, 0);
     b.dayCount = b.days.filter(function(d){ return d.exists; }).length;
     b.label = range === 'day' ? (b.days[0].weekday || '').slice(0, 1) + ' ' + (+k.slice(8, 10))
@@ -2495,10 +2502,10 @@ function pageProgress(v){
 /* The explanations live behind a small ⓘ. A paragraph inside every data card
    made the product read like a manual. */
 var INFO = {
-  triangle:['How the score works', 'Each corner is scored against what today needs. Hours count towards the 10h floor. ' +
-    'Focus is your own score from 1 to 10, weighted by how long each session ran. Goals are measured against the pace this ' +
-    'week has to keep. The big number is how much of the full triangle the three corners fill, so a missing corner costs ' +
-    'far more than a third.'],
+  triangle:['How the score works', 'Hours count towards the 10h floor. Focus is your own score from 1 to 10, weighted by ' +
+    'how long each session ran. The day’s score is consistency times focus, so both have to be there. Goals are weekly: the ' +
+    'goals corner is drawn here as the pace the week is keeping, and it joins the score only for weeks and months on Progress, ' +
+    'where the score is how much of the full triangle the three corners fill.'],
   focus:['How focus is scored', 'Only you can measure focus, so the page never guesses. Every session gets your own number ' +
     'from 1 to 10 when you stop it. The day’s figure is the average weighted by session length: a four-hour session at 10 ' +
     'counts far more than a fifteen-minute one at 2. An unrated session is left out, never counted as zero. ' +
