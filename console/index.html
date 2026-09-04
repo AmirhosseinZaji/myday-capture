@@ -582,7 +582,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c70-2026-09-02-wheel';
+var BUILD = 'c71-2026-09-02-tab';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -599,14 +599,25 @@ function loadCfg(){
       CFG = {url:u.replace(/\/+$/,''), key:k};
       try{ localStorage.setItem('myday_cfg2', JSON.stringify(CFG)); }catch(e){}
     }
-    // An optional `tab` opens the link straight on one page. It is read but
-    // never stored, so it is a deep link rather than a preference.
+    // A refresh stays on the page he was reading. The last tab is remembered on
+    // this device, and a `tab` in the link wins over it, so a link can still
+    // open straight on one page.
+    restoreTab();
     var t = p.get('tab');
     if(t && TAB_KEYS.indexOf(t) >= 0) TAB = t;
     if(CFG) return CFG;
   }
+  restoreTab();
   try{ CFG = JSON.parse(localStorage.getItem('myday_cfg2')||'null'); }catch(e){ CFG = null; }
   return CFG;
+}
+function restoreTab(){
+  try{ var lt = localStorage.getItem('myday_tab'); if(lt && TAB_KEYS.indexOf(lt) >= 0) TAB = lt; }catch(e){}
+}
+function rememberTab(){
+  try{ localStorage.setItem('myday_tab', TAB); }catch(e){}
+  // The address bar follows, so a bookmark or a share opens the same page.
+  if(CFG) try{ history.replaceState(null, '', '#u=' + CFG.url + '&k=' + CFG.key + '&tab=' + TAB); }catch(e){}
 }
 
 /* ── api ────────────────────────────────────────────────────────────────── */
@@ -2767,7 +2778,7 @@ document.addEventListener('click', async function(ev){
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go && SHEET && SHEET.dataset.mandatory){ toast('Give the session a score first.'); return; }
   if(t.dataset.go === 'more'){ moreSheet(); return; }
-  if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; window.scrollTo(0,0); render(); return; }
+  if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; rememberTab(); window.scrollTo(0,0); render(); return; }
   if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; render(); return; }
   if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; render(); return; }
 
@@ -3304,7 +3315,7 @@ async function planFromSpeech(text, entryId){
   });
   await record('plan_set', {blocks:blocks, day:forDay});
   if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
-  if(tomorrow){ SHOW_TOMORROW = true; if(TAB !== 'time'){ TAB = 'time'; } }
+  if(tomorrow){ SHOW_TOMORROW = true; if(TAB !== 'time'){ TAB = 'time'; rememberTab(); } }
   render();
   toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + (tomorrow ? ' for tomorrow.' : ' for today.'));
   return true;
