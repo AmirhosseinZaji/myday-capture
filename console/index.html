@@ -216,6 +216,15 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .runner.paused .runlab{color:var(--notice)}
 .runner.paused .livedot{background:var(--notice); animation:none}
 .runner.paused .clock{color:var(--ink-2)}
+.area-row{display:flex; align-items:center; gap:10px; margin-top:6px}
+.area-row .area-big{margin:0; flex:1; min-width:0}
+.switchbtn{flex:0 0 auto; padding:6px 12px; min-height:32px; font-size:12.5px; border-radius:99px; background:var(--surface)}
+.figs{display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) auto; gap:10px; margin-top:12px; align-items:start}
+.figs .clock{font-size:23px}
+.figs .eyebrow{font-weight:700; letter-spacing:.08em; text-transform:uppercase; margin-bottom:4px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
+.fig.mid .eyebrow{color:var(--focus)}
+.fig.right{text-align:right; min-width:92px}
+.fig.right .bar{margin-top:8px; width:92px; margin-left:auto}
 .run-grid{display:grid; grid-template-columns:minmax(0,1fr) auto; gap:16px; align-items:end}
 .run-side{text-align:right; min-width:104px}
 .run-side .eyebrow{font-weight:700; letter-spacing:.08em; text-transform:uppercase}
@@ -624,7 +633,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c77-2026-09-04-dayscore';
+var BUILD = 'c78-2026-09-04-switch';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1077,6 +1086,18 @@ function derive(){
        as an eight-hour session that had never happened. */
     if(workingDayOf(e.ts) !== t.date) return;
     if(e.kind === 'session_start'){
+      // A start while a session is open is a switch of area: the open row
+      // closes at the new start, exactly as the Mac files it. A start in the
+      // same minute as the open row replaces it instead of leaving a 0m row.
+      t.sessions.forEach(function(s){
+        if(!s.open) return;
+        if(s.start === e.at){ s.dead = true; return; }
+        s.end = e.at; s.open = false; s.pending = true;
+        var mm = minsBetween(s.start, s.end) - (s.paused_min || 0);
+        if(s.paused_at){ mm -= minsBetween(s.paused_at, e.at); s.paused_at = null; }
+        s.minutes = Math.max(0, mm);
+      });
+      t.sessions = t.sessions.filter(function(s){ return !s.dead; });
       if(!t.sessions.some(function(s){ return s.open; })){
         t.sessions.push({start:e.at, end:null, minutes:null, focus:null,
           area:p.area||'ai', area_label:(v.areas||{})[p.area]||p.area,
@@ -1211,6 +1232,20 @@ function derive(){
   });
   t.focus_coverage = t.work_minutes ? Math.round(scoredMin / t.work_minutes * 1000) / 1000 : 0;
   t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
+  // The stretch: how long he has been working without a stop, across switches
+  // of area. A switch closes one row and opens the next at the same minute, so
+  // the chain is followed back through rows that end where the next began.
+  if(t.open_session){
+    var o0 = t.open_session, cur = o0, first = o0, pausedTot = o0.paused_min || 0, parts = 1, guard = 0;
+    while(guard++ < 50){
+      var pv = null;
+      for(var qi = 0; qi < t.sessions.length; qi++){ var x = t.sessions[qi]; if(x !== cur && !x.open && !x.malformed && x.end === cur.start){ pv = x; break; } }
+      if(!pv) break;
+      first = pv; pausedTot += pv.paused_min || 0; parts++; cur = pv;
+    }
+    o0.stretch_start = first.start; o0.stretch_iso = first.started_iso || null;
+    o0.stretch_paused_min = pausedTot; o0.stretch_parts = parts;
+  }
   if(t.open_session && t.open_session.paused_at && !t.open_session.paused_iso && t.open_session.started_iso){
     // The Mac gives the pause a clock time only; anchor it to the session's date.
     t.open_session.paused_iso = String(t.open_session.started_iso).slice(0, 10) + 'T' + t.open_session.paused_at + ':00';
@@ -1737,20 +1772,31 @@ function runnerHTML(v){
     // Two columns: the session on the left, the day on the right. The right
     // half used to be empty, and the day's total is the one number that gives
     // the running session its meaning.
+    // Three figures: the stretch since the first start with no stop between,
+    // the current area since its own start, and the day. A switch of area
+    // resets the middle one and leaves the left one running, so he can see he
+    // has not stopped working. On a first start the left and middle agree.
+    var sStart = o.stretch_start || o.start, sIso = o.stretch_iso || o.started_iso || '', sPaused = o.stretch_paused_min || pm;
+    var stretch = Math.max(0, secsSince(sStart, sIso) - sPaused * 60 - (paused ? secsSince(o.paused_at, o.paused_iso) : 0));
     return '<div class="runner live' + (paused ? ' paused' : '') + '">' +
-      '<div class="run-grid"><div class="run-main">' +
       '<div class="row" style="gap:7px"><span class="livedot"></span>' +
       '<span class="tiny runlab">' + (paused ? 'Paused <span id="pauseclock">' + hms(secsSince(o.paused_at, o.paused_iso)) + '</span>' : 'Working') + '</span></div>' +
-      '<div class="area-big">'+esc(o.area_label||o.area)+'</div>' +
-      '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" data-since="'+esc(o.started_iso||'')+'" ' +
-      'data-paused="'+pm+'" data-pausedat="'+esc(o.paused_at||'')+'" data-pausediso="'+esc(o.paused_iso||'')+'">'+hms(worked)+'</div>' +
-      '<div class="small muted">started '+esc(o.start)+(pm ? ' · paused ' + hmShort(pm) + ' so far' : '')+'</div>' +
-      '</div><div class="run-side">' +
-      '<div class="tiny muted eyebrow">Today</div>' +
-      '<div class="serif today-live" id="todaylive">'+hmShort(todayMin)+'</div>' +
-      '<div class="tiny muted">of 10h</div>' +
-      '<div class="bar"><i id="todaybar" style="background:var(--consistency)" data-w="'+Math.min(100, Math.round(todayMin/600*100))+'"></i></div>' +
-      '</div></div>' +
+      '<div class="area-row"><div class="area-big">'+esc(o.area_label||o.area)+'</div>' +
+      '<button class="btn switchbtn" id="switchBtn" aria-label="Switch area">Switch</button></div>' +
+      '<div class="figs">' +
+      '<div class="fig"><div class="tiny muted eyebrow">Since '+esc(sStart)+'</div>' +
+        '<div class="clock" id="stretchclock" data-sstart="'+esc(sStart)+'" data-siso="'+esc(sIso)+'" data-spaused="'+sPaused+'">'+hms(stretch)+'</div></div>' +
+      '<div class="fig mid"><div class="tiny eyebrow">'+esc(o.area_label||o.area)+'</div>' +
+        '<div class="clock" id="liveclock" data-start="'+esc(o.start)+'" data-since="'+esc(o.started_iso||'')+'" ' +
+        'data-paused="'+pm+'" data-pausedat="'+esc(o.paused_at||'')+'" data-pausediso="'+esc(o.paused_iso||'')+'">'+hms(worked)+'</div></div>' +
+      '<div class="fig right"><div class="tiny muted eyebrow">Today</div>' +
+        '<div class="clock today-live" id="todaylive">'+hmShort(todayMin)+'</div>' +
+        '<div class="bar"><i id="todaybar" style="background:var(--consistency)" data-w="'+Math.min(100, Math.round(todayMin/600*100))+'"></i></div></div>' +
+      '</div>' +
+      '<div class="small muted" style="margin-top:8px">' + [
+        o.stretch_parts > 1 ? 'on ' + esc(o.area_label||o.area) + ' since ' + esc(o.start) : 'started ' + esc(o.start),
+        pm ? 'paused ' + hmShort(pm) + ' so far' : ''
+      ].filter(Boolean).join(' · ') + '</div>' +
       '<div class="row run-btns">' +
       (paused ? '<button class="btn" id="resumeBtn">Resume</button>' : '<button class="btn" id="pauseBtn">Pause</button>') +
       '<button class="btn primary grow" id="stopBtn">Stop and rate</button></div></div>';
@@ -2846,6 +2892,12 @@ function tickClock(){
     n.innerHTML = hms(w);
     var pc = document.getElementById('pauseclock');
     if(pc && o.paused_at) pc.innerHTML = hms(secsSince(o.paused_at, o.paused_iso));
+    var sc = document.getElementById('stretchclock');
+    if(sc){
+      var ss = secsSince(sc.getAttribute('data-sstart'), sc.getAttribute('data-siso') || null) -
+               (+sc.getAttribute('data-spaused') || 0) * 60 - (o.paused_at ? secsSince(o.paused_at, o.paused_iso) : 0);
+      sc.innerHTML = hms(Math.max(0, ss));
+    }
     var tl = document.getElementById('todaylive');
     if(tl && VIEW){ var tm = (VIEW.today.work_minutes || 0) + Math.floor(w / 60); tl.textContent = hmShort(tm);
       var tb = document.getElementById('todaybar'); if(tb) tb.style.width = Math.min(100, Math.round(tm / 600 * 100)) + '%'; }
@@ -2916,11 +2968,12 @@ var AREAS = [
   ['ucw','UCW'], ['research','Research'], ['ai','AI Business'],
   ['dog','Dog Business'], ['personal','Personal'], ['overhead','Overhead']
 ];
-function askArea(){
-  openSheet('<h3>What are you working on?</h3>' +
-    '<p class="small muted">The area is enough. You never have to name the task.</p>' +
+function askArea(switching){
+  openSheet('<h3>' + (switching ? 'Switch to' : 'What are you working on?') + '</h3>' +
+    '<p class="small muted">' + (switching ? 'The area you are on closes at this minute and gets its score; the new one starts now. The stretch keeps counting.'
+                                          : 'The area is enough. You never have to name the task.') + '</p>' +
     '<div class="grid2" style="margin-top:16px">' + AREAS.map(function(a){
-      return '<button class="btn" data-area="'+a[0]+'" style="justify-content:flex-start">' +
+      return '<button class="btn" data-' + (switching ? 'swarea' : 'area') + '="'+a[0]+'" style="justify-content:flex-start">' +
         '<span style="width:9px;height:9px;border-radius:50%;background:'+areaColour(a[0])+'"></span>' +
         esc(a[1]) + '</button>';
     }).join('') + '</div>');
@@ -2944,7 +2997,7 @@ document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
-    '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act],[data-info]');
+    '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea]');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
   // that window used to post the same event again.
@@ -2969,6 +3022,21 @@ document.addEventListener('click', async function(ev){
     closeSheet(true);
     await record('session_start', {area:t.dataset.area});
     toast('Started at ' + hhmm());
+    return;
+  }
+  if(t.id === 'switchBtn'){ if(VIEW.today.open_session) askArea(true); return; }
+  if(t.dataset.swarea){
+    var cur = VIEW.today.open_session;
+    if(!cur) return;
+    var lab = (AREAS.filter(function(a){ return a[0] === t.dataset.swarea; })[0] || [])[1] || t.dataset.swarea;
+    if(t.dataset.swarea === cur.area){ closeSheet(true); toast('Already on ' + lab + '.'); return; }
+    closeSheet(true);
+    var ran = Math.floor(workedSecs(cur) / 60), oldStart = cur.start, oldLab = cur.area_label || cur.area;
+    // The new area starts first, so its clock begins at the tap. The score for
+    // the area just left is asked straight after and names that row by its start.
+    await record('session_start', {area:t.dataset.swarea, switch:true, from:oldStart});
+    if(ran >= 1) askFocus(oldStart, ran, true, VIEW.today.date);
+    toast('Switched to ' + lab + ' at ' + hhmm() + '.');
     return;
   }
   if(t.id === 'pauseBtn' || t.id === 'resumeBtn'){
