@@ -633,7 +633,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c78-2026-09-04-switch';
+var BUILD = 'c79-2026-09-13-plan-ai';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -996,9 +996,13 @@ function prunePend(st){
       return !(week && (week.goals||[]).some(function(g){
         return g.title === p.title && (g.done ? 100 : g.percent) === p.percent; }));
     if(e.kind === 'plan_set'){
-      // Spent only when the published plan holds every block it carried.
-      var plan = (p.day && st && st.tomorrow && p.day === st.tomorrow.date)
-        ? (st.tomorrow.plan || []) : ((st && st.today && st.today.plan) || []);
+      // Spent once the Mac's plan carries this event on its stamp: the model
+      // may have changed the times, so matching blocks is not enough. Without
+      // the stamp (an older day file), spent when the published plan holds
+      // every block it carried.
+      var pday = (p.day && st && st.tomorrow && p.day === st.tomorrow.date) ? st.tomorrow : (st && st.today);
+      if(pday && Array.isArray(pday.plan_qids) && pday.plan_qids.indexOf(e.qid) >= 0) return false;
+      var plan = (pday && pday.plan) || [];
       return !(p.blocks || []).every(function(b){
         return plan.some(function(x){ return x.start === b.start && x.end === b.end; });
       });
@@ -3571,7 +3575,12 @@ async function planFromSpeech(text, entryId){
     var m = function(v){ var q = toMin(v); return q < 300 ? q + 1440 : q; };
     return m(x.start) - m(y.start);
   });
-  await record('plan_set', {blocks:blocks, day:forDay});
+  // The words go with the blocks. This parse is pattern matching, good for the
+  // times and poor with the words ("3 to 6 is another chunk of work" became a
+  // block called "Is another"). The Mac has a language model read the
+  // transcript and rewrite the blocks, and its next publish replaces these.
+  // `kept` is what this sentence did not touch, so the model does not drop it.
+  await record('plan_set', {blocks:blocks, day:forDay, text:String(text || ''), kept:kept});
   if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
   if(tomorrow){ SHOW_TOMORROW = true; if(TAB !== 'time'){ TAB = 'time'; rememberTab(); } }
   render();
