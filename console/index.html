@@ -609,6 +609,43 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 @media (min-width:1400px){ :root{ --col: 1300px; } }
 @media (min-width:1700px){ :root{ --col: 1640px; } }
 @media (min-width:2000px){ :root{ --col: 1800px; } }
+/* ── a question Claude could not answer on its own ─────────────────────── */
+/* Amber, because it is the one card on the site that is waiting on Amir
+   rather than telling him something. The same amber as the stale warning. */
+.qcard{border-color:#E7D3C2; background:var(--consistency-soft)}
+.qhead{display:flex; align-items:center; gap:8px; margin-bottom:2px}
+.qhead h2{margin:0; color:var(--consistency)}
+.qwarn{flex:0 0 auto; width:20px; height:20px; color:var(--consistency)}
+.qwarn svg{width:100%; height:100%; display:block}
+.qask{margin:0 0 4px; font-size:16px; font-weight:650; line-height:1.4; color:var(--ink)}
+/* His own words, so he can see what is being asked about without having to
+   remember the note. Quiet, and set apart from the question itself. */
+.qsaid{border-left:3px solid #E0C7B1; padding:2px 0 2px 11px; margin:0 0 12px;
+  font-size:14px; line-height:1.5; color:var(--ink-2)}
+.qsaid .lbl{display:block; font-size:10.5px; font-weight:700; letter-spacing:.07em;
+  text-transform:uppercase; color:var(--consistency); margin-bottom:3px}
+.qmeta{font-size:12px; color:var(--ink-3); margin:0 0 12px}
+.qbox{width:100%; resize:vertical; min-height:74px; padding:12px 13px; font:inherit;
+  font-size:15px; line-height:1.45; border:1px solid #E0C7B1; border-radius:12px;
+  background:var(--surface); color:var(--ink)}
+.qbox:focus{outline:2px solid var(--consistency); outline-offset:-1px; border-color:transparent}
+.qrow{display:flex; gap:10px; align-items:stretch; margin-top:10px}
+.qrow .btn{flex:1 1 auto}
+/* Hold to talk, with no label. Amir asked for the icon alone: he knows what a
+   microphone does, and a second "Hold to talk" beside the bar's own is noise. */
+.qmic{flex:0 0 auto; width:48px; border-radius:12px; border:1px solid #E0C7B1;
+  background:var(--surface); color:var(--consistency); display:flex;
+  align-items:center; justify-content:center; cursor:pointer;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  touch-action:none; transition:background .15s, color .15s, transform .15s}
+.qmic svg{width:22px; height:22px}
+.qmic.rec{background:var(--bad); border-color:var(--bad); color:#fff; transform:scale(1.04)}
+.qmic:disabled{opacity:.45; cursor:default}
+.qsent{display:flex; align-items:center; gap:8px; font-size:14px; color:var(--ink-2);
+  padding:2px 0}
+.qsent .dot{width:7px; height:7px; border-radius:50%; background:var(--consistency);
+  animation:qpulse 1.3s ease-in-out infinite}
+@keyframes qpulse{0%,100%{opacity:.35}50%{opacity:1}}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
@@ -633,7 +670,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c79-2026-09-13-plan-ai';
+var BUILD = 'c80-2026-09-14-questions';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1007,6 +1044,16 @@ function prunePend(st){
         return plan.some(function(x){ return x.start === b.start && x.end === b.end; });
       });
     }
+    if(e.kind === 'question_answer'){
+      // Spent when the question is no longer open in the published picture.
+      // The 15-minute job writes the answer into questions.md, and the next
+      // publish is what takes the question off this screen. Kept for two weeks
+      // like a tick, not six hours: the Mac can be asleep, and a question
+      // reappearing unanswered would have him answer it twice.
+      var qs = (st && st.questions) || [];
+      return age < 14*24*60*60*1000 &&
+             qs.some(function(x){ return x && x.id === p.qid; });
+    }
     return age < 15*60*1000;   // keep an unrecognised kind briefly, then let it go
   };
   // One malformed entry used to throw here and abandon pruning for everyone.
@@ -1066,6 +1113,14 @@ function derive(){
     if(x.malformed) x.minutes = null;
   });
   v.tasks = (v.tasks || []).filter(function(x){ return x && typeof x === 'object'; });
+  // A question Claude could not answer on its own. Anything without an id and
+  // a question is not one, and is dropped rather than drawn as a blank card.
+  v.questions = ((v.questions || [])).filter(function(q){
+    return q && typeof q === 'object' && q.id && String(q.ask || '').trim();
+  }).map(function(q){
+    return {id:String(q.id), ask:String(q.ask), said:String(q.said || ''),
+            asked:String(q.asked || ''), source:String(q.source || '')};
+  });
   // Tomorrow is the one other day Amir plans. The Mac publishes its plan when
   // the file exists; a plan spoken today for tomorrow shows here at once.
   v.tomorrow = v.tomorrow || {};
@@ -1191,6 +1246,12 @@ function derive(){
       if(p.blocks != null && !Array.isArray(p.blocks)) throw new Error('plan_set blocks is not a list');
       if(!p.day || p.day === t.date) t.plan = p.blocks || t.plan;
       else if(p.day === v.tomorrow.date) v.tomorrow.plan = p.blocks || v.tomorrow.plan;
+    } else if(e.kind === 'question_answer'){
+      // The question is not removed, it is marked. Taking it off the list the
+      // moment he pressed Send would leave him looking at a page with nothing
+      // on it and no sign his answer went anywhere.
+      var q = v.questions.filter(function(x){ return x.id === p.qid; })[0];
+      if(q){ q.answered_pending = true; q.answer_text = String(p.text || ''); }
     }
   };
   // A malformed pending event is skipped, not allowed to brick every tab. It
@@ -2569,7 +2630,11 @@ var INFO = {
     'stays out of the 4h academia and 6h AI split.'],
   notes:['How notes work', 'Hold the talk button on any page and talk, or press Type. What you say is written down and ' +
     'tagged with the page you were on, so a note on Goals is read as a goal and one on Tasks as a task. A note leaves ' +
-    'this list once it has been filed at your computer. Until then you can fix a word or throw the note away.']
+    'this list once it has been filed at your computer. Until then you can fix a word or throw the note away.'],
+  questions:['Why Claude is asking', 'Reading a task out of a note is the one step where a guess is expensive. A note ' +
+    'filed as the wrong kind of thing does not look wrong afterwards: it is simply not on your list, and nobody knows ' +
+    'it is missing. So when Claude is not sure what you meant, it asks here instead of guessing, and shows you your own ' +
+    'words. Write the answer or hold the microphone and say it. The question clears once your computer has it.']
 };
 function infoBtn(key){
   return '<button class="ibtn" data-info="'+key+'" aria-label="'+esc(INFO[key][0])+'">i</button>';
@@ -2580,11 +2645,52 @@ var EVENT_NAME = {
   session_edit:'Session corrected', session_delete:'Session deleted',
   task_tick:'Task ticked', task_untick:'Tick undone',
   goals_set:'Goals for the week', goal_progress:'Goal progress',
-  plan_set:'Plan for the day'
+  plan_set:'Plan for the day',
+  question_answer:'Answer to a question'
 };
 var NOTES = [];
+/* A question Claude could not answer on its own.
+   Reading a task out of a note is the one step in this system where a guess is
+   expensive: a note filed as the wrong kind of thing is simply not on the list
+   afterwards, and nobody knows it is missing. So Claude asks instead, and the
+   question lands here: Amir's own words at the top, the question under them,
+   then a box to write in and a microphone to talk into. */
+function questionCard(q){
+  if(q.answered_pending){
+    return '<div class="card qcard"><div class="qhead">' +
+      '<span class="qwarn">' + ICONS.warn + '</span><h2>Answered</h2></div>' +
+      '<p class="qask" dir="auto">' + esc(q.ask) + '</p>' +
+      '<div class="qsent"><span class="dot"></span><span dir="auto">' +
+        esc(q.answer_text ? '“' + q.answer_text.slice(0, 90) + (q.answer_text.length > 90 ? '…' : '') + '”'
+                          : 'Your answer is saved.') +
+      '</span></div>' +
+      '<p class="tiny muted" style="margin-top:8px">Saved on this phone. It clears from here once your computer has it.</p>' +
+      '</div>';
+  }
+  return '<div class="card qcard" id="q-' + esc(q.id) + '">' +
+    '<div class="qhead"><span class="qwarn">' + ICONS.warn + '</span>' +
+      '<h2>Claude has a question</h2>' +
+      '<span style="margin-left:auto">' + infoBtn('questions') + '</span></div>' +
+    (q.said ? '<div class="qsaid" dir="auto"><span class="lbl">You said</span>' + esc(q.said) + '</div>' : '') +
+    '<p class="qask" dir="auto">' + esc(q.ask) + '</p>' +
+    (q.asked || q.source
+      ? '<p class="qmeta">' + esc([q.asked ? 'asked ' + q.asked : '', q.source ? 'about ' + q.source : '']
+          .filter(Boolean).join(' · ')) + '</p>'
+      : '') +
+    '<textarea class="qbox" dir="auto" id="qbox-' + esc(q.id) + '" rows="3" ' +
+      'placeholder="Write your answer, or hold the microphone."></textarea>' +
+    '<div class="qrow">' +
+      '<button class="btn primary" data-qsend="' + esc(q.id) + '">Send</button>' +
+      '<button class="qmic" data-qmic="' + esc(q.id) + '" aria-label="Hold to answer by talking">' +
+        ICONS.mic + '</button>' +
+    '</div></div>';
+}
+
 function pageNotes(v){
   var h = '';
+  // Above everything else. A question is the one thing on this page that is
+  // waiting on him rather than on Claude.
+  (v.questions || []).forEach(function(q){ h += questionCard(q); });
 
   h += '<div class="card flush"><div class="spread" style="padding:18px 16px 0;margin-bottom:8px"><h2 style="margin:0">Waiting to be filed</h2>' + infoBtn('notes') + '</div>' +
     (NOTES.length ? NOTES.map(function(n){
@@ -2676,6 +2782,10 @@ var ICONS = {
   more:  SVG('<circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>')
 };
 ICONS.notes = SVG('<path d="M6 4h9l4 4v12H6z"/><path d="M15 4v4h4M9 12h6M9 16h6"/>');
+/* The warning mark on a question, and the microphone inside it. Same stroke
+   set as the tabs, so the card does not become the one place with an emoji. */
+ICONS.warn = SVG('<path d="M12 4.5 21 19.5H3z"/><path d="M12 10v4"/><circle cx="12" cy="17" r=".9" fill="currentColor" stroke="none"/>');
+ICONS.mic = SVG('<rect x="9" y="3.5" width="6" height="11" rx="3"/><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21"/>');
 ICONS.progress = SVG('<rect x="4" y="4" width="7" height="7" rx="1.5"/><rect x="13" y="4" width="7" height="7" rx="1.5"/><rect x="4" y="13" width="7" height="7" rx="1.5"/><rect x="13" y="13" width="7" height="7" rx="1.5"/>');
 /* Empty states use the same stroke set as the navigation. The emoji they
    replaced were the only saturated colour on otherwise quiet pages. */
@@ -2704,11 +2814,19 @@ var TABS = [
 /* Seven tabs on a phone are seven targets too small to hit, so there Notes
    and Progress live behind More. A laptop has the width, so it shows all
    seven and no More. */
+/* Questions still waiting on Amir, answered ones excluded. Read from VIEW, so
+   an answer he has just sent stops being counted at once. */
+function openQuestions(){
+  return ((VIEW && VIEW.questions) || []).filter(function(q){ return !q.answered_pending; });
+}
 function moreSheet(){
-  var waiting = (NOTES || []).length;
+  var qs = openQuestions().length;
+  var waiting = (NOTES || []).length + qs;
   openSheet('<h3>More</h3><div class="stack" style="margin-top:14px">' +
     '<button class="btn wide morebtn" data-go="notes"><span class="ic">' + ICONS.notes + '</span><span class="grow" style="text-align:left">Notes' +
-      '<span class="tiny muted" style="display:block;font-weight:400">' + (waiting ? waiting + ' waiting for Claude' : 'Nothing waiting') + '</span></span></button>' +
+      '<span class="tiny muted" style="display:block;font-weight:400">' +
+        (qs ? qs + (qs > 1 ? ' questions for you' : ' question for you') + ((waiting - qs) ? ' · ' + (waiting - qs) + ' waiting for Claude' : '')
+            : (waiting ? waiting + ' waiting for Claude' : 'Nothing waiting')) + '</span></span></button>' +
     '<button class="btn wide morebtn" data-go="progress"><span class="ic">' + ICONS.progress + '</span><span class="grow" style="text-align:left">Progress' +
       '<span class="tiny muted" style="display:block;font-weight:400">Days, weeks and months as triangles</span></span></button>' +
     '</div>');
@@ -2786,7 +2904,10 @@ function render(){
       '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
     '<nav class="nav">' + TABS.map(function(t){
       var on = TAB === t.k || (t.k === 'more' && (TAB === 'notes' || TAB === 'progress'));
-      var badge = (t.k === 'more' || t.k === 'notes') && (NOTES || []).length ? '<span class="badge">'+NOTES.length+'</span>' : '';
+      // An unanswered question counts too. It is the one thing on that page
+      // that is waiting on him, so the badge must not read 0 while one is open.
+      var waiting = (NOTES || []).length + openQuestions().length;
+      var badge = (t.k === 'more' || t.k === 'notes') && waiting ? '<span class="badge">'+waiting+'</span>' : '';
       return '<button data-go="'+t.k+'" class="'+(on?'on':'')+(t.wide?' wide-tab':'')+(t.narrow?' narrow-tab':'')+'" aria-label="'+esc(t.label)+'">' +
         '<span class="ic">'+ICONS[t.k]+badge+'</span>'+esc(t.label)+'</button>';
     }).join('') + '</nav>' +
@@ -2815,6 +2936,7 @@ function render(){
     i.style.width = i.getAttribute('data-w') + '%';
   });
   bindMic();
+  bindQuestions();
   tickClock();
   askForMissingScore();
 }
@@ -3018,6 +3140,7 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.go && SHEET && SHEET.dataset.mandatory){ toast('Give the session a score first.'); return; }
   if(t.dataset.go === 'more'){ moreSheet(); return; }
   if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; rememberTab(); window.scrollTo(0,0); render(); return; }
+  if(t.dataset.qsend){ await sendAnswer(t.dataset.qsend, null, 'typed'); return; }
   if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; rememberView(); render(); return; }
   if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; rememberView(); render(); return; }
 
@@ -3353,6 +3476,11 @@ document.addEventListener('change', async function(ev){
    block and the same words said on Tasks become a task. Amir never has to say
    which one he means. */
 var REC = null, CHUNKS = [], RECSTART = 0, STREAM = null;
+/* Which question this recording answers, or null for an ordinary note. One
+   recorder serves the bar at the bottom and the microphone inside a question
+   card, because two would fight over the same stream. */
+var RECFOR = null;
+function qmicEl(){ return RECFOR ? document.querySelector('[data-qmic="' + RECFOR + '"]') : null; }
 
 function pickMime(){
   var want = ['audio/mp4', 'audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
@@ -3361,13 +3489,23 @@ function pickMime(){
   }
   return '';
 }
-async function startRec(){
+async function startRec(forQid){
   if(REC) return;
+  RECFOR = forQid || null;
   try{
     STREAM = await navigator.mediaDevices.getUserMedia({audio:{
       echoCancellation:true, noiseSuppression:true, autoGainControl:true}});
   }catch(e){
     toast('The microphone is blocked. Allow it for this site and try again.');
+    // A blocked microphone inside a question card leads to the box that is
+    // already there, not to the note sheet, which would file the answer as an
+    // ordinary note and leave the question open.
+    if(RECFOR){
+      var bx = document.getElementById('qbox-' + RECFOR);
+      if(bx) bx.focus();
+      RECFOR = null;
+      return;
+    }
     typeInstead();
     return;
   }
@@ -3379,30 +3517,38 @@ async function startRec(){
   REC.ondataavailable = function(e){ if(e.data && e.data.size) CHUNKS.push(e.data); };
   REC.start();
   RECSTART = Date.now();
+  var qb = qmicEl();
+  if(qb) qb.classList.add('rec');
   var m = document.getElementById('mic'), hint = document.getElementById('micHint');
-  if(m) m.classList.add('rec');
+  if(!RECFOR && m) m.classList.add('rec');
   var lab = document.getElementById('micLabel');
-  if(lab) lab.textContent = 'Listening… let go to send';
-  if(hint) hint.textContent = 'Speaking on the ' + (TAB === 'home' ? 'Triangle' : TITLES[TAB]) + ' page';
+  if(lab) lab.textContent = RECFOR ? 'Listening… answering Claude' : 'Listening… let go to send';
+  if(hint) hint.textContent = RECFOR ? 'Let go and your answer is sent'
+                                     : 'Speaking on the ' + (TAB === 'home' ? 'Triangle' : TITLES[TAB]) + ' page';
   if(navigator.vibrate) navigator.vibrate(12);
 }
 function stopRec(){
+  var qb = qmicEl();
+  if(qb) qb.classList.remove('rec');
   var m = document.getElementById('mic'), hint = document.getElementById('micHint');
   if(m) m.classList.remove('rec');
   var lab = document.getElementById('micLabel');
   if(lab) lab.textContent = 'Hold to talk';
   if(hint) hint.textContent = micHint();
-  if(!REC) return;
+  if(!REC){ RECFOR = null; return; }
   var held = Date.now() - RECSTART;
   var rec = REC; REC = null;
+  // Read now and pass it on. A redraw between letting go and the transcript
+  // coming back would otherwise leave the answer with nowhere to land.
+  var forQid = RECFOR; RECFOR = null;
   rec.onstop = function(){
     if(STREAM){ STREAM.getTracks().forEach(function(t){ t.stop(); }); STREAM = null; }
     if(held < 450){ toast('Hold the button while you talk.'); return; }
-    sendAudio(new Blob(CHUNKS, {type: rec.mimeType || 'audio/mp4'}), rec.mimeType || 'audio/mp4');
+    sendAudio(new Blob(CHUNKS, {type: rec.mimeType || 'audio/mp4'}), rec.mimeType || 'audio/mp4', forQid);
   };
   try{ rec.stop(); }catch(e){}
 }
-async function sendAudio(blob, mime){
+async function sendAudio(blob, mime, forQid){
   toast('Sending…');
   var b64 = await new Promise(function(res){
     var r = new FileReader();
@@ -3413,20 +3559,98 @@ async function sendAudio(blob, mime){
   try{
     var r = await fetch(CFG.url + '/functions/v1/transcribe', {
       method:'POST', headers:hdrs(),
-      body: JSON.stringify({audio:b64, mime:mime, page:TAB, client_ts:ts})
+      body: JSON.stringify({audio:b64, mime:mime, page:(forQid ? 'answer' : TAB), client_ts:ts})
     });
     if(!r.ok) throw new Error(await r.text());
     var out = await r.json();
     if(!out.text) throw new Error('empty transcript');
+    if(forQid){
+      // The event first, the transcript row second. `record()` has written the
+      // answer to this phone before it returns, so the words are safe; marking
+      // the row done first and then failing would throw them away. If the
+      // patch fails the note simply also reaches Claude as a note, which is
+      // one line too many rather than an answer lost.
+      var sent = await sendAnswer(forQid, out.text, 'spoken');
+      if(sent && out.id){ try{ await patchNote(out.id, {status:'done'}); }catch(e2){} }
+      if(!sent){
+        // The question went while he was talking. Keep the words as a note.
+        toast('“' + out.text.slice(0, 46) + (out.text.length > 46 ? '…' : '') + '”');
+      }
+      await refreshNotes();
+      render();
+      return;
+    }
     if(await planFromSpeech(out.text, out.id)) return;
     toast('“' + out.text.slice(0, 46) + (out.text.length > 46 ? '…' : '') + '”');
     await refreshNotes();
     if(TAB === 'notes') render();
   }catch(e){
+    if(forQid){
+      // Straight back to the box under the question. Sending it as a note
+      // would leave the question open and the answer filed as something else.
+      toast('Could not hear that. Write your answer instead.');
+      var bx = document.getElementById('qbox-' + forQid);
+      if(bx) bx.focus();
+      return;
+    }
     toast('Could not transcribe that. Type it instead.');
     typeInstead(ts);
   }
 }
+/* ═══════════════════════════════════ answering a question ═════════════ */
+/* Typed or spoken, an answer takes the same road: a `question_answer` event.
+   The 15-minute job writes it into questions.md, which is what takes the
+   question off this screen, and puts a line in inbox.md so Claude acts on it.
+
+   The event goes out BEFORE the transcript row is marked done. `record()`
+   saves to this phone's storage before it posts anything, so an answer is
+   safe the moment that call returns. Marking the row done first and then
+   failing to record would throw the words away. */
+async function sendAnswer(qid, text, via){
+  var q = ((VIEW && VIEW.questions) || []).filter(function(x){ return x.id === qid; })[0];
+  if(!q || q.answered_pending) return false;
+  var box = document.getElementById('qbox-' + qid);
+  var body = String(text != null ? text : (box ? box.value : '')).trim();
+  if(!body){
+    toast('Write an answer, or hold the microphone and say it.');
+    if(box) box.focus();
+    return false;
+  }
+  if(box) box.value = '';
+  // The question goes with the answer. Once the row is cleared in the cloud
+  // this event is the only copy of what was being asked.
+  await record('question_answer', {qid:qid, text:body, ask:q.ask, said:q.said,
+                                   via:(via === 'spoken' ? 'spoken' : 'typed')});
+  toast('Sent. Claude reads it at your computer.');
+  return true;
+}
+/* The microphone inside a question card, and the keyboard in its box. The
+   microphone is the same recorder as the bar at the bottom; RECFOR says where
+   the words are going. Bound once per element, like the bar, because the page
+   is updated in place and these survive a redraw. */
+function bindQuestions(){
+  document.querySelectorAll('[data-qmic]').forEach(function(b){
+    if(b.dataset.bound) return;
+    b.dataset.bound = '1';
+    var qid = b.dataset.qmic;
+    b.addEventListener('pointerdown', function(e){ e.preventDefault(); startRec(qid); });
+    ['pointerup','pointercancel','pointerleave'].forEach(function(ev){
+      b.addEventListener(ev, function(e){ e.preventDefault(); stopRec(); });
+    });
+    b.addEventListener('contextmenu', function(e){ e.preventDefault(); });
+  });
+  document.querySelectorAll('.qbox').forEach(function(ta){
+    if(ta.dataset.bound) return;
+    ta.dataset.bound = '1';
+    ta.addEventListener('keydown', function(ev){
+      if(ev.key === 'Enter' && (ev.metaKey || ev.ctrlKey)){
+        ev.preventDefault();
+        sendAnswer(ta.id.replace(/^qbox-/, ''), null, 'typed');
+      }
+    });
+  });
+}
+
 /* ═════════════════════════════════════ the spoken plan ═════════════════ */
 /* "nine to eleven research, then one to four AI business" on the Consistency
    page becomes plan blocks on the timeline at once, and a plan_set event the
