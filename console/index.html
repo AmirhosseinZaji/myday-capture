@@ -674,7 +674,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c82-2026-09-15-sent-redraw';
+var BUILD = 'c83-2026-09-15-stale-build-heals';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -4017,12 +4017,29 @@ async function checkBuild(){
     // minutes cost 50 KB a time and competed with the data on every unlock.
     var h = await fetch(location.pathname, {method:'HEAD', cache:'no-store'});
     var tag = h.headers.get('etag') || h.headers.get('last-modified') || '';
-    if(PAGE_ETAG === null){ PAGE_ETAG = tag; return; }
-    if(!tag || tag === PAGE_ETAG) return;
+    // The FIRST check must compare the build itself, not just remember the
+    // tag. This page can be served out of the browser cache while the server
+    // already holds a newer one, and recording that newer tag as the baseline
+    // left the tab sitting on the stale build for ever, with the check quietly
+    // agreeing that nothing had changed. That is how a fixed Send button went
+    // on doing nothing: 2026-09-15, in Amir's own Chrome.
+    var first = PAGE_ETAG === null;
+    if(!first && (!tag || tag === PAGE_ETAG)) return;
     var r = await fetch(location.pathname + '?b=' + Date.now(), {cache:'no-store'});
     var m = (await r.text()).match(/var BUILD = '([^']+)'/);
     PAGE_ETAG = tag;
-    if(m && m[1] !== BUILD) location.reload();
+    if(!m || m[1] === BUILD) return;
+    // A plain reload can be answered by the very cache that made this page
+    // stale, which would find the old build again and reload for ever. Go
+    // through a one-time cache-busting address instead, and only once per
+    // build, so a browser that refuses to let go still settles.
+    try{
+      if(sessionStorage.getItem('myday_reloaded') === m[1]) return;
+      sessionStorage.setItem('myday_reloaded', m[1]);
+    }catch(e2){}
+    // The key lives in the fragment and must survive. The tab is remembered
+    // in localStorage, so the query string is not worth carrying.
+    location.replace(location.pathname + '?b=' + Date.now() + location.hash);
   }catch(e){}
 }
 
@@ -4042,7 +4059,7 @@ window.addEventListener('resize', function(){
 });
 render();
 refresh();
-setTimeout(checkBuild, 4000);   // record the tag now, so a deploy in the first five minutes is seen
+setTimeout(checkBuild, 4000);   // compares the build itself, so a page served from cache heals at once
 setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
 setInterval(function(){ if(!document.hidden) pollRemote(); }, 20000);
 setInterval(function(){ if(!document.hidden) checkBuild(); }, 300000);
