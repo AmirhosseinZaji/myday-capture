@@ -674,7 +674,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c81-2026-09-15-answer-feedback';
+var BUILD = 'c82-2026-09-15-sent-redraw';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -894,6 +894,11 @@ async function record(kind, payload){
     ev.posting = true;
     await postEvent(kind, payload, ev.qid, ev.ts);
     ev.sent = true; ev.posting = false; savePend();
+    // Draw again now it has gone. The only render was before the post, so the
+    // "Not sent yet" list kept the tap for up to twenty seconds after it had
+    // been sent, which reads as a failure right under a message saying it
+    // worked. Seen on an answer, but every kind of tap had it.
+    if(!(SHEET && SHEET.dataset.mandatory)) render();
     if(!stored) toast('Sent, but this phone could not remember it. The screen catches up when your computer publishes.', true);
   }catch(e){
     ev.posting = false;
