@@ -393,7 +393,11 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
 .blk.planned{right:calc(50% + 3px)}
 .blk.actual{left:calc(46px + 50% + 3px)}
-.blk.planned{border:1.5px dashed color-mix(in srgb,var(--goals) 55%,transparent) !important}
+.blk.planned{border:1.5px dashed color-mix(in srgb,var(--blk,var(--goals)) 55%,transparent) !important}
+/* --blk is the block's area colour, set inline by the renderer. The rule above
+   has to stay !important, or an inline border would make a planned block look
+   solid and it would read as work he has done. Going through a custom property
+   keeps the dashes and still lets the colour say which area it is. */
 .blk.actual{border-left:3px solid currentColor}
 /* Two calendars side by side on every width: the promise on the left, what
    happened on the right. A block is an outline if it was planned and a solid
@@ -675,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c87-2026-09-16-area-colours';
+var BUILD = 'c88-2026-09-16-area-colours';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2182,10 +2186,10 @@ function timelineHTML(t, planOnly){
       // 2026-09-16: it is a separate one, used only when there is no actual
       // lane to draw beside the plan.
       var c1 = areaColour(b.area || b.parea);
-      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y1+'px;height:'+hg+
-        'px;left:46px;right:2px;border-left-color:'+c1+'"></div>';
+      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="--blk:'+c1+';top:'+y1+'px;height:'+hg+
+        'px;left:46px;right:2px"></div>';
       var fixed = b.status === 'fixed';
-      return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
+      return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="--blk:'+c1+';top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
         'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,'+c1+' 12%,#fff)')+';' +
         'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,'+c1+' 35%,transparent)')+';' +
         'border-left-color:'+(fixed ? 'var(--line)' : c1)+';color:var(--ink)">' +
@@ -2233,6 +2237,7 @@ function timelineHTML(t, planOnly){
     var col = areaColour(b.area || b.parea);
     var bg  = b.k === 'actual' ? 'var(--consistency-soft)'
                                : 'color-mix(in srgb,' + col + ' 5%,#fff)';
+    var cvar = '--blk:' + col + ';';
     // Under about 34px there is room for one line only, so the time and the
     // label share it instead of the label spilling past the block's edge.
     // A 15-minute block is 13px tall, which cuts a line of text in half. One
@@ -2246,9 +2251,9 @@ function timelineHTML(t, planOnly){
     var lab = tight ? String(b.label).split(/ — | · /)[0].replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '') : b.label;
     var mins = b.m1 - b.m0;
     if(bar) anyBar = true;
-    if(bar) return '<div class="blk '+b.k+' bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
+    if(bar) return '<div class="blk '+b.k+' bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="'+cvar+'top:'+y+'px;height:'+hgt+
       'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+'"></div>';
-    return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y+'px;height:'+hgt+
+    return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="'+cvar+'top:'+y+'px;height:'+hgt+
       'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+';' +
       'color:var(--ink)">' +
       '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+
