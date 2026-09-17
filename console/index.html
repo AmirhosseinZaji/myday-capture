@@ -675,7 +675,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c86-2026-09-16-area-colours';
+var BUILD = 'c87-2026-09-16-area-colours';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2176,12 +2176,20 @@ function timelineHTML(t, planOnly){
     out += blocks.map(function(b, i){
       var y1 = (b.m0 - lo0) * PX0, hg = Math.max(30, (b.m1 - b.m0) * PX0 - 3);
       if(i + 1 < blocks.length) hg = Math.min(hg, Math.max(6, (blocks[i + 1].m0 - lo0) * PX0 - y1 - 2));
-      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px"></div>';
+      // Tomorrow's plan is coloured by area exactly like today's, or a day with
+      // no sessions yet would be one flat purple and tell him nothing. This is
+      // the renderer that was missed when the colours were added on
+      // 2026-09-16: it is a separate one, used only when there is no actual
+      // lane to draw beside the plan.
+      var c1 = areaColour(b.area || b.parea);
+      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="top:'+y1+'px;height:'+hg+
+        'px;left:46px;right:2px;border-left-color:'+c1+'"></div>';
       var fixed = b.status === 'fixed';
       return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
-        'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,var(--goals) 12%,#fff)')+';' +
-        'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,var(--goals) 35%,transparent)')+';color:var(--ink)">' +
-        '<div class="bt" style="color:'+(fixed ? 'var(--ink-3)' : 'var(--goals)')+';flex:0 0 auto">'+esc(b.s)+'–'+esc(b.e)+'</div>' +
+        'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,'+c1+' 12%,#fff)')+';' +
+        'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,'+c1+' 35%,transparent)')+';' +
+        'border-left-color:'+(fixed ? 'var(--line)' : c1)+';color:var(--ink)">' +
+        '<div class="bt" style="color:'+(fixed ? 'var(--ink-3)' : c1)+';flex:0 0 auto">'+esc(b.s)+'–'+esc(b.e)+'</div>' +
         '<div dir="auto" class="bl">'+esc(hg < 46 ? String(b.label).split(/ — | · /)[0] : b.label)+'</div></div>';
     }).join('');
     return '<div class="tl-solo"><div class="timeline solo" style="height:'+H0+'px">'+out+'</div></div>';
