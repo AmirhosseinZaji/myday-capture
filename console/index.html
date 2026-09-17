@@ -675,7 +675,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c84-2026-09-16-plan-blocks-carry-tasks';
+var BUILD = 'c85-2026-09-16-joint-blocks';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1591,7 +1591,13 @@ var AREA_COLOUR = {
   ucw:'#4A5D75', research:'#3B4C61', ai:'#7B8CA1', dog:'#A7B0BC',
   personal:'#9C958E', overhead:'#B5AEA7'
 };
-function areaColour(a){ return AREA_COLOUR[a] || 'var(--ink-3)'; }
+function areaColour(a){
+  // A joint block takes the colour of the area it ends in, which is the work
+  // half. Splitting the bar in two would say the split is known, and it is not.
+  var s = String(a || '');
+  if(s.indexOf('+') >= 0) s = s.split('+').pop();
+  return AREA_COLOUR[s] || 'var(--ink-3)';
+}
 /* Focus is green, always. The number's strength is carried by how solid the
    green is, not by switching to the terracotta and red that already mean
    consistency and overdue elsewhere. A 7.9 used to be green on one page and
@@ -2010,6 +2016,12 @@ function planWork(plan){
     // day that holds six. A block from an older day file has no area and still
     // counts, because that is what those files meant when they were written.
     if(b.area === 'personal') return;
+    // A joint block ("personal+ai") is personal jobs first and work after, and
+    // nobody knows where the line falls until he has done it. Counting the
+    // whole thing as work would promise hours that may not exist, so it is left
+    // out and the planned figure is a floor. The triangle reads sessions, not
+    // the plan, so nothing he actually works is lost by this.
+    if(String(b.area || '').indexOf('+') >= 0) return;
     var a = toMin(b.start), z = toMin(b.end);
     if(isNaN(a) || isNaN(z)) return;
     if(z <= a) z += 1440;
@@ -2072,9 +2084,16 @@ function planRowHTML(b, planOnly){
     return lookup[id] || {id:id, title:'a task that is no longer on the list', missing:true};
   });
 
+  // A joint block names two areas, in the order he has to do them: the first
+  // has to be finished before he moves to the second. Amir asked for it on
+  // 2026-09-16 for an evening of personal jobs he could not size, followed by
+  // whatever AI business time was left.
+  var pareas = String(b.parea || '').split('+').filter(Boolean);
+  var areaLabel = pareas.map(function(a){ return (view.areas || {})[a] || a; }).join(' → ');
+
   var head = '<div class="spread small" style="padding:7px 0">' +
     '<span dir="auto" style="min-width:0">' + esc(b.label) +
-      (b.parea ? ' <span class="muted tiny">· ' + esc((view.areas || {})[b.parea] || b.parea) + '</span>' : '') +
+      (b.parea ? ' <span class="muted tiny">· ' + esc(areaLabel) + '</span>' : '') +
     '</span>' +
     '<span class="muted tiny" style="flex:0 0 auto;margin-left:10px">' + esc(b.s) + '–' + esc(b.e) + '</span></div>';
 
@@ -2097,9 +2116,18 @@ function planRowHTML(b, planOnly){
   // only while nothing else is running. Offering it on tomorrow's plan would
   // open a session on the wrong day.
   var open = (view.today || {}).open_session;
-  if(!planOnly && b.parea && b.parea !== 'personal' && !open){
-    body += '<div style="padding:0 0 8px"><button class="btn tiny" data-area="' + esc(b.parea) + '">' +
-      'Start this block</button></div>';
+  if(!planOnly && pareas.length && !open){
+    // A plain block offers one button. A joint block offers one per area, and
+    // personal is offered too, because timing the personal half is the only way
+    // the system ever learns how long those jobs really take.
+    var btns = pareas.filter(function(a){ return pareas.length > 1 || a !== 'personal'; });
+    if(btns.length){
+      body += '<div style="padding:0 0 8px;display:flex;gap:6px;flex-wrap:wrap">' +
+        btns.map(function(a){
+          return '<button class="btn tiny" data-area="' + esc(a) + '">Start ' +
+            (btns.length > 1 ? esc((view.areas || {})[a] || a) : 'this block') + '</button>';
+        }).join('') + '</div>';
+    }
   }
 
   return '<div style="border-bottom:1px solid var(--line-soft)">' + head + body + '</div>';
