@@ -679,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c90-2026-09-16-daily-target';
+var BUILD = 'c91-2026-09-17-add-session-focus';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1223,7 +1223,8 @@ function derive(){
     } else if(e.kind === 'session_add'){
       if(!t.sessions.some(function(x){ return x.start === p.start && x.area === p.area; })){
         t.sessions.push({start:p.start, end:p.end || null, minutes:p.end ? minsBetween(p.start, p.end) : null,
-          focus:null, area:p.area, area_label:(v.areas||{})[p.area]||p.area,
+          focus:(typeof p.focus === 'number' ? p.focus : null),
+          area:p.area, area_label:(v.areas||{})[p.area]||p.area,
           bucket:({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[p.area]||null,
           task:(v.areas||{})[p.area]||p.area, notes:'', open:!p.end, pending:true});
       }
@@ -1810,7 +1811,7 @@ function openSessEditor(sess){
   EDIT = sess
     ? {was:{start:sess.start, end:sess.open ? null : sess.end, area:sess.area},
        start:sess.start, end:sess.end || hhmm(), area:sess.area, running:!!sess.open, isNew:false}
-    : {was:null, start:minusMinutes(hhmm(), 60), end:hhmm(), area:'ai', running:false, isNew:true};
+    : {was:null, start:minusMinutes(hhmm(), 60), end:hhmm(), area:'ai', running:false, isNew:true, focus:null};
   paintSessEditor();
 }
 
@@ -1877,6 +1878,16 @@ function paintSessEditor(){
         '" style="justify-content:flex-start"><span style="width:9px;height:9px;border-radius:50%;' +
         'background:' + areaColour(a[0]) + '"></span>' + esc(a[1]) + '</button>';
     }).join('') + '</div>' +
+    /* A finished session needs its score here. Without it the row landed
+       unrated and he had to reopen it from the list to give the number. A
+       running one does not: the score is given when he stops it. */
+    (e.isNew && !e.running
+      ? '<div class="tiny muted" style="margin:18px 0 0">How focused were you?</div>' +
+        '<div class="scale" style="margin:10px 0 4px">' + [1,2,3,4,5,6,7,8,9,10].map(function(n){
+          return '<button data-sfocus="' + n + '"' + (e.focus === n ? ' class="on"' : '') + '>' + n + '</button>';
+        }).join('') + '</div>' +
+        '<div class="scale-ends"><span>1 · barely working</span><span>10 · fully absorbed</span></div>'
+      : '') +
     '<div class="row" style="gap:10px;margin-top:18px">' +
       (e.isNew ? '' : '<button class="btn" id="sessDelete" style="color:var(--bad)">Delete</button>') +
       '<button class="btn primary grow" id="sessSave"' + (bad ? ' disabled' : '') + ' style="flex:1' + (e.isNew ? ';width:100%' : '') + '">' +
@@ -3363,7 +3374,7 @@ document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],[data-range],[data-corner],[data-planlist],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
-    '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend]');
+    '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend]');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
   // that window used to post the same event again.
@@ -3514,6 +3525,12 @@ document.addEventListener('click', async function(ev){
     paintSessEditor();
     return;
   }
+  if(t.dataset.sfocus){
+    var fn = +t.dataset.sfocus;
+    EDIT.focus = (EDIT.focus === fn) ? null : fn;   // a second tap clears it
+    paintSessEditor();
+    return;
+  }
   if(t.id === 'addSess'){ openSessEditor(null); return; }
   if(t.dataset.editsess){
     var pool = VIEW.today.sessions || [];
@@ -3525,7 +3542,8 @@ document.addEventListener('click', async function(ev){
     var e = EDIT, en = e.running ? null : e.end;
     if(sessProblem(e.start, en, e.running)) return;
     closeSheet(true);
-    if(e.isNew) await record('session_add', {start:e.start, end:en, area:e.area, day:VIEW.today.date});
+    if(e.isNew) await record('session_add', {start:e.start, end:en, area:e.area, day:VIEW.today.date,
+                                             focus:(!e.running && e.focus) ? e.focus : null});
     else await record('session_edit', {was:e.was, now:{start:e.start, end:en, area:e.area},
                                        day:VIEW.today.date});
     render();
