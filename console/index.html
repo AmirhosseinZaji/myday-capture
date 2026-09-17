@@ -679,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c88-2026-09-16-area-colours';
+var BUILD = 'c89-2026-09-16-joint-hours-line';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1972,9 +1972,7 @@ function pageTime(v){
        '</div>' +
        (showTm
          ? '<p class="small" style="margin:-6px 0 8px;font-weight:600">' + esc(longDay(tm.date)) + ' · ' + hmShort(planWork(tm.plan)) +
-           ' planned' + (planWork(tm.plan) < 600 ? ' <span class="muted" style="font-weight:400">· ' +
-           hmShort(600 - planWork(tm.plan)) + ' under the 10h floor</span>' : planWork(tm.plan) === 600 ? ' <span class="muted" style="font-weight:400">· at the 10h floor</span>' : ' <span class="muted" style="font-weight:400">· past the 10h floor</span>') +
-           ' ' + infoBtn('plan') + '</p>' +
+           ' certain' + planShortfall(tm.plan) + ' ' + infoBtn('plan') + '</p>' +
            timelineHTML({plan: tm.plan, sessions: []}, true)
          : timelineHTML(t)) + '</div>';
   h += '</div>';   // closes .split: the calendar spans both columns on a laptop
@@ -2055,6 +2053,32 @@ function planWork(plan){
   if(cur) m += cur[1] - cur[0];
   return m;
 }
+/* What the plan says about the 10 hour floor.
+ *
+ * A joint block is left out of planWork, because how it splits between the
+ * personal jobs and the work after them is not known until he has done it. So
+ * on a day that has one, "6h planned · 4h under the 10h floor" was a lie in the
+ * unkind direction: the evening may well fill the floor. The line now says what
+ * is certain, then names the joint time separately.
+ */
+function planShortfall(plan){
+  var m = ' <span class="muted" style="font-weight:400">· ';
+  var joint = 0;
+  (plan || []).forEach(function(b){
+    if(String((b || {}).area || '').indexOf('+') < 0) return;
+    var a = toMin(b.start), z = toMin(b.end);
+    if(isNaN(a) || isNaN(z)) return;
+    joint += (z <= a ? z + 1440 : z) - a;
+  });
+  var w = planWork(plan), gap = 600 - w;
+  if(joint) return m + hmShort(joint) + ' shared, ' +
+    (gap <= 0 ? 'the floor is already met' :
+     joint >= gap ? 'enough for the 10h floor if the first half does not eat it'
+                  : hmShort(gap - joint) + ' short even if it all goes to work') + '</span>';
+  if(gap > 0) return m + hmShort(gap) + ' under the 10h floor</span>';
+  return m + (gap === 0 ? 'at the 10h floor' : 'past the 10h floor') + '</span>';
+}
+
 function longDay(iso){
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'long'}) + ' ' + prettyDate(iso);
 }
