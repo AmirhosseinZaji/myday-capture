@@ -679,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c89-2026-09-16-joint-hours-line';
+var BUILD = 'c90-2026-09-16-daily-target';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1401,11 +1401,27 @@ function weightedFocus(sessions){
   });
   return den ? Math.round(num/den*100)/100 : null;
 }
+/* The target for a day, in minutes, or null when he set none.
+ *
+ * There is no 10 hour floor any more. Amir removed it on 2026-09-16: he sets a
+ * target for each day in the interview and it changes. "It is possible that one
+ * day the target is just two hours. When I hit that, it means that I hit my
+ * goal." So a two hour day he finishes is a full corner, and a day he never
+ * planned is not scored at all rather than scored zero. Unknown is not zero
+ * anywhere in this system, and this is the same rule the focus corner follows.
+ */
+function dayTarget(t){
+  var v = (t || {}).target_minutes;
+  if(v == null) v = ((VIEW || {}).targets || {}).daily_minutes;
+  return v || null;
+}
+
 function triScores(today, week, onDate){
   var clamp = function(x){ return Math.max(0, Math.min(1, x)); };
   // `personal` is life admin, not work, so it never fills this corner.
   var worked = today.work_minutes != null ? today.work_minutes : (today.closed_minutes || 0);
-  var consistency = clamp(worked / 600);
+  var tgt = dayTarget(today);
+  var consistency = tgt ? clamp(worked / tgt) : 0;
   var focus = today.focus == null ? 0 : clamp(today.focus / 10);
 
   var d = new Date(onDate + 'T00:00:00');
@@ -1882,9 +1898,12 @@ function paintSessEditor(){
 function shortfallLine(t){
   // The app knows the gap, so it names it instead of saying "get more hours in".
   var w = t.work_minutes != null ? t.work_minutes : (t.closed_minutes || 0);
-  if(w >= 600) return 'You have passed the 10h floor. 12h is a good day.';
-  if(!w) return 'Nothing logged yet. The 10h floor starts when you do.';
-  return 'You are ' + hmShort(600 - w) + ' short of the 10h floor.';
+  var tgt = dayTarget(t);
+  if(!tgt) return w ? 'No target set for today, so the hours are not scored.'
+                    : 'No target set for today. Run the interview and pick one.';
+  if(w >= tgt) return 'You hit your ' + hmShort(tgt) + ' target for today.';
+  if(!w) return 'Nothing logged yet. Today’s target is ' + hmShort(tgt) + '.';
+  return 'You are ' + hmShort(tgt - w) + ' short of today’s ' + hmShort(tgt) + ' target.';
 }
 function runnerHTML(v){
   var t = v.today, o = t.open_session;
@@ -1945,13 +1964,13 @@ function pageTime(v){
   h += '<div class="split"><div class="side"><div class="card"><h2 class="hd">Today ' + infoBtn('hours') + '</h2>' +
     '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
       '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.work_minutes)+'</div>' +
-      '<div class="small muted">of the 10h floor</div></div>' +
+      '<div class="small muted">' + (dayTarget(t) ? 'of your ' + hmShort(dayTarget(t)) + ' target' : 'no target set') + '</div></div>' +
       '<div style="text-align:right"><div class="serif" style="font-size:26px;color:var(--consistency)">'+
-        pct(Math.min(1,(t.work_minutes||0)/600))+'%</div>' +
-      '<div class="tiny muted" style="white-space:nowrap">done</div></div>' +
+        (dayTarget(t) ? pct(Math.min(1,(t.work_minutes||0)/dayTarget(t))) + '%' : '—') + '</div>' +
+      '<div class="tiny muted" style="white-space:nowrap">' + (dayTarget(t) ? 'done' : 'not scored') + '</div></div>' +
     '</div>' +
     '<div class="bar" style="height:8px"><i style="background:var(--consistency)" data-w="'+
-      Math.min(100, Math.round((t.work_minutes||0)/600*100))+'"></i></div>' +
+      (dayTarget(t) ? Math.min(100, Math.round((t.work_minutes||0)/dayTarget(t)*100)) : 0)+'"></i></div>' +
     '<p class="tiny muted" style="margin:18px 0 10px">Today’s split, as you set it.</p>' +
     '<div class="stack">' +
       splitBar('Academia', b.academia, sp.academia, AREA_COLOUR.ucw) +
@@ -1972,7 +1991,7 @@ function pageTime(v){
        '</div>' +
        (showTm
          ? '<p class="small" style="margin:-6px 0 8px;font-weight:600">' + esc(longDay(tm.date)) + ' · ' + hmShort(planWork(tm.plan)) +
-           ' certain' + planShortfall(tm.plan) + ' ' + infoBtn('plan') + '</p>' +
+           ' certain' + planShortfall(tm.plan, tm) + ' ' + infoBtn('plan') + '</p>' +
            timelineHTML({plan: tm.plan, sessions: []}, true)
          : timelineHTML(t)) + '</div>';
   h += '</div>';   // closes .split: the calendar spans both columns on a laptop
@@ -2057,11 +2076,14 @@ function planWork(plan){
  *
  * A joint block is left out of planWork, because how it splits between the
  * personal jobs and the work after them is not known until he has done it. So
- * on a day that has one, "6h planned · 4h under the 10h floor" was a lie in the
- * unkind direction: the evening may well fill the floor. The line now says what
- * is certain, then names the joint time separately.
+ * on a day that has one, "6h planned, 4h short" was a lie in the unkind
+ * direction: the evening may well fill the target. The line says what is
+ * certain, then names the joint time separately.
+ *
+ * Everything here measures against the target HE set for that day, not against
+ * a standing number. He removed the 10 hour floor on 2026-09-16.
  */
-function planShortfall(plan){
+function planShortfall(plan, day){
   var m = ' <span class="muted" style="font-weight:400">· ';
   var joint = 0;
   (plan || []).forEach(function(b){
@@ -2070,13 +2092,17 @@ function planShortfall(plan){
     if(isNaN(a) || isNaN(z)) return;
     joint += (z <= a ? z + 1440 : z) - a;
   });
-  var w = planWork(plan), gap = 600 - w;
+  var tgt = dayTarget(day);
+  if(!tgt) return joint ? m + hmShort(joint) + ' shared, and no target set</span>'
+                        : m + 'no target set</span>';
+  var w = planWork(plan), gap = tgt - w;
+  var T = hmShort(tgt) + ' target';
   if(joint) return m + hmShort(joint) + ' shared, ' +
-    (gap <= 0 ? 'the floor is already met' :
-     joint >= gap ? 'enough for the 10h floor if the first half does not eat it'
-                  : hmShort(gap - joint) + ' short even if it all goes to work') + '</span>';
-  if(gap > 0) return m + hmShort(gap) + ' under the 10h floor</span>';
-  return m + (gap === 0 ? 'at the 10h floor' : 'past the 10h floor') + '</span>';
+    (gap <= 0 ? 'the ' + T + ' is already met' :
+     joint >= gap ? 'enough for the ' + T + ' if the first half does not eat it'
+                  : hmShort(gap - joint) + ' short of the ' + T + ' even if it all goes to work') + '</span>';
+  if(gap > 0) return m + hmShort(gap) + ' under the ' + T + '</span>';
+  return m + (gap === 0 ? 'exactly the ' + T : 'past the ' + T) + '</span>';
 }
 
 function longDay(iso){
@@ -2781,7 +2807,10 @@ function pageProgress(v){
     }
     h += '<div class="pgrid' + (unit === 'day' ? ' pweek' : '') + '">' + padP + buckets.map(function(b){
       var tri = {consistency:b.consistency || 0, focus:b.focus || 0, goals:b.goals || 0,
-                 scored: b.area != null, unknown: [].concat(b.focus == null ? ['focus'] : [], b.goals == null ? ['goals'] : [])};
+                 scored: b.area != null,
+                 unknown: [].concat(b.consistency == null ? ['consistency'] : [],
+                                    b.focus == null ? ['focus'] : [],
+                                    b.goals == null ? ['goals'] : [])};
       var dayKey = unit === 'day' && b.days && b.days[0] && b.dayCount ? String(b.days[0].date) : '';
       return (dayKey ? '<button class="pcell" data-day="'+esc(dayKey)+'"' : '<div class="pcell' + (b.dayCount ? '' : ' nodata') + '"') +
         ' title="'+esc(b.title + (b.area != null ? ' · ' + pct(b.area) + '%' : ' · not scored'))+'">' +
@@ -2792,7 +2821,7 @@ function pageProgress(v){
   } else {
     var c = CORNERS.filter(function(x){ return x.k === P_CORNER; })[0];
     var m = meanOf(P_CORNER);
-    var how = P_CORNER === 'consistency' ? 'hours against the 10h floor'
+    var how = P_CORNER === 'consistency' ? 'hours against the target you set'
             : P_CORNER === 'focus' ? 'your own score, weighted by session length'
             : 'goal progress against the pace of the week';
     h += '<p class="small dim prose" style="margin-bottom:12px">' + esc(c.label) + ' per ' + unit + ': ' + how + '. ' +
@@ -2820,7 +2849,7 @@ function pageProgress(v){
 /* The explanations live behind a small ⓘ. A paragraph inside every data card
    made the product read like a manual. */
 var INFO = {
-  triangle:['How the score works', 'Hours count towards the 10h floor. Focus is your own score from 1 to 10, weighted by ' +
+  triangle:['How the score works', 'Hours count towards the target you set for that day in the interview; a day with no target is not scored. Focus is your own score from 1 to 10, weighted by ' +
     'how long each session ran. The day’s score is consistency times focus, so both have to be there. Goals are weekly: the ' +
     'goals corner is drawn here as the pace the week is keeping, and it joins the score only for weeks and months on Progress, ' +
     'where the score is how much of the full triangle the three corners fill.'],
@@ -3235,7 +3264,9 @@ function tickClock(){
     }
     var tl = document.getElementById('todaylive');
     if(tl && VIEW){ var tm = (VIEW.today.work_minutes || 0) + Math.floor(w / 60); tl.textContent = hmShort(tm);
-      var tb = document.getElementById('todaybar'); if(tb) tb.style.width = Math.min(100, Math.round(tm / 600 * 100)) + '%'; }
+      var tgt2 = dayTarget(VIEW.today);
+      var tb = document.getElementById('todaybar');
+      if(tb) tb.style.width = (tgt2 ? Math.min(100, Math.round(tm / tgt2 * 100)) : 0) + '%'; }
   };
   upd();
   CLOCK_T = setInterval(upd, 1000);   // seconds, so a running box visibly runs
