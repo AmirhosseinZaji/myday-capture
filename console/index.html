@@ -198,6 +198,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .btn.primary{background:var(--ink); color:#fff; border-color:var(--ink)}
 .btn.stop{background:var(--bad); color:#fff; border-color:var(--bad)}
 .btn.wide{width:100%}
+.btn.tiny{padding:0 14px; min-height:40px; font-size:13px; border-radius:10px}
 .btn[disabled]{opacity:.45; pointer-events:none}
 
 /* ── the big start/stop ─────────────────────────────────────────────────── */
@@ -674,7 +675,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c83-2026-09-15-stale-build-heals';
+var BUILD = 'c84-2026-09-16-plan-blocks-carry-tasks';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -713,10 +714,12 @@ function restoreTab(){
     if(typeof vw.area === 'string') AREA_FILTER = vw.area;
     if(typeof vw.range === 'string') P_RANGE = vw.range;
     if(typeof vw.corner === 'string') P_CORNER = vw.corner;
+    if(typeof vw.planlist === 'boolean') PLAN_LIST_OPEN = vw.planlist;
   }catch(e){}
 }
 function rememberView(){
-  try{ localStorage.setItem('myday_view', JSON.stringify({task:TASK_FILTER, area:AREA_FILTER, range:P_RANGE, corner:P_CORNER})); }catch(e){}
+  try{ localStorage.setItem('myday_view', JSON.stringify({task:TASK_FILTER, area:AREA_FILTER,
+    range:P_RANGE, corner:P_CORNER, planlist:PLAN_LIST_OPEN})); }catch(e){}
 }
 function rememberTab(){
   try{ localStorage.setItem('myday_tab', TAB); }catch(e){}
@@ -1149,9 +1152,16 @@ function derive(){
     if(!(z - a > 0 && z - a <= 14 * 60)) return false;
     b.activity = String(b.activity == null ? 'work' : b.activity); b.status = String(b.status || '⬜');
     b.minutes = z - a;
+    // The interview's two cells. An older blob carries neither, so both are
+    // forced into the shape the drawing code expects rather than trusted.
+    b.area = typeof b.area === 'string' && b.area ? b.area : null;
+    b.tasks = Array.isArray(b.tasks) ? b.tasks.filter(function(x){ return typeof x === 'string'; }) : [];
     return true;
   };
   t.plan = (t.plan || []).filter(okBlock); v.tomorrow.plan = v.tomorrow.plan.filter(okBlock);
+  // Titles for the tasks a plan block names. Done tasks are in here too, so a
+  // task ticked off a block keeps its words instead of leaving a hole.
+  if(!v.plan_tasks || typeof v.plan_tasks !== 'object') v.plan_tasks = {};
 
   var overlayOne = function(e){
     var p = e.payload || {};
@@ -1983,12 +1993,23 @@ function sessionRow(s, day, edit){
             'aria-label="Edit this session">✎</button>' : '') + '</div>';
 }
 var SHOW_TOMORROW = false;
+// Whether the list under the timeline is open. It has to be remembered, because
+// the list now holds tick boxes and Start buttons: ticking a task redraws the
+// page, and a redraw that resets the `open` attribute shuts the list under the
+// finger that just used it. Null means Amir has not chosen, so the day decides.
+var PLAN_LIST_OPEN = null;
 function planWork(plan){
   // Overlapping blocks are merged first, so a plan spoken twice over the same
   // hour does not promise it twice.
   var iv = [];
   (plan || []).forEach(function(b){
     if(!b || b.status === 'fixed') return;
+    // The interview plans his whole day, so a dog walk and a trip to the bank
+    // are blocks too. Personal time is not work anywhere else on this page and
+    // it is not work here either, or the hero would promise twelve hours on a
+    // day that holds six. A block from an older day file has no area and still
+    // counts, because that is what those files meant when they were written.
+    if(b.area === 'personal') return;
     var a = toMin(b.start), z = toMin(b.end);
     if(isNaN(a) || isNaN(z)) return;
     if(z <= a) z += 1440;
@@ -2006,10 +2027,91 @@ function planWork(plan){
 function longDay(iso){
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'long'}) + ' ' + prettyDate(iso);
 }
+/* A planned block, as a row under the timeline.
+ *
+ * The interview puts real tasks in every block, because a block with no tasks
+ * is a wish. So the row shows them, each with the same tick box the Tasks page
+ * uses, and a Start button that opens a session with the block's area already
+ * chosen. Both reuse controls that already exist: `data-tick` files a tick and
+ * `data-area` starts a session, so nothing new has to be sent, pended or
+ * pruned. A block with no area and no tasks draws exactly the line it drew
+ * before, which is what every day file written before this still holds.
+ */
+/* How much of the plan he actually kept.
+ *
+ * The gap between what he promised in the evening and what he did is the most
+ * useful number in the system and nothing showed it. It is a plain line, not a
+ * fourth corner of the triangle: the triangle is three corners on purpose and
+ * this is not a fourth thing he is judged on, it is a fact about the plan.
+ */
+function keptLine(planned, done, planOnly){
+  if(planOnly || !planned) return '';
+  var pct = Math.round(done / planned * 100);
+  var colour = pct >= 90 ? 'var(--focus)' : pct >= 60 ? 'var(--ink-2)' : 'var(--consistency)';
+  return '<div class="tiny muted" style="padding:10px 0 0">Planned ' + hmShort(planned) +
+    ', worked ' + hmShort(done) + ' · kept <span style="color:' + colour +
+    ';font-weight:600">' + pct + '%</span> of the plan</div>';
+}
+
+/* Open by default when the list is the useful part of the page: when a block
+ * carries tasks to tick, or when the blocks are too short to read on the
+ * timeline. Once Amir opens or closes it himself, his choice wins. */
+function planListOpen(t, anyBar){
+  if(PLAN_LIST_OPEN !== null) return PLAN_LIST_OPEN;
+  if(anyBar) return true;
+  return (t.plan || []).some(function(b){ return (b.tasks || []).length > 0; });
+}
+
+function planRowHTML(b, planOnly){
+  var view = VIEW || {};
+  var lookup = view.plan_tasks || {};
+  var pend = {};
+  PEND.forEach(function(e){ if(e.kind === 'task_tick') pend[(e.payload||{}).id] = 1; });
+
+  var tasks = (b.ptasks || []).map(function(id){
+    return lookup[id] || {id:id, title:'a task that is no longer on the list', missing:true};
+  });
+
+  var head = '<div class="spread small" style="padding:7px 0">' +
+    '<span dir="auto" style="min-width:0">' + esc(b.label) +
+      (b.parea ? ' <span class="muted tiny">· ' + esc((view.areas || {})[b.parea] || b.parea) + '</span>' : '') +
+    '</span>' +
+    '<span class="muted tiny" style="flex:0 0 auto;margin-left:10px">' + esc(b.s) + '–' + esc(b.e) + '</span></div>';
+
+  var body = '';
+  if(tasks.length){
+    body += '<div style="padding:0 0 6px 2px">' + tasks.map(function(tk){
+      var on = tk.done || !!pend[tk.id];
+      if(tk.missing){
+        return '<div class="tiny muted" style="padding:3px 0">' + esc(tk.title) + '</div>';
+      }
+      return '<div class="tk' + (on ? ' ticked' : '') + '" style="padding:3px 0">' +
+        '<button class="box' + (on ? ' on' : '') + '" data-tick="' + esc(tk.id) + '" ' +
+        'data-ticked="' + (on ? '1' : '') + '" ' +
+        'aria-label="' + (on ? 'Undo' : 'Tick') + ' ' + esc(tk.title) + '">' + (on ? '✓' : '') + '</button>' +
+        '<div class="grow" dir="auto"><div class="t tiny">' + esc(tk.title) + '</div></div></div>';
+    }).join('') + '</div>';
+  }
+
+  // Start is only offered for today, for a block that names a work area, and
+  // only while nothing else is running. Offering it on tomorrow's plan would
+  // open a session on the wrong day.
+  var open = (view.today || {}).open_session;
+  if(!planOnly && b.parea && b.parea !== 'personal' && !open){
+    body += '<div style="padding:0 0 8px"><button class="btn tiny" data-area="' + esc(b.parea) + '">' +
+      'Start this block</button></div>';
+  }
+
+  return '<div style="border-bottom:1px solid var(--line-soft)">' + head + body + '</div>';
+}
+
 function timelineHTML(t, planOnly){
   var blocks = [];
   (t.plan||[]).forEach(function(p){ blocks.push({k:'planned', s:p.start, e:p.end,
-    label:p.activity.replace(/\*\*/g,''), status:p.status}); });
+    label:p.activity.replace(/\*\*/g,''), status:p.status,
+    // The interview writes which area a block is for and which tasks it holds.
+    // Both travel with the block so the list under the timeline can draw them.
+    parea:p.area || null, ptasks:p.tasks || []}); });
   (t.sessions||[]).forEach(function(s){ if(s.malformed) return; blocks.push({k:'actual', s:s.start,
     e:s.end || hhmm(), label:(s.area_label||s.area), area:s.area, open:s.open}); });
   if(!blocks.length){
@@ -2101,11 +2203,8 @@ function timelineHTML(t, planOnly){
   }).join('');
 
   // Two columns of the same width, each header centred over its own column.
-  var planList = blocks.filter(function(b){ return b.k === 'planned'; }).map(function(b){
-    return '<div class="spread small" style="padding:7px 0;border-bottom:1px solid var(--line-soft)">' +
-      '<span dir="auto" style="min-width:0">' + esc(b.label)+'</span>' +
-      '<span class="muted tiny" style="flex:0 0 auto;margin-left:10px">'+esc(b.s)+'–'+esc(b.e)+'</span></div>';
-  }).join('');
+  var planList = blocks.filter(function(b){ return b.k === 'planned'; })
+    .map(function(b){ return planRowHTML(b, planOnly); }).join('');
 
   var plannedMin = planWork(t.plan);
   var doneMin = t.work_minutes || 0;
@@ -2115,7 +2214,10 @@ function timelineHTML(t, planOnly){
     '<div class="tl-head actual"><span class="sw actual"></span>Done' +
       '<span class="tl-sum">'+hmShort(doneMin)+'</span></div></div>' +
     '<div class="timeline" style="height:'+H+'px">'+lines+bh+'</div>' +
-    (planList ? '<details class="tl-list"'+(anyBar ? ' open' : '')+'><summary class="tiny muted">The plan, as a list</summary>'+planList+'</details>' : '') +
+    (planList ? '<details class="tl-list"' + (planListOpen(t, anyBar) ? ' open' : '') +
+      '><summary class="tiny muted" data-planlist="1">The plan, as a list</summary>' +
+      planList + '</details>' : '') +
+    keptLine(plannedMin, doneMin, planOnly) +
     '</div>';
 }
 
@@ -3146,7 +3248,7 @@ function askFocus(sessionStart, mins, mandatory, forDay){
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
-    '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
+    '[data-noteact],[data-range],[data-corner],[data-planlist],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
     '#sessSave,#sessDelete,[data-sarea],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend]');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
@@ -3156,6 +3258,14 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.act === 'type'){ typeInstead(null); return; }
   if(t.dataset.info){ var inf = INFO[t.dataset.info]; openSheet('<h3>'+esc(inf[0])+'</h3><p class="small dim prose" style="margin-top:10px">'+esc(inf[1])+'</p>'); return; }
   if(t.dataset.act === 'daytoday'){ SHOW_TOMORROW = false; render(); return; }
+  if(t.dataset.planlist){
+    // The summary's own toggle runs after this, so the flag is set to what the
+    // element is about to become, not to what it is now.
+    var det = t.closest('details');
+    PLAN_LIST_OPEN = !(det && det.open);
+    rememberView();
+    return;
+  }
   if(t.dataset.range){ P_RANGE = t.dataset.range; rememberView(); render(); return; }
   if(t.dataset.corner){ P_CORNER = t.dataset.corner; rememberView(); render(); return; }
   if(t.dataset.act === 'daytomorrow'){ SHOW_TOMORROW = true; render(); return; }
