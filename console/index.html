@@ -447,6 +447,18 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk .t{display:block; overflow-wrap:anywhere}
 .tk .grow .s{direction:ltr; unicode-bidi:isolate; text-align:left}
 .tk .grow:dir(rtl) .s{text-align:right}
+/* The due date is a button. Changing a date is the thing Amir does most often
+   on this page, and doing it through Claude meant describing the task in words
+   first. One tap opens the date sheet. It is pulled back by its own padding so
+   the text still lines up under the title. */
+/* inline-block, never inline-flex: a flex box throws away the whitespace
+   between its children, and "3 days overdue" came out as "3 daysoverdue". */
+.duebtn{display:inline-block; padding:3px 9px; margin:-3px -9px;
+  border-radius:99px; border:1px solid transparent; background:transparent;
+  font:inherit; color:inherit; position:relative}
+.duebtn::before{content:""; position:absolute; inset:-8px -4px}
+.duebtn:hover{border-color:var(--line); background:var(--surface-2)}
+.duebtn.waiting{border-color:var(--notice-line); background:var(--notice-bg)}
 /* The board: one column per area, scrolled sideways, snapping column by column. */
 .board{display:flex; gap:14px; overflow-x:auto; scroll-snap-type:x mandatory; margin:0 -20px; padding:2px 20px 16px;
   scrollbar-width:thin; -webkit-overflow-scrolling:touch}
@@ -679,7 +691,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c91-2026-09-17-add-session-focus';
+var BUILD = 'c93-2026-09-18-tap-a-date-to-change-it';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -955,7 +967,8 @@ function prunePend(st){
   var tasks = ((st && st.tasks) || []).filter(function(x){ return x && typeof x === 'object' && x.id != null; });
   var sessions = ((st && st.today && st.today.sessions) || []).filter(function(x){ return x && typeof x === 'object'; });
   var week = st && st.week;
-  var live = {}; tasks.forEach(function(t){ live[t.id]=1; });
+  var live = {}, liveDue = {};
+  tasks.forEach(function(t){ live[t.id]=1; liveDue[t.id] = t.due || ''; });
   var now = Date.now();
   // A tap stamped in the future is a clock fault. Kept, it would close the
   // open session at a time that has not happened.
@@ -1018,6 +1031,14 @@ function prunePend(st){
     // unticked invites a second tick, and a repeating task would then have its
     // due date rolled forward twice.
     if(e.kind === 'task_tick') return age < 14*24*60*60*1000 && !!live[p.id];
+    // Filed by the 15-minute job, so this is usually spent inside the quarter
+    // hour. It gets the tick's fortnight rather than the six-hour backstop
+    // because the Mac can be asleep all night, and a date that reverted on his
+    // screen in the morning would simply be changed a second time.
+    if(e.kind === 'task_due'){
+      if(!live[p.id]) return false;          // ticked and filed: there is nothing left to date
+      return age < 14*24*60*60*1000 && liveDue[p.id] !== (p.due || '');
+    }
     if(age > STALE_MS) return false;
     if(e.kind === 'session_start')
       return !sessions.some(function(x){ return x.start === e.at; });
@@ -1257,6 +1278,12 @@ function derive(){
       // had nothing to act on.
       var hit = v.tasks.filter(function(x){ return x.id === p.id; })[0];
       if(hit) hit.pending_tick = true;
+    } else if(e.kind === 'task_due'){
+      // The date has to move on screen now. Waiting a quarter of an hour for
+      // the Mac would make the tap look like it did nothing, and a tap that
+      // looks like it did nothing gets made again.
+      var td = v.tasks.filter(function(x){ return x.id === p.id; })[0];
+      if(td){ td.due = p.due || null; td.pending_due = true; retimeTask(td, t.date); }
     } else if(e.kind === 'goals_set'){
       if(p.week && v.week && v.week.key && p.week !== v.week.key) return;   // last week's list, not this week's
       v.week = v.week || {key:'', start:'', end:'', goals:[], progress:0, hit:0, total:0};
@@ -1313,12 +1340,13 @@ function derive(){
   t.sessions.sort(function(a, b){ return dayM(a.start) - dayM(b.start); });
   // Recompute everything the overlay could have changed, so the triangle, the
   // totals and the balance never disagree with the list right above them.
-  var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0, personal = 0;
+  var closed = 0, buckets = {academia:0, dog:0, ai:0}, overhead = 0, personal = 0, care = 0;
   t.sessions.forEach(function(s){
     if(s.minutes == null || s.open) return;
     closed += s.minutes;
     if(s.area === 'overhead') overhead += s.minutes;
     if(s.area === 'personal') personal += s.minutes;
+    if(s.area === 'care') care += s.minutes;
     if(s.bucket) buckets[s.bucket] += s.minutes;
   });
   t.closed_minutes = closed; t.buckets = buckets; t.overhead_minutes = overhead;
@@ -1327,10 +1355,14 @@ function derive(){
   // both ignored the session Amir had just finished while the Hours page showed
   // it. Two screens, one fact, two answers.
   t.personal_minutes = personal;
-  t.work_minutes = closed - personal;
+  t.care_minutes = care;
+  // `care` is the dogs, the walk and the meals, and it is the only area that is
+  // not work. `personal` is the jobs he sits down and does, and Amir said on
+  // 2026-09-18 that those count: "personal is considered as work, personal jobs".
+  t.work_minutes = closed - care;
   var scoredMin = 0;
   t.sessions.forEach(function(x){
-    if(x.focus != null && x.minutes && x.area !== 'personal') scoredMin += x.minutes;
+    if(x.focus != null && x.minutes && x.area !== 'care') scoredMin += x.minutes;
   });
   t.focus_coverage = t.work_minutes ? Math.round(scoredMin / t.work_minutes * 1000) / 1000 : 0;
   t.open_session = t.sessions.filter(function(s){ return s.open; })[0] || null;
@@ -1397,7 +1429,7 @@ function weightedFocus(sessions){
   var num = 0, den = 0;
   sessions.forEach(function(s){
     if(s.focus == null || !s.minutes) return;
-    if(s.area === 'personal') return;   // not work, so not in the score. Overhead is work.
+    if(s.area === 'care') return;   // not work, so not in the score. Personal and overhead are work.
     num += s.focus * s.minutes; den += s.minutes;
   });
   return den ? Math.round(num/den*100)/100 : null;
@@ -1419,7 +1451,8 @@ function dayTarget(t){
 
 function triScores(today, week, onDate){
   var clamp = function(x){ return Math.max(0, Math.min(1, x)); };
-  // `personal` is life admin, not work, so it never fills this corner.
+  // `care` is the dogs, the walk and the meals. It is the only area that is not
+  // work, so it is the only one that never fills this corner.
   var worked = today.work_minutes != null ? today.work_minutes : (today.closed_minutes || 0);
   var tgt = dayTarget(today);
   var consistency = tgt ? clamp(worked / tgt) : 0;
@@ -1624,7 +1657,11 @@ function toast(msg, sticky){
    value of a colour is that it means the same thing in both places. */
 var AREA_COLOUR = {
   ucw:'#A34038', research:'#7E2F2A', ai:'#5D4E9C', dog:'#8A5A2B',
-  personal:'#3F7D5E', overhead:'#8C8782'
+  // `personal` is the jobs he sits down and does, and those count as work.
+  // `care` is the dogs, the walk and the meals, and that is the only area that
+  // does not. The two used to share one slug and one green. Amir split them on
+  // 2026-09-18 so he could see at a glance which blocks fill his hours.
+  personal:'#3F7D5E', care:'#C2568F', overhead:'#8C8782'
 };
 var JOINT_COLOUR = '#C08A1E';
 function areaColour(a){
@@ -2057,12 +2094,16 @@ function planWork(plan){
   var iv = [];
   (plan || []).forEach(function(b){
     if(!b || b.status === 'fixed') return;
-    // The interview plans his whole day, so a dog walk and a trip to the bank
-    // are blocks too. Personal time is not work anywhere else on this page and
-    // it is not work here either, or the hero would promise twelve hours on a
-    // day that holds six. A block from an older day file has no area and still
-    // counts, because that is what those files meant when they were written.
-    if(b.area === 'personal') return;
+    // The interview plans his whole day, so the dogs' walk and the meals are
+    // blocks too. `care` is not work anywhere else on this page and it is not
+    // work here either, or the hero would promise twelve hours on a day that
+    // holds six. A block from an older day file has no area and still counts,
+    // because that is what those files meant when they were written.
+    //
+    // `personal` used to be excluded here as well. Amir split the two areas on
+    // 2026-09-18: the jobs he sits down and does are work, and feeding the dogs
+    // is not.
+    if(b.area === 'care') return;
     // A joint block ("personal+ai") is personal jobs first and work after, and
     // nobody knows where the line falls until he has done it. Counting the
     // whole thing as work would promise hours that may not exist, so it is left
@@ -2197,10 +2238,10 @@ function planRowHTML(b, planOnly){
   // open a session on the wrong day.
   var open = (view.today || {}).open_session;
   if(!planOnly && pareas.length && !open){
-    // A plain block offers one button. A joint block offers one per area, and
-    // personal is offered too, because timing the personal half is the only way
-    // the system ever learns how long those jobs really take.
-    var btns = pareas.filter(function(a){ return pareas.length > 1 || a !== 'personal'; });
+    // A plain block offers one button. A joint block offers one per area. A
+    // `care` block is the only one with no button, because the dogs and the
+    // meals are not work and there is nothing to time.
+    var btns = pareas.filter(function(a){ return a !== 'care'; });
     if(btns.length){
       body += '<div style="padding:0 0 8px;display:flex;gap:6px;flex-wrap:wrap">' +
         btns.map(function(a){
@@ -2345,8 +2386,8 @@ function timelineHTML(t, planOnly){
 function pageFocus(v){
   var t = v.today, h = '';
 
-  var ratedN = t.sessions.filter(function(s){ return !s.open && s.minutes && s.focus != null && s.area !== 'personal'; }).length;
-  var workN = t.sessions.filter(function(s){ return !s.open && s.minutes && s.area !== 'personal'; }).length;
+  var ratedN = t.sessions.filter(function(s){ return !s.open && s.minutes && s.focus != null && s.area !== 'care'; }).length;
+  var workN = t.sessions.filter(function(s){ return !s.open && s.minutes && s.area !== 'care'; }).length;
   h += '<div class="card"><div class="spread" style="align-items:flex-start">' +
     '<div><h2 style="margin-bottom:8px">Today’s focus</h2>' +
     '<div class="serif" style="font-size:52px;line-height:1;color:' +
@@ -2689,7 +2730,9 @@ function pageTasks(v){
           'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
           (on?'✓':'')+'</button>' +
           '<div class="grow" dir="auto"><div class="t">'+esc(t.title)+'</div>' +
-          '<div class="s">'+due+(t.repeat?'<span style="white-space:nowrap"> · 🔁 '+esc(t.repeat)+'</span>':'')+
+          '<div class="s"><button class="duebtn'+(t.pending_due?' waiting':'')+'" data-due="'+esc(t.id)+'" ' +
+            'aria-label="Change the date of '+esc(t.title)+'">'+due+'</button>'+
+            (t.repeat?'<span style="white-space:nowrap"> · 🔁 '+esc(t.repeat)+'</span>':'')+
 
             (t.priority==='high'?'<span class="muted" style="white-space:nowrap"> · high</span>':'')+
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
@@ -2727,8 +2770,9 @@ function pageTasks(v){
     h += '<div class="taskcols">' + cards.map(function(c){ return c.html; }).join('') + '</div>';
   }
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking marks it done; it is filed at the next sync. ' +
-       'Tick it again to undo. ' + '<span hidden>Ticking sends it to Claude, who ' +
-       'files it properly at your computer. Tap it again to undo before that happens.</p>';
+       'Tick it again to undo. Tap a date to change it. ' + '<span hidden>Ticking sends it to Claude, who ' +
+       'files it properly at your computer. Tap it again to undo before that happens. A date you ' +
+       'change here is written into the task list by your computer within fifteen minutes.</span></p>';
   return h;
 }
 
@@ -2890,7 +2934,7 @@ var EVENT_NAME = {
   session_start:'Session started', session_stop:'Session stopped', session_pause:'Session paused', session_resume:'Session resumed',
   session_focus:'Session score', session_add:'Session added',
   session_edit:'Session corrected', session_delete:'Session deleted',
-  task_tick:'Task ticked', task_untick:'Tick undone',
+  task_tick:'Task ticked', task_untick:'Tick undone', task_due:'Date changed',
   goals_set:'Goals for the week', goal_progress:'Goal progress',
   plan_set:'Plan for the day',
   question_answer:'Answer to a question'
@@ -3084,7 +3128,7 @@ function moreSheet(){
 var TITLES = {home:'Triangle', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes', progress:'Progress'};
 var AREA_NAME = {academia:'Academia', ai:'AI Business', dog:'Dog Business',
-                 personal:'Personal', overhead:'Overhead'};
+                 personal:'Personal', care:'Care', overhead:'Overhead'};
 var MIC_HINT = {
   home:'Say anything. It lands on the Notes page.',
   time:'Say your working blocks, or a session you forgot.',
@@ -3369,9 +3413,58 @@ function askFocus(sessionStart, mins, mandatory, forDay){
     {mandatory: !!mandatory});
 }
 
+/* ── change a task's date ───────────────────────────────────────────────────
+   Amir asked for this on 2026-09-18: "it is difficult to talk to you to get
+   you know which task I am talking about and then change the date of that".
+   The dates are his; where the line then sits in its list stays Claude's. */
+function shiftDate(iso, days){
+  var d = new Date(iso + 'T12:00:00'); d.setDate(d.getDate() + days);
+  return d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+function retimeTask(t, today){
+  /* The same sum as annotate_overdue() in myday_parse.py. Without it a task
+     moved to next week keeps saying "9 days overdue" until the Mac publishes. */
+  if(!t.due){ t.when = 'none'; t.overdue_days = null; return; }
+  var delta = Math.round((new Date(today + 'T12:00:00') - new Date(t.due + 'T12:00:00')) / 86400000);
+  t.overdue_days = delta > 0 ? delta : 0;
+  t.when = delta > 0 ? 'overdue' : (delta === 0 ? 'today' : 'future');
+}
+var DUE_RE = /^\d{4}-\d{2}-\d{2}$/;
+function askDue(id){
+  var task = (VIEW.tasks || []).filter(function(x){ return x.id === id; })[0];
+  if(!task) return;
+  var today = workingDayOf(new Date().toISOString()) || (VIEW.today && VIEW.today.date) || '';
+  if(!DUE_RE.test(today)){ toast('This phone does not know what day it is.'); return; }
+  var now = task.due || '';
+  var choices = [['Today', today], ['Tomorrow', shiftDate(today, 1)],
+                 ['In three days', shiftDate(today, 3)], ['Next week', shiftDate(today, 7)],
+                 ['In two weeks', shiftDate(today, 14)], ['No date', '']];
+  openSheet('<h3>When is it due?</h3>' +
+    '<p class="small muted" dir="auto" style="margin-top:6px">' + esc(task.title) + '</p>' +
+    '<div class="grid2" style="margin-top:16px">' + choices.map(function(c){
+      // The date sits under its name, not beside it. Side by side, "In three
+      // days" wrapped and that one button grew taller than the other five.
+      return '<button class="btn' + (c[1] === now ? ' primary' : '') + '" data-setdue="' + esc(id) + '" ' +
+        'data-when="' + esc(c[1]) + '" style="flex-direction:column;align-items:flex-start;gap:1px;' +
+        'padding-top:11px;padding-bottom:11px">' +
+        '<span>' + esc(c[0]) + '</span>' +
+        '<span class="tiny" style="opacity:.6;font-weight:500">' +
+          (c[1] ? esc(prettyDate(c[1])) : 'leave it undated') + '</span>' +
+        '</button>';
+    }).join('') + '</div>' +
+    '<div style="display:flex;gap:10px;margin-top:14px;align-items:center">' +
+      '<input type="date" id="duePick" value="' + esc(now) + '" aria-label="Pick a date" ' +
+        'style="flex:1;min-width:0;padding:12px;border:1px solid var(--line);border-radius:11px;' +
+        'background:var(--surface);font:inherit;color:inherit">' +
+      '<button class="btn" data-setdue="' + esc(id) + '" style="flex:0 0 auto">Save</button>' +
+    '</div>' +
+    '<p class="tiny muted prose" style="margin-top:12px">The date changes here straight away. ' +
+    'Your computer writes it into the task list within fifteen minutes.</p>');
+}
+
 /* ── all taps, in one place ─────────────────────────────────────────────── */
 document.addEventListener('click', async function(ev){
-  var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],' +
+  var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],[data-due],[data-setdue],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],[data-range],[data-corner],[data-planlist],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
     '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend]');
@@ -3617,6 +3710,26 @@ document.addEventListener('click', async function(ev){
     render();
     if(!tev || !tev.sent || !PEND.some(function(e){ return e.kind === 'task_tick' && (e.payload||{}).id === id; })) return;
     toast('Ticked. Claude will file it the next time you are at your computer.');
+    return;
+  }
+  if(t.dataset.due){ askDue(t.dataset.due); return; }
+  if(t.dataset.setdue){
+    var dueId = t.dataset.setdue;
+    // A quick button carries the date it means. The Save button carries none,
+    // so it reads the picker instead.
+    var when = t.dataset.when != null ? t.dataset.when
+             : ((document.getElementById('duePick') || {}).value || '');
+    if(when && !DUE_RE.test(when)){ toast('That is not a date.'); return; }
+    var dt = (VIEW.tasks||[]).filter(function(x){ return x.id === dueId; })[0];
+    closeSheet(true);
+    // Nothing changed, so nothing is sent. A date re-chosen by mistake used to
+    // be a whole event for the Mac to file.
+    if(!dt || (dt.due || '') === when) return;
+    await record('task_due', {id:dueId, due: when || null, was: dt.due || null,
+                              title: dt.title, area: dt.area, section: dt.section});
+    render();
+    toast(when ? 'Due ' + prettyDate(when) + '. Your computer files it at the next sync.'
+               : 'Date cleared. Your computer files it at the next sync.');
     return;
   }
   if(t.dataset.goaltick){
@@ -3941,7 +4054,11 @@ var AREA_WORDS = [
   [/\b(research|paper|rebuttal|journal|manuscript|reviewer|conference|chapter)\b/, '🔬 Research'],
   [/\b(ucw|university|teach|teaching|grading|grade|class|lecture|students?|busi|cmpt|mhmi|mofit|workshop|committee|emails?)\b/, '🎓 UCW'],
   [/\b(ai|a\.i\.|business|youtube|channel|shorts?|videos?|landing|product|clients?|website|app|site|code|coding|build)\b/, '🤖 AI Business'],
-  [/\b(walk|lunch|dinner|breakfast|break|gym|nap|rest|personal|bank|shopping|errand)\b/, '🏠 Personal'],
+  // `personal` is jobs he sits down and does, and those count as work. `care`
+  // is the dogs and the meals, and that is the only thing that does not. Amir
+  // split the two on 2026-09-18.
+  [/\b(bank|shopping|errand|errands|paperwork|visa|permit|appointment|doctor|dentist|taxes?|personal)\b/, '🏠 Personal'],
+  [/\b(walk|lunch|dinner|breakfast|break|gym|nap|rest|potty|yard|feed|dogs? out)\b/, '🐾 Care'],
   [/\b(off.?leash|obedience|dog course|dog business|filming|poodi|collie)\b/, '🐕 Dog Business'],
 ];
 function planWords(text){
@@ -4033,16 +4150,17 @@ function parsePlan(text){
     if(area){
       // "research nine to eleven research paper" reads as Research · Paper.
       var stripArea = {'🔬 Research':/^research\b\s*/i, '🤖 AI Business':/^(ai business|ai)\b\s*/i,
-        '🎓 UCW':/^ucw\b\s*/i, '🐕 Dog Business':/^dog business\b\s*/i, '🏠 Personal':/^personal\b\s*/i}[area];
+        '🎓 UCW':/^ucw\b\s*/i, '🐕 Dog Business':/^dog business\b\s*/i,
+        '🏠 Personal':/^personal\b\s*/i, '🐾 Care':/^care\b\s*/i}[area];
       if(stripArea) label = label.replace(stripArea, '');
     }
     var pretty = label ? label.charAt(0).toUpperCase() + label.slice(1) : '';
     // "one to four AI business" needs no "AI Business · Ai business".
-    var bare = !label || /^(ai|a\.i\.|ai business|my business|business|research|ucw|university|dog|dogs|dog business|personal)$/i.test(label);
+    var bare = !label || /^(ai|a\.i\.|ai business|my business|business|research|ucw|university|dog|dogs|dog business|personal|care)$/i.test(label);
     var activity = area ? (bare ? area : area + ' · ' + pretty) : pretty;
     var s0 = pad(Math.floor(a / 60) % 24) + ':' + pad(a % 60), e0 = pad(Math.floor(b / 60) % 24) + ':' + pad(b % 60);
     blocks.push({start:s0, end:e0, minutes:b - a, activity:activity, duration:hm(b - a),
-                 status:/walk|lunch|dinner|breakfast|break/.test(label) ? 'fixed' : '⬜'});
+                 status:area === '🐾 Care' ? 'fixed' : '⬜'});
   });
   blocks.sort(function(x, y){ return x.start < y.start ? -1 : 1; });
   return blocks;
