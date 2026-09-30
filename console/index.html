@@ -679,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c95-2026-09-30-three-areas-in-add';
+var BUILD = 'c96-2026-09-30-circles-keep-seconds';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1176,8 +1176,10 @@ function derive(){
     return true;
   };
   t.plan = (t.plan || []).filter(okBlock); v.tomorrow.plan = v.tomorrow.plan.filter(okBlock);
-  // Titles for the tasks a plan block names. Done tasks are in here too, so a
-  // task ticked off a block keeps its words instead of leaving a hole.
+  // The exact seconds this phone saw for each row, which the Mac's minutes
+  // cannot hold. Only the circles on Consistency read them.
+  loadExact();
+  t.sessions.forEach(function(x){ if(!x.malformed) x.exact = EXACT[exKey(t.date, x.start)] || null; });
 
   var overlayOne = function(e){
     var p = e.payload || {};
@@ -1198,9 +1200,24 @@ function derive(){
       // A start while a session is open is a switch of area: the open row
       // closes at the new start, exactly as the Mac files it. A start in the
       // same minute as the open row replaces it instead of leaving a 0m row.
+      // A row replaced inside its own minute cannot stay a row, because the
+      // day file keys rows by their minute. Its seconds are carried on the new
+      // row instead, so the circles and the total do not lose them.
+      var carry = null, tapMs = Date.parse(e.ts);
       t.sessions.forEach(function(s){
         if(!s.open) return;
-        if(s.start === e.at){ s.dead = true; return; }
+        if(s.start === e.at){
+          s.dead = true;
+          carry = Object.assign({}, (s.exact && s.exact.carry) || {});
+          // The same tap met again over its own row is not a second part.
+          if(s.exact && Date.parse(s.exact.s) === tapMs) return;
+          var k0 = circleOf(s.area);
+          carry[k0] = (carry[k0] || 0) + rowSecs(s, tapMs);
+          return;
+        }
+        var ex = exFor(t.date, s);
+        if(s.paused_at){ ex.pauses[ex.cur || s.paused_iso || e.ts] = e.ts; delete ex.cur; }
+        ex.e = e.ts;
         s.end = e.at; s.open = false; s.pending = true;
         var mm = minsBetween(s.start, s.end) - (s.paused_min || 0);
         if(s.paused_at){ mm -= minsBetween(s.paused_at, e.at); s.paused_at = null; }
@@ -1208,15 +1225,20 @@ function derive(){
       });
       t.sessions = t.sessions.filter(function(s){ return !s.dead; });
       if(!t.sessions.some(function(s){ return s.open; })){
+        var nx = EXACT[exKey(t.date, e.at)] = {s:e.ts, pauses:{}};
+        if(carry) nx.carry = carry;
         t.sessions.push({start:e.at, end:null, minutes:null, focus:null,
           area:p.area||'ai', area_label:(v.areas||{})[p.area]||p.area,
           bucket:({ucw:'academia',research:'academia',dog:'dog',ai:'ai'})[p.area]||null,
-          task:(v.areas||{})[p.area]||p.area, notes:'', open:true, pending:true, started_iso:e.ts});
+          task:(v.areas||{})[p.area]||p.area, notes:'', open:true, pending:true, started_iso:e.ts, exact:nx});
       }
     } else if(e.kind === 'session_stop'){
       for(var i=t.sessions.length-1;i>=0;i--){
         if(t.sessions[i].open && (!p.start || t.sessions[i].start === p.start)){
           var s = t.sessions[i];
+          var exS = exFor(t.date, s);
+          if(s.paused_at){ exS.pauses[exS.cur || s.paused_iso || e.ts] = e.ts; delete exS.cur; }
+          exS.e = e.ts;
           if(s.paused_at){ s.paused_min = (s.paused_min || 0) + minsBetween(s.paused_at, e.at); s.paused_at = null; s.paused_iso = null; }
           s.end = e.at; s.open = false; s.pending = true;
           s.minutes = Math.max(0, minsBetween(s.start, s.end) - (s.paused_min || 0));
@@ -1228,8 +1250,12 @@ function derive(){
       for(var i2=t.sessions.length-1;i2>=0;i2--){
         var so = t.sessions[i2];
         if(!so.open || (p.start && so.start !== p.start)) continue;
-        if(e.kind === 'session_pause'){ if(!so.paused_at){ so.paused_at = e.at; so.paused_iso = e.ts; } }
-        else if(so.paused_at){ so.paused_min = (so.paused_min || 0) + minsBetween(so.paused_at, e.at); so.paused_at = null; so.paused_iso = null; }
+        var exP = exFor(t.date, so);
+        if(e.kind === 'session_pause'){ if(!so.paused_at){ so.paused_at = e.at; so.paused_iso = e.ts; exP.cur = e.ts; } }
+        else if(so.paused_at){
+          exP.pauses[exP.cur || so.paused_iso || e.ts] = e.ts; delete exP.cur;
+          so.paused_min = (so.paused_min || 0) + minsBetween(so.paused_at, e.at); so.paused_at = null; so.paused_iso = null;
+        }
         break;
       }
     } else if(e.kind === 'session_add'){
@@ -1308,6 +1334,7 @@ function derive(){
   // A malformed pending event is skipped, not allowed to brick every tab. It
   // used to survive in localStorage, so Try again reloaded the same crash.
   allEvents().forEach(function(e){ try{ overlayOne(e); }catch(err){ console.error('pending event skipped', err); if(!e.remote) e.dead = true; } });
+  saveExact(t.date);
   // An answered question leaves the page once he has seen the green card. The
   // event stays pending under the ordinary rules; only the card goes, because
   // one that sits there after he answered it reads as "not sent yet".
@@ -1396,6 +1423,63 @@ function derive(){
     }
   }
   VIEW = v;
+}
+/* The exact second of every tap, kept on this phone.
+ *
+ * The day file keys a row by its minute, so it cannot hold a part shorter
+ * than a minute, and the published times are whole minutes. Amir switches
+ * between the circles fast. Working from minutes, two taps inside one minute
+ * threw the first part away and the total jumped back, and every finished
+ * part lost its seconds (reported on 2026-09-30). So each tap's real time is
+ * kept here, keyed by day and start minute, and the circles read it. It is
+ * for the screen only. The record is still the day file.
+ *
+ *   s       when the row began, to the second
+ *   e       when it ended
+ *   pauses  {pause start: pause end} for every finished pause
+ *   cur     when the pause running now began
+ *   carry   seconds per circle from rows replaced inside their own minute
+ */
+var EXACT = {};
+function exKey(day, start){ return day + '|' + start; }
+function loadExact(){
+  try{ EXACT = JSON.parse(localStorage.getItem('myday_exact') || '{}') || {}; }catch(e){ EXACT = {}; }
+  if(typeof EXACT !== 'object' || Array.isArray(EXACT)) EXACT = {};
+}
+function saveExact(today){
+  // Today and yesterday only. A day that is over no longer needs its seconds.
+  var keep = {}, y = today ? shiftDate(today, -1) : '';
+  Object.keys(EXACT).forEach(function(k){ var d = k.split('|')[0]; if(d === today || d === y) keep[k] = EXACT[k]; });
+  EXACT = keep;
+  try{ localStorage.setItem('myday_exact', JSON.stringify(EXACT)); }catch(e){}
+}
+function exFor(day, row){
+  var k = exKey(day, row.start);
+  if(!EXACT[k] || typeof EXACT[k] !== 'object') EXACT[k] = {s: row.started_iso || null, pauses:{}};
+  if(!EXACT[k].pauses || typeof EXACT[k].pauses !== 'object') EXACT[k].pauses = {};
+  row.exact = EXACT[k];
+  return EXACT[k];
+}
+/* Seconds worked in one row up to `atMs` (now when left out), to the second
+   where this phone saw the taps and to the minute where it did not. */
+function rowSecs(row, atMs){
+  var now = atMs == null ? Date.now() : atMs, ex = row.exact || {};
+  var a = Date.parse(ex.s || row.started_iso || '');
+  var z = row.open ? now : Date.parse(ex.e || row.ended_iso || '');
+  if(isNaN(a) || isNaN(z)) return row.open ? workedSecs(row) : Math.max(0, row.minutes || 0) * 60;
+  var paused;
+  if(ex.pauses && Object.keys(ex.pauses).length){
+    paused = 0;
+    Object.keys(ex.pauses).forEach(function(k){
+      var p0 = Date.parse(k), p1 = Date.parse(ex.pauses[k]);
+      if(!isNaN(p0) && !isNaN(p1) && p1 > p0) paused += (p1 - p0) / 1000;
+    });
+  } else paused = (row.paused_min || 0) * 60;
+  if(row.open && row.paused_at){
+    var pc = Date.parse(ex.cur || row.paused_iso || '');
+    if(!isNaN(pc)) paused += Math.max(0, (now - pc) / 1000);
+  }
+  return Math.max(0, Math.floor((z - a) / 1000 - paused));
 }
 /* The session a row belongs to: that row and every row before it that ended
    at the minute the next one began, which is what a switch of area leaves
@@ -2032,9 +2116,16 @@ function sessionParts(t){
   var o = t.open_session, out = {academia:0, business:0, personal:0, other:0, total:0};
   if(!o) return out;
   (o.stretch_list || [o]).forEach(function(s){
-    var sec = s.open ? workedSecs(s) : Math.max(0, s.minutes || 0) * 60;
+    var sec = rowSecs(s);
     out[circleOf(s.area)] += sec;
     if(s.area !== 'care') out.total += sec;
+    // Parts too short to keep their own row, carried on this one.
+    var c = (s.exact && s.exact.carry) || {};
+    Object.keys(c).forEach(function(k){
+      var n = Math.max(0, +c[k] || 0);
+      if(out[k] == null) k = 'other';
+      out[k] += n; out.total += n;
+    });
   });
   return out;
 }
