@@ -370,56 +370,49 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 }
 .nag h3{color:var(--goals); font-size:15px; margin-bottom:6px}
 
-/* ── calendar timeline ──────────────────────────────────────────────────── */
-.timeline{position:relative; margin:6px 0 4px; padding-left:46px}
-.timeline .hr{position:absolute; left:0; width:100%; border-top:1px solid var(--line-soft)}
-.timeline .hrlab{position:absolute; left:0; font-size:10.5px; color:var(--ink-3);
-  transform:translateY(-50%); font-variant-numeric:tabular-nums}
-.blk{
-  position:absolute; left:46px; right:2px; border-radius:9px; padding:5px 9px; overflow:hidden;
-  font-size:12px; font-weight:500; border:1px solid transparent;
+/* ── the circles on Consistency ─────────────────────────────────────────
+   Two big circles, academia on top and business at the bottom, with the small
+   personal and pause circles between them. The whole set fits the first screen
+   of a phone; the day's sessions are below it. */
+.circles{
+  --big:min(60vw, calc((100svh - 300px) * .40), 260px);
+  --small:clamp(70px, calc(var(--big) * .40), 100px);
+  display:flex; flex-direction:column; align-items:center; margin:4px auto 22px;
 }
-.blk .bt{font-size:11px; font-weight:700}
-.wide-only{display:none; font-weight:500; opacity:.8}
-.blk .bl{display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden; line-height:1.25; min-width:0}
-.blk.tight .bl{display:block; white-space:nowrap; text-overflow:clip}
-.blk.bar{padding:0; border-radius:4px}
-.tl-two .blk.tight{display:flex; flex-direction:row; align-items:baseline; gap:5px}
-.tl-two .blk.tight .bt{display:block; flex:0 0 auto}
-.tl-head{min-width:0; flex:1 1 0; padding:6px 6px; letter-spacing:.04em; font-size:11px; gap:5px}
-.tl-head .tl-sum{flex:0 0 auto; white-space:nowrap}
-.tl-head .wide-only{font-weight:inherit; opacity:1}
-.narrow-only{display:inline}
-.blk.tight{display:flex; align-items:center; gap:6px; padding-top:0; padding-bottom:0}
-.blk.planned{right:calc(50% + 3px)}
-.blk.actual{left:calc(46px + 50% + 3px)}
-.blk.planned{border:1.5px dashed color-mix(in srgb,var(--blk,var(--goals)) 55%,transparent) !important}
-/* --blk is the block's area colour, set inline by the renderer. The rule above
-   has to stay !important, or an inline border would make a planned block look
-   solid and it would read as work he has done. Going through a custom property
-   keeps the dashes and still lets the colour say which area it is. */
-.blk.actual{border-left:3px solid currentColor}
-/* Two calendars side by side on every width: the promise on the left, what
-   happened on the right. A block is an outline if it was planned and a solid
-   if it was done, so the two can never be confused. */
-.tl-two{display:block}
-.tl-heads{display:flex; gap:6px; padding-left:46px; margin-bottom:8px}
-.tl-head{flex:1; display:flex; align-items:center; gap:6px; font-size:11.5px; font-weight:700;
-  letter-spacing:.06em; text-transform:uppercase; padding:6px 8px; border-radius:8px}
-.tl-head.plan{color:var(--goals); background:color-mix(in srgb,var(--goals) 8%,#fff)}
-.tl-head.actual{color:var(--ink-2); background:var(--surface-2)}
-.tl-head .sw{width:12px; height:12px; border-radius:3px; flex:0 0 auto}
-.tl-head .sw.plan{border:1.5px dashed var(--goals); background:transparent}
-.tl-head .sw.actual{background:var(--consistency-soft); border-left:3px solid var(--consistency); border-radius:2px}
-.tl-head .tl-sum{margin-left:auto; font-variant-numeric:tabular-nums; font-weight:600; letter-spacing:0; text-transform:none; font-size:12px}
-.tl-list{margin-top:14px} .tl-list summary{cursor:pointer; list-style:none} .tl-list summary::before{content:"▸ "; color:var(--ink-3)}
-.tl-list[open] summary::before{content:"▾ "}
-.tl-one{display:none}
-.tl-solo{display:block; margin-top:22px}
-.seg.dayseg{width:auto; min-width:146px; margin:0; flex:0 0 auto}
-.seg.dayseg button{padding:6px 8px; font-size:12px}
-.tl-solo .blk.planned{left:46px !important; right:2px !important}
-
+.ctop{text-align:center; margin-bottom:12px}
+.ctotal{font-family:"Instrument Serif",Georgia,serif; font-size:52px; line-height:1;
+  font-variant-numeric:tabular-nums; letter-spacing:-.01em}
+.circles:not(.running) .ctotal{color:var(--ink-3)}
+.crow{display:flex; align-items:center; justify-content:center; gap:12px; min-height:38px; margin-top:2px}
+.clabel{font-weight:600; letter-spacing:.06em; text-transform:uppercase}
+.circles.paused .clabel{color:var(--notice)}
+.circ{
+  --cc:var(--ink-2);
+  border-radius:50%; border:3px solid var(--cc); background:var(--surface); color:var(--cc);
+  display:flex; flex-direction:column; align-items:center; justify-content:center; gap:4px;
+  box-shadow:var(--shadow); cursor:pointer; -webkit-tap-highlight-color:transparent;
+  transition:transform .12s var(--ease), background .12s, color .12s;
+  font:inherit; padding:0; flex:0 0 auto;
+}
+.circ:active{transform:scale(.96)}
+.circ.big{width:var(--big); height:var(--big)}
+.circ.small{width:var(--small); height:var(--small); border-width:2.5px}
+.circ .clab{font-weight:700; font-size:clamp(17px, calc(var(--big) * .10), 24px); letter-spacing:.01em}
+.circ .cclock{font-family:"Instrument Serif",Georgia,serif; font-variant-numeric:tabular-nums;
+  font-size:clamp(26px, calc(var(--big) * .17), 42px); line-height:1}
+.circ.small .clab{font-size:12.5px}
+.circ.small .cclock{font-size:17px}
+.circ.on{background:var(--cc); color:#fff; box-shadow:0 10px 28px -12px var(--cc)}
+.circ.on.held{background:color-mix(in srgb,var(--cc) 22%,#fff); color:color-mix(in srgb,var(--cc) 85%,#000); box-shadow:var(--shadow)}
+.circ.pausec{--cc:var(--ink-2)}
+.circ.pausec.on{--cc:var(--notice)}
+.circ[disabled]{opacity:.35; pointer-events:none}
+.cmid{display:flex; align-items:center; justify-content:space-between;
+  width:min(100%, calc(var(--big) + var(--small) * 2 + 12px));
+  margin:calc(var(--small) * -.30) 0; position:relative; z-index:1}
+.cmid .cgap{flex:1}
+.finishbtn{background:var(--ink); color:#fff; border-color:var(--ink); border-radius:99px; padding:0 18px; min-height:36px; font-size:14px; position:relative}
+.finishbtn::before{content:""; position:absolute; inset:-4px}
 
 /* ── task rows ──────────────────────────────────────────────────────────── */
 .chips-wrap{position:relative}
@@ -482,7 +475,7 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .split{display:grid; grid-template-columns:minmax(0,1fr); gap:14px; margin-bottom:14px}
 .split > *, .split > .side > *{margin:0}
 .split > .side{display:contents}
-.split .sess-card{order:2} .split .plan-card{order:3}
+.split .sess-card{order:2}
 .cols2{display:grid; grid-template-columns:minmax(0,1fr); gap:16px}
 .cols2 > *, .cols2 .focus-side > *{margin-top:0}
 .cols2 .focus-side{display:contents}
@@ -573,15 +566,10 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 
   /* Two columns where the content genuinely pairs up. */
   .split{grid-template-columns:minmax(0,1.05fr) minmax(0,0.95fr); gap:16px; align-items:start; margin-bottom:16px}
-  .split .plan-card{grid-column:1 / -1; order:0}
   .cols2{grid-template-columns:minmax(0,1fr) minmax(0,1fr); align-items:start}
   .cols2 > *{margin-top:0}
   .fullstrip{grid-template-columns:minmax(0,1.4fr) minmax(0,1fr)}
   .notespage{max-width:680px; margin:0 auto}
-  .wide-only{display:inline}
-  .narrow-only{display:none}
-  .blk{font-size:13px; padding:7px 11px}
-  .blk .bt{font-size:12px}
   .nav button .badge{top:-7px; right:-13px}
   .cols2 > :only-child{grid-column:1 / -1}
   .split > .side{display:flex; flex-direction:column; gap:16px}
@@ -592,7 +580,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .cols2 .side, .cols2 .focus-side{display:flex; flex-direction:column; gap:16px}
   .cols2 .side > *{margin:0}
   .cols2 .focus-side{order:2} .cols2 .sess-card{order:0}
-  main .seg:not(.dayseg){max-width:420px}
+  main .seg{max-width:420px}
   .nav button .ic .badge{position:static; margin-left:6px; display:inline-grid; vertical-align:middle}
   .strip .d svg{width:76px}
   .strip .d .dl{font-size:12px}
@@ -691,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c93-2026-09-18-tap-a-date-to-change-it';
+var BUILD = 'c94-2026-09-30-simple-circles';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -730,12 +718,11 @@ function restoreTab(){
     if(typeof vw.area === 'string') AREA_FILTER = vw.area;
     if(typeof vw.range === 'string') P_RANGE = vw.range;
     if(typeof vw.corner === 'string') P_CORNER = vw.corner;
-    if(typeof vw.planlist === 'boolean') PLAN_LIST_OPEN = vw.planlist;
   }catch(e){}
 }
 function rememberView(){
   try{ localStorage.setItem('myday_view', JSON.stringify({task:TASK_FILTER, area:AREA_FILTER,
-    range:P_RANGE, corner:P_CORNER, planlist:PLAN_LIST_OPEN})); }catch(e){}
+    range:P_RANGE, corner:P_CORNER})); }catch(e){}
 }
 function rememberTab(){
   try{ localStorage.setItem('myday_tab', TAB); }catch(e){}
@@ -1046,10 +1033,15 @@ function prunePend(st){
       return !sessions.some(function(x){ return x.start === p.start && !x.open; });
     if(e.kind === 'session_cancel')
       return sessions.some(function(x){ return x.start === p.start && x.open; });
-    if(e.kind === 'session_pause')
-      return sessions.some(function(x){ return x.start === p.start && x.open && !x.paused_at; });
-    if(e.kind === 'session_resume')
-      return sessions.some(function(x){ return x.start === p.start && x.open && !!x.paused_at; });
+    // A pause on a session the Mac has not filed yet is still pending, like the
+    // start it belongs to. It used to be dropped on the next refresh because
+    // the published picture had no such row, so a pause tapped in the first
+    // quarter hour of a session vanished from the screen and the clock ran on.
+    if(e.kind === 'session_pause' || e.kind === 'session_resume'){
+      if(!sessions.some(function(x){ return x.start === p.start; })) return true;
+      return sessions.some(function(x){ return x.start === p.start && x.open &&
+        (e.kind === 'session_pause' ? !x.paused_at : !!x.paused_at); });
+    }
     if(e.kind === 'session_focus')   // spent only when the row carries THIS number, so a re-rating is not undone
       return !sessions.some(function(x){ return x.start === p.start && x.focus === p.focus; });
     if(e.kind === 'session_add')
@@ -1186,7 +1178,6 @@ function derive(){
   t.plan = (t.plan || []).filter(okBlock); v.tomorrow.plan = v.tomorrow.plan.filter(okBlock);
   // Titles for the tasks a plan block names. Done tasks are in here too, so a
   // task ticked off a block keeps its words instead of leaving a hole.
-  if(!v.plan_tasks || typeof v.plan_tasks !== 'object') v.plan_tasks = {};
 
   var overlayOne = function(e){
     var p = e.payload || {};
@@ -1370,15 +1361,13 @@ function derive(){
   // of area. A switch closes one row and opens the next at the same minute, so
   // the chain is followed back through rows that end where the next began.
   if(t.open_session){
-    var o0 = t.open_session, cur = o0, first = o0, pausedTot = o0.paused_min || 0, parts = 1, guard = 0;
-    while(guard++ < 50){
-      var pv = null;
-      for(var qi = 0; qi < t.sessions.length; qi++){ var x = t.sessions[qi]; if(x !== cur && !x.open && !x.malformed && x.end === cur.start){ pv = x; break; } }
-      if(!pv) break;
-      first = pv; pausedTot += pv.paused_min || 0; parts++; cur = pv;
-    }
+    var o0 = t.open_session, chain = chainBack(t.sessions, o0), first = chain[0], pausedTot = 0;
+    chain.forEach(function(x){ pausedTot += x.paused_min || 0; });
     o0.stretch_start = first.start; o0.stretch_iso = first.started_iso || null;
-    o0.stretch_paused_min = pausedTot; o0.stretch_parts = parts;
+    o0.stretch_paused_min = pausedTot; o0.stretch_parts = chain.length;
+    // The parts themselves, oldest first. The circles on Consistency add up
+    // each area's share of the session from this list.
+    o0.stretch_list = chain;
   }
   if(t.open_session && t.open_session.paused_at && !t.open_session.paused_iso && t.open_session.started_iso){
     // The Mac gives the pause a clock time only; anchor it to the session's date.
@@ -1407,6 +1396,22 @@ function derive(){
     }
   }
   VIEW = v;
+}
+/* The session a row belongs to: that row and every row before it that ended
+   at the minute the next one began, which is what a switch of area leaves
+   behind. Oldest first. */
+function chainBack(sessions, row){
+  var chain = [row], cur = row, guard = 0;
+  while(guard++ < 50){
+    var pv = null;
+    for(var i = 0; i < sessions.length; i++){
+      var x = sessions[i];
+      if(x !== cur && !x.open && !x.malformed && x.end && x.end === cur.start){ pv = x; break; }
+    }
+    if(!pv) break;
+    chain.unshift(pv); cur = pv;
+  }
+  return chain;
 }
 function workingDayOf(iso){
   /* Amir's day ends at 05:00, not midnight, so anything before five belongs to
@@ -1999,60 +2004,81 @@ function runnerHTML(v){
 </script>
 <script>
 /* ═══════════════════════════════════════════ consistency (the hours) ═════ */
-function pageTime(v){
-  var t = v.today, sp = (v.targets && v.targets.split) || {academia:240, ai:360}, b = t.buckets || {academia:0, ai:0, dog:0};
-  var h = '';
+/* Amir asked for this page to be made simple on 2026-09-30: "remove everything
+   there and give me two big circle buttons". Academia on top, business at the
+   bottom, and between them a small personal circle and a small pause circle.
+   A tap on a circle starts its clock and stops the others, so switching is one
+   tap. One total sits on top. Scrolling down shows the day's sessions and the
+   button to add one he forgot.
 
-  var sessCard = '<div class="card flush sess-card"><h2 style="padding:18px 16px 0;margin-bottom:8px">Sessions</h2>' +
-       (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
-        : emptyBox('⏱', 'No sessions yet today',
-            'Press Start a session when you begin.')) +
-       '<button class="btn wide" id="addSess" style="margin:14px 16px 16px;width:calc(100% - 32px)">' +
-       '＋ Add a session I forgot</button></div>';
-  h += '<div class="split"><div class="side"><div class="card"><h2 class="hd">Today ' + infoBtn('hours') + '</h2>' +
-    '<div class="spread today-hero" style="align-items:flex-end;margin-bottom:16px">' +
-      '<div><div class="serif" style="font-size:46px;line-height:1">'+hmShort(t.work_minutes)+'</div>' +
-      '<div class="small muted">' + (dayTarget(t) ? 'of your ' + hmShort(dayTarget(t)) + ' target' : 'no target set') + '</div></div>' +
-      '<div style="text-align:right"><div class="serif" style="font-size:26px;color:var(--consistency)">'+
-        (dayTarget(t) ? pct(Math.min(1,(t.work_minutes||0)/dayTarget(t))) + '%' : '—') + '</div>' +
-      '<div class="tiny muted" style="white-space:nowrap">' + (dayTarget(t) ? 'done' : 'not scored') + '</div></div>' +
-    '</div>' +
-    '<div class="bar" style="height:8px"><i style="background:var(--consistency)" data-w="'+
-      (dayTarget(t) ? Math.min(100, Math.round((t.work_minutes||0)/dayTarget(t)*100)) : 0)+'"></i></div>' +
-    '<p class="tiny muted" style="margin:18px 0 10px">Today’s split, as you set it.</p>' +
-    '<div class="stack">' +
-      splitBar('Academia', b.academia, sp.academia, AREA_COLOUR.ucw) +
-      splitBar('AI Business', b.ai, sp.ai, AREA_COLOUR.ai) +
-      splitBar('Dog Business (paused)', b.dog, 0, AREA_COLOUR.dog) +
-      (t.overhead_minutes ? '<div class="spread small"><span class="muted">Overhead</span>' +
-        '<span class="dim">'+hmShort(t.overhead_minutes)+' · work, not in the split</span></div>' : '') +
-    '</div></div>';
-
-  h += runnerHTML(v) + '</div><div class="side">' + sessCard + '</div>';
-
-  var tm = v.tomorrow || {plan:[]}, hasTm = (tm.plan || []).length > 0, showTm = hasTm && SHOW_TOMORROW;
-  h += '<div class="card plan-card"><div class="spread" style="margin-bottom:14px;gap:12px">' +
-       '<h2 class="hd" style="margin:0;flex:1">' + (showTm ? 'Tomorrow' : (hasTm ? 'Today' : 'Planned and done')) + (showTm ? '' : ' ' + infoBtn('plan')) + '</h2>' +
-       (hasTm ? '<div class="seg dayseg">' +
-          '<button data-act="daytoday"' + (showTm ? '' : ' class="on"') + '>Today</button>' +
-          '<button data-act="daytomorrow"' + (showTm ? ' class="on"' : '') + '>Tomorrow</button></div>' : '') +
-       '</div>' +
-       (showTm
-         ? '<p class="small" style="margin:-6px 0 8px;font-weight:600">' + esc(longDay(tm.date)) + ' · ' + hmShort(planWork(tm.plan)) +
-           ' certain' + planShortfall(tm.plan, tm) + ' ' + infoBtn('plan') + '</p>' +
-           timelineHTML({plan: tm.plan, sessions: []}, true)
-         : timelineHTML(t)) + '</div>';
-  h += '</div>';   // closes .split: the calendar spans both columns on a laptop
-
-  return h;
+   Three things he chose when asked. Switching asks for nothing; he gives one
+   focus score when he finishes, and it goes on every part of that session. The
+   session finishes from a Finish button that only appears while paused. The
+   time in each circle is this session only, not the whole day. */
+var CIRCLES = [
+  {k:'academia', area:'ucw',      label:'Academia', areas:['ucw', 'research']},
+  {k:'business', area:'ai',       label:'Business', areas:['ai', 'dog']},
+  {k:'personal', area:'personal', label:'Personal', areas:['personal']}
+];
+function circleOf(area){
+  for(var i = 0; i < CIRCLES.length; i++) if(CIRCLES[i].areas.indexOf(area) >= 0) return CIRCLES[i].k;
+  return 'other';
 }
-function splitBar(label, got, target, colour){
-  var p = target ? Math.min(100, Math.round(got/target*100)) : 0;
-  return '<div><div class="spread small" style="margin-bottom:5px"><span class="muted">'+esc(label)+'</span>' +
-    '<span style="font-weight:600">'+hmShort(got)+(target?' <span class="muted" style="font-weight:400">of '+
-      hmShort(target)+'</span>':'')+(target && got < target ? ' <span class="muted" style="font-weight:400">· '+
-      hmShort(target-got)+' short</span>' : '')+'</span></div>' +
-    (target ? '<div class="bar"><i style="background:'+colour+'" data-w="'+p+'"></i></div>' : '') + '</div>';
+/* Seconds per circle for the session running now: the parts already closed by
+   a switch, plus the open part counting live. Nothing is running, all zero. */
+function sessionParts(t){
+  var o = t.open_session, out = {academia:0, business:0, personal:0, other:0, total:0};
+  if(!o) return out;
+  (o.stretch_list || [o]).forEach(function(s){
+    var sec = s.open ? workedSecs(s) : Math.max(0, s.minutes || 0) * 60;
+    out[circleOf(s.area)] += sec;
+    if(s.area !== 'care') out.total += sec;
+  });
+  return out;
+}
+function clockText(sec){
+  sec = Math.max(0, Math.floor(sec));
+  return Math.floor(sec / 3600) + ':' + pad(Math.floor(sec % 3600 / 60)) + ':' + pad(sec % 60);
+}
+var PAUSE_ICON = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></svg>';
+var PLAY_ICON  = '<svg viewBox="0 0 24 24" width="30" height="30" aria-hidden="true"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10-6.5a1 1 0 0 0 0-1.72l-10-6.5A1 1 0 0 0 8 5.5z" fill="currentColor"/></svg>';
+function circleBtn(c, secs, onK, paused, size){
+  var on = onK === c.k;
+  return '<button class="circ ' + size + (on ? ' on' : '') + (on && paused ? ' held' : '') + '" data-circ="' + c.k + '" ' +
+    'style="--cc:' + AREA_COLOUR[c.area] + '" aria-pressed="' + on + '" aria-label="' + esc(c.label) + '">' +
+    '<span class="clab">' + esc(c.label) + '</span>' +
+    '<span class="cclock" id="cc-' + c.k + '">' + clockText(secs) + '</span></button>';
+}
+function circlesHTML(v){
+  var t = v.today, o = t.open_session, paused = !!(o && o.paused_at);
+  var parts = sessionParts(t), onK = o ? circleOf(o.area) : null;
+  return '<div class="circles' + (o ? ' running' : '') + (paused ? ' paused' : '') + '">' +
+    '<div class="ctop"><div class="ctotal" id="ctotal">' + clockText(parts.total) + '</div>' +
+      // Finish sits up here, away from the circles, so a tap aimed at a circle
+      // can never end the session by mistake.
+      '<div class="crow"><span class="tiny muted clabel">' + (!o ? 'Tap a circle to start' : paused ? 'Paused' : 'This session') + '</span>' +
+      (paused ? '<button class="btn finishbtn" id="finishBtn">Finish</button>' : '') + '</div></div>' +
+    circleBtn(CIRCLES[0], parts.academia, onK, paused, 'big') +
+    '<div class="cmid">' +
+      circleBtn(CIRCLES[2], parts.personal, onK, paused, 'small') +
+      '<span class="cgap"></span>' +
+      '<button class="circ small pausec' + (paused ? ' on' : '') + '" id="pauseCirc" ' +
+        'aria-label="' + (paused ? 'Resume' : 'Pause') + '"' + (o ? '' : ' disabled') + '>' +
+        (paused ? PLAY_ICON : PAUSE_ICON) + '</button>' +
+    '</div>' +
+    circleBtn(CIRCLES[1], parts.business, onK, paused, 'big') +
+  '</div>';
+}
+function pageTime(v){
+  var t = v.today, tgt = dayTarget(t);
+  return circlesHTML(v) +
+    '<div class="card flush sess-card"><div class="spread" style="padding:18px 16px 0;margin-bottom:8px;align-items:baseline">' +
+      '<h2 style="margin:0">Today</h2>' +
+      '<span class="small muted">' + hmShort(t.work_minutes || 0) + (tgt ? ' of ' + hmShort(tgt) : '') + '</span></div>' +
+    (t.sessions.length ? t.sessions.map(function(x){ return sessionRow(x, null, true); }).join('')
+      : emptyBox('⏱', 'No sessions yet today', 'Tap a circle when you begin.')) +
+    '<button class="btn wide" id="addSess" style="margin:14px 16px 16px;width:calc(100% - 32px)">' +
+    '＋ Add a session I forgot</button></div>';
 }
 function rateRow(u){
   return '<div class="spread" style="background:var(--surface);border:1px solid var(--line);' +
@@ -2082,304 +2108,8 @@ function sessionRow(s, day, edit){
     (edit ? '<button class="editbtn" data-editsess="'+esc(s.start)+'" ' +
             'aria-label="Edit this session">✎</button>' : '') + '</div>';
 }
-var SHOW_TOMORROW = false;
-// Whether the list under the timeline is open. It has to be remembered, because
-// the list now holds tick boxes and Start buttons: ticking a task redraws the
-// page, and a redraw that resets the `open` attribute shuts the list under the
-// finger that just used it. Null means Amir has not chosen, so the day decides.
-var PLAN_LIST_OPEN = null;
-function planWork(plan){
-  // Overlapping blocks are merged first, so a plan spoken twice over the same
-  // hour does not promise it twice.
-  var iv = [];
-  (plan || []).forEach(function(b){
-    if(!b || b.status === 'fixed') return;
-    // The interview plans his whole day, so the dogs' walk and the meals are
-    // blocks too. `care` is not work anywhere else on this page and it is not
-    // work here either, or the hero would promise twelve hours on a day that
-    // holds six. A block from an older day file has no area and still counts,
-    // because that is what those files meant when they were written.
-    //
-    // `personal` used to be excluded here as well. Amir split the two areas on
-    // 2026-09-18: the jobs he sits down and does are work, and feeding the dogs
-    // is not.
-    if(b.area === 'care') return;
-    // A joint block ("personal+ai") is personal jobs first and work after, and
-    // nobody knows where the line falls until he has done it. Counting the
-    // whole thing as work would promise hours that may not exist, so it is left
-    // out and the planned figure is a floor. The triangle reads sessions, not
-    // the plan, so nothing he actually works is lost by this.
-    if(String(b.area || '').indexOf('+') >= 0) return;
-    var a = toMin(b.start), z = toMin(b.end);
-    if(isNaN(a) || isNaN(z)) return;
-    if(z <= a) z += 1440;
-    iv.push([a, z]);
-  });
-  iv.sort(function(x, y){ return x[0] - y[0]; });
-  var m = 0, cur = null;
-  iv.forEach(function(x){
-    if(!cur || x[0] > cur[1]){ if(cur) m += cur[1] - cur[0]; cur = [x[0], x[1]]; }
-    else if(x[1] > cur[1]) cur[1] = x[1];
-  });
-  if(cur) m += cur[1] - cur[0];
-  return m;
-}
-/* What the plan says about the 10 hour floor.
- *
- * A joint block is left out of planWork, because how it splits between the
- * personal jobs and the work after them is not known until he has done it. So
- * on a day that has one, "6h planned, 4h short" was a lie in the unkind
- * direction: the evening may well fill the target. The line says what is
- * certain, then names the joint time separately.
- *
- * Everything here measures against the target HE set for that day, not against
- * a standing number. He removed the 10 hour floor on 2026-09-16.
- */
-function planShortfall(plan, day){
-  var m = ' <span class="muted" style="font-weight:400">· ';
-  var joint = 0;
-  (plan || []).forEach(function(b){
-    if(String((b || {}).area || '').indexOf('+') < 0) return;
-    var a = toMin(b.start), z = toMin(b.end);
-    if(isNaN(a) || isNaN(z)) return;
-    joint += (z <= a ? z + 1440 : z) - a;
-  });
-  var tgt = dayTarget(day);
-  if(!tgt) return joint ? m + hmShort(joint) + ' shared, and no target set</span>'
-                        : m + 'no target set</span>';
-  var w = planWork(plan), gap = tgt - w;
-  var T = hmShort(tgt) + ' target';
-  if(joint) return m + hmShort(joint) + ' shared, ' +
-    (gap <= 0 ? 'the ' + T + ' is already met' :
-     joint >= gap ? 'enough for the ' + T + ' if the first half does not eat it'
-                  : hmShort(gap - joint) + ' short of the ' + T + ' even if it all goes to work') + '</span>';
-  if(gap > 0) return m + hmShort(gap) + ' under the ' + T + '</span>';
-  return m + (gap === 0 ? 'exactly the ' + T : 'past the ' + T) + '</span>';
-}
-
 function longDay(iso){
   return new Date(iso + 'T12:00:00').toLocaleDateString('en-GB', {weekday:'long'}) + ' ' + prettyDate(iso);
-}
-/* A planned block, as a row under the timeline.
- *
- * The interview puts real tasks in every block, because a block with no tasks
- * is a wish. So the row shows them, each with the same tick box the Tasks page
- * uses, and a Start button that opens a session with the block's area already
- * chosen. Both reuse controls that already exist: `data-tick` files a tick and
- * `data-area` starts a session, so nothing new has to be sent, pended or
- * pruned. A block with no area and no tasks draws exactly the line it drew
- * before, which is what every day file written before this still holds.
- */
-/* How much of the plan he actually kept.
- *
- * The gap between what he promised in the evening and what he did is the most
- * useful number in the system and nothing showed it. It is a plain line, not a
- * fourth corner of the triangle: the triangle is three corners on purpose and
- * this is not a fourth thing he is judged on, it is a fact about the plan.
- */
-function keptLine(planned, done, planOnly){
-  if(planOnly || !planned) return '';
-  var pct = Math.round(done / planned * 100);
-  var colour = pct >= 90 ? 'var(--focus)' : pct >= 60 ? 'var(--ink-2)' : 'var(--consistency)';
-  return '<div class="tiny muted" style="padding:10px 0 0">Planned ' + hmShort(planned) +
-    ', worked ' + hmShort(done) + ' · kept <span style="color:' + colour +
-    ';font-weight:600">' + pct + '%</span> of the plan</div>';
-}
-
-/* Open by default when the list is the useful part of the page: when a block
- * carries tasks to tick, or when the blocks are too short to read on the
- * timeline. Once Amir opens or closes it himself, his choice wins. */
-function planListOpen(t, anyBar){
-  if(PLAN_LIST_OPEN !== null) return PLAN_LIST_OPEN;
-  if(anyBar) return true;
-  return (t.plan || []).some(function(b){ return (b.tasks || []).length > 0; });
-}
-
-function planRowHTML(b, planOnly){
-  var view = VIEW || {};
-  var lookup = view.plan_tasks || {};
-  var pend = {};
-  PEND.forEach(function(e){ if(e.kind === 'task_tick') pend[(e.payload||{}).id] = 1; });
-
-  var tasks = (b.ptasks || []).map(function(id){
-    return lookup[id] || {id:id, title:'a task that is no longer on the list', missing:true};
-  });
-
-  // A joint block names two areas, in the order he has to do them: the first
-  // has to be finished before he moves to the second. Amir asked for it on
-  // 2026-09-16 for an evening of personal jobs he could not size, followed by
-  // whatever AI business time was left.
-  var pareas = String(b.parea || '').split('+').filter(Boolean);
-  var areaLabel = pareas.map(function(a){ return (view.areas || {})[a] || a; }).join(' → ');
-
-  var head = '<div class="spread small" style="padding:7px 0">' +
-    '<span dir="auto" style="min-width:0">' + esc(b.label) +
-      (b.parea ? ' <span class="muted tiny">· ' + esc(areaLabel) + '</span>' : '') +
-    '</span>' +
-    '<span class="muted tiny" style="flex:0 0 auto;margin-left:10px">' + esc(b.s) + '–' + esc(b.e) + '</span></div>';
-
-  var body = '';
-  if(tasks.length){
-    body += '<div style="padding:0 0 6px 2px">' + tasks.map(function(tk){
-      var on = tk.done || !!pend[tk.id];
-      if(tk.missing){
-        return '<div class="tiny muted" style="padding:3px 0">' + esc(tk.title) + '</div>';
-      }
-      return '<div class="tk' + (on ? ' ticked' : '') + '" style="padding:3px 0">' +
-        '<button class="box' + (on ? ' on' : '') + '" data-tick="' + esc(tk.id) + '" ' +
-        'data-ticked="' + (on ? '1' : '') + '" ' +
-        'aria-label="' + (on ? 'Undo' : 'Tick') + ' ' + esc(tk.title) + '">' + (on ? '✓' : '') + '</button>' +
-        '<div class="grow" dir="auto"><div class="t tiny">' + esc(tk.title) + '</div></div></div>';
-    }).join('') + '</div>';
-  }
-
-  // Start is only offered for today, for a block that names a work area, and
-  // only while nothing else is running. Offering it on tomorrow's plan would
-  // open a session on the wrong day.
-  var open = (view.today || {}).open_session;
-  if(!planOnly && pareas.length && !open){
-    // A plain block offers one button. A joint block offers one per area. A
-    // `care` block is the only one with no button, because the dogs and the
-    // meals are not work and there is nothing to time.
-    var btns = pareas.filter(function(a){ return a !== 'care'; });
-    if(btns.length){
-      body += '<div style="padding:0 0 8px;display:flex;gap:6px;flex-wrap:wrap">' +
-        btns.map(function(a){
-          return '<button class="btn tiny" data-area="' + esc(a) + '">Start ' +
-            (btns.length > 1 ? esc((view.areas || {})[a] || a) : 'this block') + '</button>';
-        }).join('') + '</div>';
-    }
-  }
-
-  return '<div style="border-bottom:1px solid var(--line-soft)">' + head + body + '</div>';
-}
-
-function timelineHTML(t, planOnly){
-  var blocks = [];
-  (t.plan||[]).forEach(function(p){ blocks.push({k:'planned', s:p.start, e:p.end,
-    label:p.activity.replace(/\*\*/g,''), status:p.status,
-    // The interview writes which area a block is for and which tasks it holds.
-    // Both travel with the block so the list under the timeline can draw them.
-    parea:p.area || null, ptasks:p.tasks || []}); });
-  (t.sessions||[]).forEach(function(s){ if(s.malformed) return; blocks.push({k:'actual', s:s.start,
-    e:s.end || hhmm(), label:(s.area_label||s.area), area:s.area, open:s.open}); });
-  if(!blocks.length){
-    return emptyBox('🗓', 'Nothing planned yet',
-      'Hold the talk button and say something like “nine to eleven, research paper”.');
-  }
-  if(planOnly){
-    // Tomorrow has no actual lane. One lane, the plan across it.
-    var toM0 = function(x){ var q = x.split(':'), m0 = (+q[0])*60 + (+q[1]); return m0 < 300 ? m0 + 1440 : m0; };
-    blocks.forEach(function(b){ b.m0 = toM0(b.s); b.m1 = toM0(b.e); if(b.m1 < b.m0) b.m1 += 1440; });
-    var lo0 = Math.floor(Math.min.apply(null, blocks.map(function(b){ return b.m0; }))/60)*60;
-    var hi0 = Math.ceil(Math.max.apply(null, blocks.map(function(b){ return Math.max(b.m1, b.m0+15); }))/60)*60;
-    var PX0 = 0.85, H0 = (hi0 - lo0) * PX0, out = '';
-    for(var m2 = lo0; m2 <= hi0; m2 += 60){
-      var y0 = (m2 - lo0) * PX0;
-      out += '<div class="hr" style="top:'+y0+'px"></div><div class="hrlab" style="top:'+y0+'px">'+pad(Math.floor(m2/60)%24)+':00</div>';
-    }
-    blocks.sort(function(a, b){ return a.m0 - b.m0; });
-    out += blocks.map(function(b, i){
-      var y1 = (b.m0 - lo0) * PX0, hg = Math.max(30, (b.m1 - b.m0) * PX0 - 3);
-      if(i + 1 < blocks.length) hg = Math.min(hg, Math.max(6, (blocks[i + 1].m0 - lo0) * PX0 - y1 - 2));
-      // Tomorrow's plan is coloured by area exactly like today's, or a day with
-      // no sessions yet would be one flat purple and tell him nothing. This is
-      // the renderer that was missed when the colours were added on
-      // 2026-09-16: it is a separate one, used only when there is no actual
-      // lane to draw beside the plan.
-      var c1 = areaColour(b.area || b.parea);
-      if(hg < 22) return '<div class="blk planned bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="--blk:'+c1+';top:'+y1+'px;height:'+hg+
-        'px;left:46px;right:2px"></div>';
-      var fixed = b.status === 'fixed';
-      return '<div class="blk planned'+(hg < 46 ? ' tight' : '')+'" style="--blk:'+c1+';top:'+y1+'px;height:'+hg+'px;left:46px;right:2px;' +
-        'background:'+(fixed ? 'var(--surface-2)' : 'color-mix(in srgb,'+c1+' 12%,#fff)')+';' +
-        'border-color:'+(fixed ? 'var(--line)' : 'color-mix(in srgb,'+c1+' 35%,transparent)')+';' +
-        'border-left-color:'+(fixed ? 'var(--line)' : c1)+';color:var(--ink)">' +
-        '<div class="bt" style="color:'+(fixed ? 'var(--ink-3)' : c1)+';flex:0 0 auto">'+esc(b.s)+'–'+esc(b.e)+'</div>' +
-        '<div dir="auto" class="bl">'+esc(hg < 46 ? String(b.label).split(/ — | · /)[0] : b.label)+'</div></div>';
-    }).join('');
-    return '<div class="tl-solo"><div class="timeline solo" style="height:'+H0+'px">'+out+'</div></div>';
-  }
-  /* Minutes since 05:00, the start of Amir's working day, so a block that runs
-     from 22:00 to 01:15 is 195 minutes long rather than a negative number
-     clamped to a 20px stub. */
-  var toM = function(x){
-    var p = x.split(':'), m = (+p[0])*60 + (+p[1]);
-    return m < 300 ? m + 1440 : m;
-  };
-  blocks.forEach(function(b){
-    b.m0 = toM(b.s); b.m1 = toM(b.e);
-    if(b.m1 < b.m0) b.m1 += 1440;
-  });
-  var lo = Math.min.apply(null, blocks.map(function(b){ return b.m0; }));
-  var hi = Math.max.apply(null, blocks.map(function(b){ return Math.max(b.m1, b.m0+15); }));
-  lo = Math.floor(lo/60)*60; hi = Math.ceil(hi/60)*60;
-  var PX = 0.85, H = (hi - lo) * PX;
-
-  var lines = '';
-  for(var m = lo; m <= hi; m += 60){
-    var y = (m - lo) * PX;
-    lines += '<div class="hr" style="top:'+y+'px"></div>' +
-             '<div class="hrlab" style="top:'+y+'px">'+pad(Math.floor(m/60)%24)+':00</div>';
-  }
-  blocks.sort(function(a, b){ return a.m0 - b.m0 || (a.k < b.k ? -1 : 1); });
-  var anyBar = false, lastBar = {};
-  var bh = blocks.map(function(b, i){
-    var natural = (b.m1 - b.m0) * PX - 3;
-    var y = (b.m0 - lo) * PX, hgt = Math.max(20, natural);
-    // A short block is given room to be read, but never over the next block
-    // in the same column.
-    var nxt = null; for(var j = i + 1; j < blocks.length; j++){ if(blocks[j].k === b.k){ nxt = blocks[j]; break; } }
-    var maxH = nxt ? Math.max(6, (nxt.m0 - lo) * PX - y - 2) : 1e9;
-    // Two different things in two columns, and both are drawn in their area's
-    // colour. The plan used to be one flat purple, which meant a day of
-    // academia and a day of AI business looked identical until he read every
-    // label. Planned and actual are still told apart by the fill, which is what
-    // the two backgrounds below are for. A block with two areas is gold.
-    var col = areaColour(b.area || b.parea);
-    var bg  = b.k === 'actual' ? 'var(--consistency-soft)'
-                               : 'color-mix(in srgb,' + col + ' 5%,#fff)';
-    var cvar = '--blk:' + col + ';';
-    // Under about 34px there is room for one line only, so the time and the
-    // label share it instead of the label spilling past the block's edge.
-    // A 15-minute block is 13px tall, which cuts a line of text in half. One
-    // line needs about 30px and two need about 46px.
-    hgt = Math.min(Math.max(hgt, 30), maxH);
-    var tight = hgt < 46, bar = hgt < 22;
-    // The last of six ten-minute blocks has nothing under it, so it would be
-    // stretched to a labelled block while its five siblings are bars.
-    if(!bar && lastBar[b.k] && natural < 13){ bar = true; hgt = Math.max(6, natural); }
-    lastBar[b.k] = bar;
-    var lab = tight ? String(b.label).split(/ — | · /)[0].replace(/^[\u{1F300}-\u{1FAFF}\u2600-\u27BF]\uFE0F?\s*/u, '') : b.label;
-    var mins = b.m1 - b.m0;
-    if(bar) anyBar = true;
-    if(bar) return '<div class="blk '+b.k+' bar" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="'+cvar+'top:'+y+'px;height:'+hgt+
-      'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+'"></div>';
-    return '<div class="blk '+b.k+(tight ? ' tight' : '')+'" title="'+esc(b.s+'–'+b.e+' '+b.label)+'" style="'+cvar+'top:'+y+'px;height:'+hgt+
-      'px;background:'+bg+';border-color:color-mix(in srgb,'+col+' 30%,transparent);border-left-color:'+col+';' +
-      'color:var(--ink)">' +
-      '<div class="bt" style="color:color-mix(in srgb,'+col+' 62%,#000);flex:0 0 auto">'+esc(b.s)+
-        (b.open ? ' · now' : (tight ? '' : '<span class="wide-only">–'+esc(b.e)+' · '+hm(mins)+'</span>'))+'</div>' +
-      '<div dir="auto" class="bl">' + esc(lab)+'</div></div>';
-  }).join('');
-
-  // Two columns of the same width, each header centred over its own column.
-  var planList = blocks.filter(function(b){ return b.k === 'planned'; })
-    .map(function(b){ return planRowHTML(b, planOnly); }).join('');
-
-  var plannedMin = planWork(t.plan);
-  var doneMin = t.work_minutes || 0;
-  return '<div class="tl-two">' +
-    '<div class="tl-heads"><div class="tl-head plan"><span class="sw plan"></span>Planned' +
-      '<span class="tl-sum">'+hmShort(plannedMin)+'</span></div>' +
-    '<div class="tl-head actual"><span class="sw actual"></span>Done' +
-      '<span class="tl-sum">'+hmShort(doneMin)+'</span></div></div>' +
-    '<div class="timeline" style="height:'+H+'px">'+lines+bh+'</div>' +
-    (planList ? '<details class="tl-list"' + (planListOpen(t, anyBar) ? ' open' : '') +
-      '><summary class="tiny muted" data-planlist="1">The plan, as a list</summary>' +
-      planList + '</details>' : '') +
-    keptLine(plannedMin, doneMin, planOnly) +
-    '</div>';
 }
 
 /* ═══════════════════════════════════════════════════ focus (the scores) ══ */
@@ -2913,12 +2643,6 @@ var INFO = {
     'counts far more than a fifteen-minute one at 2. An unrated session is left out, never counted as zero. ' +
     'On the chart, the green line is the focus score against the 0 to 10 scale, a gap means that day was not rated, ' +
     'and the grey bars behind it are hours worked, where a full bar is 12 hours.'],
-  plan:['Planned and done', 'The left calendar is what you promised: hold the talk button and say your working blocks, like ' +
-    '“nine to eleven, research paper”. Say “tomorrow” and they go on tomorrow’s plan. The right calendar is what actually ' +
-    'happened, from Start and Stop. The headers show the hours of each, so the gap is a number.'],
-  hours:['How hours are counted', '10h is the floor and 12h is a good day. Every finished session counts. A session that is still running ' +
-    'is not counted until you stop it. Personal time is never work, so it never counts. Overhead counts as work but ' +
-    'stays out of the 4h academia and 6h AI split.'],
   notes:['How notes work', 'Hold the talk button on any page and talk, or press Type. What you say is written down and ' +
     'tagged with the page you were on, so a note on Goals is read as a goal and one on Tasks as a task. A note leaves ' +
     'this list once it has been filed at your computer. Until then you can fix a word or throw the note away.'],
@@ -3140,8 +2864,6 @@ var MIC_HINT = {
 };
 
 function micHint(){
-  if(TAB === 'time' && SHOW_TOMORROW && VIEW && VIEW.tomorrow && (VIEW.tomorrow.plan || []).length)
-    return 'Say tomorrow’s working blocks.';
   if(TAB === 'goals' && VIEW && VIEW.today && VIEW.today.weekday === 'Sunday' && VIEW.week && VIEW.week.total)
     return 'Say how the week went. Then next week’s goals.';
   if(TAB === 'goals' && VIEW && !(VIEW.week && VIEW.week.total))
@@ -3282,7 +3004,9 @@ function askForMissingScore(){
     var row = (VIEW.today.sessions || []).filter(function(x){ return x.start === st; })[0];
     if(row && row.focus == null){
       ASKED_FOR = st;
-      askFocus(st, row.minutes, true, (stops[i].payload || {}).day || VIEW.today.date);
+      var prior = chainBack(VIEW.today.sessions || [], row).filter(function(x){ return x !== row && x.focus == null && x.minutes; });
+      askFocus(st, (row.minutes || 0) + prior.reduce(function(a, x){ return a + x.minutes; }, 0), true,
+               (stops[i].payload || {}).day || VIEW.today.date, prior.map(function(x){ return x.start; }));
       return;
     }
   }
@@ -3299,11 +3023,16 @@ function askForMissingScore(){
 }
 function tickClock(){
   clearInterval(CLOCK_T);
-  var e = document.getElementById('liveclock');
-  if(!e) return;
+  if(!document.getElementById('liveclock') && !document.getElementById('ctotal')) return;
   var upd = function(){
+    var ct = document.getElementById('ctotal');
+    if(ct && VIEW && VIEW.today.open_session){
+      var sp = sessionParts(VIEW.today);
+      ct.textContent = clockText(sp.total);
+      CIRCLES.forEach(function(c){ var ce = document.getElementById('cc-' + c.k); if(ce) ce.textContent = clockText(sp[c.k]); });
+    }
     var n = document.getElementById('liveclock');
-    if(!n){ clearInterval(CLOCK_T); return; }
+    if(!n){ if(!ct) clearInterval(CLOCK_T); return; }
     var o = {start:n.getAttribute('data-start'), started_iso:n.getAttribute('data-since') || null,
              paused_min:+n.getAttribute('data-paused') || 0, paused_at:n.getAttribute('data-pausedat') || null,
              paused_iso:n.getAttribute('data-pausediso') || null};
@@ -3391,7 +3120,7 @@ var AREAS = [
 ];
 function askArea(switching){
   openSheet('<h3>' + (switching ? 'Switch to' : 'What are you working on?') + '</h3>' +
-    '<p class="small muted">' + (switching ? 'The area you are on closes at this minute and gets its score; the new one starts now. The stretch keeps counting.'
+    '<p class="small muted">' + (switching ? 'The area you are on closes at this minute and the new one starts now. You give one score when you finish.'
                                           : 'The area is enough. You never have to name the task.') + '</p>' +
     '<div class="grid2" style="margin-top:16px">' + AREAS.map(function(a){
       return '<button class="btn" data-' + (switching ? 'swarea' : 'area') + '="'+a[0]+'" style="justify-content:flex-start">' +
@@ -3400,12 +3129,16 @@ function askArea(switching){
     }).join('') + '</div>');
 }
 /* ── stop, and the score it will not skip ───────────────────────────────── */
-function askFocus(sessionStart, mins, mandatory, forDay){
+/* `also` names the other parts of the same session, the rows a switch of area
+   closed. Switching asks for nothing, so the one number given at the end goes
+   on all of them. Amir chose that on 2026-09-30 so he can switch fast. */
+function askFocus(sessionStart, mins, mandatory, forDay, also){
   openSheet('<h3>How focused were you?</h3>' +
     '<p class="small muted">That session ran '+hm(mins)+'. Only you can measure this, ' +
     'so give it your own number.</p>' +
     '<div class="scale">' + [1,2,3,4,5,6,7,8,9,10].map(function(n){
       return '<button data-focus="'+n+'" data-for="'+esc(sessionStart||'')+
+        '" data-also="'+esc((also || []).join(','))+
         '" data-fday="'+esc(forDay||'')+'">'+n+'</button>';
     }).join('') + '</div>' +
     '<div class="scale-ends"><span>1 · barely working</span><span>10 · fully absorbed</span></div>' +
@@ -3466,8 +3199,8 @@ function askDue(id){
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],[data-due],[data-setdue],' +
     '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
-    '[data-noteact],[data-range],[data-corner],[data-planlist],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
-    '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend]');
+    '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
+    '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend],[data-circ],#pauseCirc,#finishBtn');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
   // that window used to post the same event again.
@@ -3475,18 +3208,8 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.act === 'allhist'){ SHOW_ALL_HIST = true; render(); return; }
   if(t.dataset.act === 'type'){ typeInstead(null); return; }
   if(t.dataset.info){ var inf = INFO[t.dataset.info]; openSheet('<h3>'+esc(inf[0])+'</h3><p class="small dim prose" style="margin-top:10px">'+esc(inf[1])+'</p>'); return; }
-  if(t.dataset.act === 'daytoday'){ SHOW_TOMORROW = false; render(); return; }
-  if(t.dataset.planlist){
-    // The summary's own toggle runs after this, so the flag is set to what the
-    // element is about to become, not to what it is now.
-    var det = t.closest('details');
-    PLAN_LIST_OPEN = !(det && det.open);
-    rememberView();
-    return;
-  }
   if(t.dataset.range){ P_RANGE = t.dataset.range; rememberView(); render(); return; }
   if(t.dataset.corner){ P_CORNER = t.dataset.corner; rememberView(); render(); return; }
-  if(t.dataset.act === 'daytomorrow'){ SHOW_TOMORROW = true; render(); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go && SHEET && SHEET.dataset.mandatory){ toast('Give the session a score first.'); return; }
@@ -3510,32 +3233,56 @@ document.addEventListener('click', async function(ev){
     var lab = (AREAS.filter(function(a){ return a[0] === t.dataset.swarea; })[0] || [])[1] || t.dataset.swarea;
     if(t.dataset.swarea === cur.area){ closeSheet(true); toast('Already on ' + lab + '.'); return; }
     closeSheet(true);
-    var ran = Math.floor(workedSecs(cur) / 60), oldStart = cur.start, oldLab = cur.area_label || cur.area;
-    // The new area starts first, so its clock begins at the tap. The score for
-    // the area just left is asked straight after and names that row by its start.
+    var oldStart = cur.start;
+    // No score here. The one score comes when the session finishes and goes on
+    // every part of it, so a switch is a single tap.
     await record('session_start', {area:t.dataset.swarea, switch:true, from:oldStart});
-    if(ran >= 1) askFocus(oldStart, ran, true, VIEW.today.date);
     toast('Switched to ' + lab + ' at ' + hhmm() + '.');
     return;
   }
-  if(t.id === 'pauseBtn' || t.id === 'resumeBtn'){
+  if(t.dataset.circ){
+    // One tap starts this circle and stops the one running. A tap on the
+    // circle already running does nothing, unless it is paused: then it goes on.
+    var cc = CIRCLES.filter(function(c){ return c.k === t.dataset.circ; })[0];
+    var op = VIEW.today.open_session;
+    if(!cc) return;
+    if(!op){ await record('session_start', {area:cc.area}); return; }
+    if(circleOf(op.area) === cc.k){
+      if(op.paused_at) await record('session_resume', {start:op.start, day:VIEW.today.date});
+      return;
+    }
+    await record('session_start', {area:cc.area, switch:true, from:op.start});
+    return;
+  }
+  if(t.id === 'pauseBtn' || t.id === 'resumeBtn' || t.id === 'pauseCirc'){
     var os = VIEW.today.open_session;
     if(!os) return;
-    await record(t.id === 'pauseBtn' ? 'session_pause' : 'session_resume', {start: os.start, day: VIEW.today.date});
-    toast(t.id === 'pauseBtn' ? 'Paused. The clock waits for you.' : 'Back to work.');
+    var pausing = t.id === 'pauseCirc' ? !os.paused_at : t.id === 'pauseBtn';
+    await record(pausing ? 'session_pause' : 'session_resume', {start: os.start, day: VIEW.today.date});
+    if(t.id !== 'pauseCirc') toast(pausing ? 'Paused. The clock waits for you.' : 'Back to work.');
     render();
     return;
   }
-  if(t.id === 'stopBtn'){
+  if(t.id === 'stopBtn' || t.id === 'finishBtn'){
     var open = VIEW.today.open_session;
     if(!open) return;
     var mins = Math.floor(workedSecs(open) / 60);
+    // The earlier parts of this session that a switch closed and nobody has
+    // rated. The score given now goes on them as well.
+    var earlier = (open.stretch_list || []).filter(function(x){ return x !== open && x.focus == null && x.minutes; });
+    var earlierMin = earlier.reduce(function(a, x){ return a + x.minutes; }, 0);
+    var earlierStarts = earlier.map(function(x){ return x.start; });
     if(mins < 1 && PEND.some(function(e){ return e.kind === 'session_start' && e.at === open.start; })){
       // Start then Stop inside a minute is a mis-tap. There is nothing to rate.
       // The cancel names the exact pending start, so a fresh start in the same
       // minute is not mistaken for the cancelled one.
       var pst = PEND.filter(function(e){ return e.kind === 'session_start' && e.at === open.start; }).slice(-1)[0];
       await record('session_cancel', {start:open.start, area:open.area, day:VIEW.today.date, for_qid: pst ? pst.qid : null});
+      if(earlier.length){
+        // Only the last part was a mis-tap. The rest of the session still needs its score.
+        askFocus(earlierStarts[earlierStarts.length - 1], earlierMin, true, VIEW.today.date, earlierStarts.slice(0, -1));
+        return;
+      }
       toast('That session ran under a minute, so it was discarded.');
       render();
       return;
@@ -3548,7 +3295,7 @@ document.addEventListener('click', async function(ev){
     // The sheet opens BEFORE the network call. Awaiting the post first left
     // seconds on a slow connection where the session already read as stopped,
     // the Start button was live again, and no sheet had appeared.
-    askFocus(open.start, mins, true, VIEW.today.date);
+    askFocus(open.start, mins + earlierMin, true, VIEW.today.date, earlierStarts);
     record('session_stop', {start: open.start, day: VIEW.today.date});
     return;
   }
@@ -3562,6 +3309,9 @@ document.addEventListener('click', async function(ev){
     // was purely so the selected button was visible, and a force-quit inside it
     // used to throw away a score the user had actually given.
     record('session_focus', {start:forStart, focus:n, day:forDay || VIEW.today.date});
+    (t.dataset.also || '').split(',').filter(Boolean).forEach(function(st){
+      record('session_focus', {start:st, focus:n, day:forDay || VIEW.today.date});
+    });
     setTimeout(function(){
       closeSheet(true);
       render();
@@ -4181,8 +3931,7 @@ async function planFromSpeech(text, entryId){
   if(!blocks.length) return false;
   // "tomorrow 9 to 11 research" is tomorrow's plan. It goes to the Mac under
   // that date and is not drawn on today's timeline.
-  // Said "tomorrow", or spoken while looking at tomorrow's plan.
-  var tomorrow = /\btomorrow\b/i.test(text) || (SHOW_TOMORROW && (VIEW.tomorrow.plan || []).length > 0);
+  var tomorrow = /\btomorrow\b/i.test(text) && !!(VIEW.tomorrow && VIEW.tomorrow.date);
   var forDay = tomorrow ? VIEW.tomorrow.date : VIEW.today.date;
   // A second sentence adds to the plan; it only replaces the blocks it
   // overlaps. The whole merged list goes to the Mac, which writes the table.
@@ -4201,7 +3950,6 @@ async function planFromSpeech(text, entryId){
   // `kept` is what this sentence did not touch, so the model does not drop it.
   await record('plan_set', {blocks:blocks, day:forDay, text:String(text || ''), kept:kept});
   if(entryId){ try{ await patchNote(entryId, {status:'done'}); }catch(e){} }
-  if(tomorrow){ SHOW_TOMORROW = true; if(TAB !== 'time'){ TAB = 'time'; rememberTab(); } }
   render();
   toast('Planned ' + blocks.length + ' block' + (blocks.length > 1 ? 's' : '') + (tomorrow ? ' for tomorrow.' : ' for today.'));
   return true;
