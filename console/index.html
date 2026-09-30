@@ -679,7 +679,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c94-2026-09-30-simple-circles';
+var BUILD = 'c95-2026-09-30-three-areas-in-add';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -1915,10 +1915,12 @@ function paintSessEditor(){
     '</div>' +
     '<div class="spread tiny" style="margin-top:8px" id="sLen">' + sessLengthHTML(e).html + '</div>' +
     '<div class="tiny muted" style="margin:16px 0 8px">Area</div>' +
-    '<div class="grid2">' + AREAS.map(function(a){
-      return '<button class="btn' + (a[0] === e.area ? ' primary' : '') + '" data-sarea="' + a[0] +
-        '" style="justify-content:flex-start"><span style="width:9px;height:9px;border-radius:50%;' +
-        'background:' + areaColour(a[0]) + '"></span>' + esc(a[1]) + '</button>';
+    /* The same three choices as the circles on Consistency, and nothing else.
+       Amir asked for it on 2026-09-30. */
+    '<div class="grid3">' + CIRCLES.map(function(c){
+      return '<button class="btn' + (circleOf(e.area) === c.k ? ' primary' : '') + '" data-sarea="' + c.area +
+        '"><span style="width:9px;height:9px;border-radius:50%;flex:0 0 auto;' +
+        'background:' + AREA_COLOUR[c.area] + '"></span>' + esc(c.label) + '</button>';
     }).join('') + '</div>' +
     /* A finished session needs its score here. Without it the row landed
        unrated and he had to reopen it from the list to give the number. A
@@ -3364,7 +3366,9 @@ document.addEventListener('click', async function(ev){
     return;
   }
   if(t.dataset.sarea){
-    EDIT.area = t.dataset.sarea;
+    // An old Research row stays Research when Academia is tapped, because
+    // Academia is its circle already. Only a real change of circle rewrites it.
+    if(circleOf(EDIT.area) !== circleOf(t.dataset.sarea)) EDIT.area = t.dataset.sarea;
     paintSessEditor();
     return;
   }
