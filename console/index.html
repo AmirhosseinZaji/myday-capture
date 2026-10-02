@@ -439,8 +439,13 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
 .tk .tbtn{font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:inherit;
-  width:100%; cursor:pointer; text-decoration:underline dotted var(--ink-3); text-underline-offset:3px}
-.morebtn2{font:inherit; color:var(--ink-2); background:none; border:0; padding:0; cursor:pointer; white-space:nowrap}
+  width:100%; cursor:pointer}
+.morebtn2{display:inline-flex; align-items:center; justify-content:center; vertical-align:middle; position:relative;
+  width:22px; height:22px; margin:-3px 0 -3px 4px; padding:0; border:1px solid var(--line); border-radius:50%;
+  background:var(--surface-2); color:var(--ink-2); cursor:pointer}
+.morebtn2::before{content:""; position:absolute; inset:-10px}
+.morebtn2 svg{transition:transform .2s}
+.morebtn2.open svg{transform:rotate(180deg)}
 .tnotes{margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--surface-2); font-size:14px; line-height:1.45}
 .tnotes p{margin:0 0 4px; overflow-wrap:anywhere; unicode-bidi:plaintext}
 .tnotes p:last-child{margin-bottom:0}
@@ -686,7 +691,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c97-2026-10-02-task-details';
+var BUILD = 'c98-2026-10-02-details-arrow';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2587,7 +2592,8 @@ function pageTasks(v){
 
             (t.priority==='high'?'<span class="muted" style="white-space:nowrap"> · high</span>':'')+
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
-            (hasNotes?' · <button class="morebtn2" data-notes="'+esc(t.id)+'">'+(open?'hide details':'details')+'</button>':'')+
+            (hasNotes?' <button class="morebtn2'+(open?' open':'')+'" data-notes="'+esc(t.id)+'" aria-label="'+(open?'Hide':'Show')+' the details of '+esc(t.title)+'">' +
+              '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></button>':'')+
           '</div>' +
           (hasNotes ? '<div class="tnotes" data-notesfor="'+esc(t.id)+'"'+(open?'':' hidden')+'>' +
             t.notes.map(function(n){ return '<p dir="auto">'+noteHtml(n)+'</p>'; }).join('') + '</div>' : '') +
@@ -2625,7 +2631,7 @@ function pageTasks(v){
     h += '<div class="taskcols">' + cards.map(function(c){ return c.html; }).join('') + '</div>';
   }
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking marks it done; it is filed at the next sync. ' +
-       'Tick it again to undo. Tap a date to change it. Tap an underlined task to see its details. ' + '<span hidden>Ticking sends it to Claude, who ' +
+       'Tick it again to undo. Tap a date to change it. Tap a task with a small arrow to see its details. ' + '<span hidden>Ticking sends it to Claude, who ' +
        'files it properly at your computer. Tap it again to undo before that happens. A date you ' +
        'change here is written into the task list by your computer within fifteen minutes.</span></p>';
   return h;
