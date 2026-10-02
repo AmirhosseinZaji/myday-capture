@@ -438,6 +438,13 @@ main{flex:1; padding:4px 20px calc(160px + var(--safe-b)); max-width:760px; widt
 .tk.ticked .t{color:var(--ink-3); text-decoration:line-through}
 .tk .grow{flex:1; min-width:0}
 .tk .t{display:block; overflow-wrap:anywhere}
+.tk .tbtn{font:inherit; color:inherit; background:none; border:0; padding:0; margin:0; text-align:inherit;
+  width:100%; cursor:pointer; text-decoration:underline dotted var(--ink-3); text-underline-offset:3px}
+.morebtn2{font:inherit; color:var(--ink-2); background:none; border:0; padding:0; cursor:pointer; white-space:nowrap}
+.tnotes{margin-top:8px; padding:8px 10px; border-radius:8px; background:var(--surface-2); font-size:14px; line-height:1.45}
+.tnotes p{margin:0 0 4px; overflow-wrap:anywhere; unicode-bidi:plaintext}
+.tnotes p:last-child{margin-bottom:0}
+.tnotes a{color:inherit; text-decoration:underline}
 .tk .grow .s{direction:ltr; unicode-bidi:isolate; text-align:left}
 .tk .grow:dir(rtl) .s{text-align:right}
 /* The due date is a button. Changing a date is the thing Amir does most often
@@ -679,7 +686,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c96-2026-09-30-circles-keep-seconds';
+var BUILD = 'c97-2026-10-02-task-details';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -2455,6 +2462,23 @@ function hitRate(weeks){
 /* ═══════════════════════════════════════════════════════════════ tasks ═══ */
 var TASK_FILTER = 'all';
 var AREA_FILTER = 'all';
+// Which tasks have their details open. Kept here so the next refresh of the
+// page does not snap an open task shut while he is reading the phone number.
+var OPEN_NOTES = {};
+// One line of a task's details, with a phone number, an email and a web
+// address each made tappable. A link to a file on the Mac keeps only its words.
+function noteHtml(raw){
+  var txt = String(raw || '').replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(_, a, b){
+    return /^https?:/i.test(b) ? a + ' ' + b : a;
+  });
+  return esc(txt).replace(
+    /(https?:\/\/[^\s<]+[^\s<.,;:)])|([\w.+-]+@[\w-]+(?:\.[\w-]+)+)|((?:\+?1[ .-]?)?\(?\b\d{3}\)?[ .-]?\d{3}[ .-]\d{4}\b)/g,
+    function(m, url, mail, tel){
+      if(url) return '<a href="'+url+'" target="_blank" rel="noopener">'+url+'</a>';
+      if(mail) return '<a href="mailto:'+mail+'">'+mail+'</a>';
+      return '<a href="tel:'+tel.replace(/[^\d+]/g, '')+'">'+tel+'</a>';
+    });
+}
 function pageTasks(v){
   var all = (v.tasks || []).filter(function(t){ return t && String(t.title || '').trim(); });
   var ticked = {};
@@ -2540,6 +2564,7 @@ function pageTasks(v){
       '<span class="tiny muted" style="white-space:nowrap;flex:0 0 auto;margin-left:10px">'+(od === rows.length ? od + ' overdue' : rows.length + ' task' + (rows.length === 1 ? '' : 's') + (od ? ' · ' + od + ' overdue' : ''))+'</span></div>' +
       rows.map(function(t){
         var on = !!ticked[t.id];
+        var hasNotes = !!(t.notes && t.notes.length), open = hasNotes && !!OPEN_NOTES[t.id];
         var due = t.due
           ? (t.when === 'overdue'
               ? '<span style="color:'+(t.overdue_days >= 7 ? 'var(--consistency)' : 'var(--ink-2)')+';font-weight:600">'+t.overdue_days+
@@ -2552,14 +2577,21 @@ function pageTasks(v){
           '<button class="box'+(on?' on':'')+(t.priority==='high'?' hi':'')+'" data-tick="'+esc(t.id)+'" ' +
           'data-ticked="'+(on?'1':'')+'" aria-label="'+(on?'Undo':'Tick')+' '+esc(t.title)+'">' +
           (on?'✓':'')+'</button>' +
-          '<div class="grow" dir="auto"><div class="t">'+esc(t.title)+'</div>' +
+          '<div class="grow" dir="auto">' +
+          (hasNotes
+            ? '<button class="t tbtn" data-notes="'+esc(t.id)+'" aria-expanded="'+(open?'true':'false')+'">'+esc(t.title)+'</button>'
+            : '<div class="t">'+esc(t.title)+'</div>') +
           '<div class="s"><button class="duebtn'+(t.pending_due?' waiting':'')+'" data-due="'+esc(t.id)+'" ' +
             'aria-label="Change the date of '+esc(t.title)+'">'+due+'</button>'+
             (t.repeat?'<span style="white-space:nowrap"> · 🔁 '+esc(t.repeat)+'</span>':'')+
 
             (t.priority==='high'?'<span class="muted" style="white-space:nowrap"> · high</span>':'')+
             (on?' · <span style="color:var(--notice)">ticked, tap to undo</span>':'')+
-          '</div></div></div>';
+            (hasNotes?' · <button class="morebtn2" data-notes="'+esc(t.id)+'">'+(open?'hide details':'details')+'</button>':'')+
+          '</div>' +
+          (hasNotes ? '<div class="tnotes" data-notesfor="'+esc(t.id)+'"'+(open?'':' hidden')+'>' +
+            t.notes.map(function(n){ return '<p dir="auto">'+noteHtml(n)+'</p>'; }).join('') + '</div>' : '') +
+          '</div></div>';
       }).join('') + '</div>';
     cards.push({html:card, rows:rows.length, area:areaOf[k], od:od});
   });
@@ -2593,7 +2625,7 @@ function pageTasks(v){
     h += '<div class="taskcols">' + cards.map(function(c){ return c.html; }).join('') + '</div>';
   }
   h += '<p class="tiny muted prose" style="margin:14px 4px 0">Ticking marks it done; it is filed at the next sync. ' +
-       'Tick it again to undo. Tap a date to change it. ' + '<span hidden>Ticking sends it to Claude, who ' +
+       'Tick it again to undo. Tap a date to change it. Tap an underlined task to see its details. ' + '<span hidden>Ticking sends it to Claude, who ' +
        'files it properly at your computer. Tap it again to undo before that happens. A date you ' +
        'change here is written into the task list by your computer within fifteen minutes.</span></p>';
   return h;
@@ -3291,7 +3323,7 @@ function askDue(id){
 /* ── all taps, in one place ─────────────────────────────────────────────── */
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],[data-due],[data-setdue],' +
-    '[data-filter],[data-areafilter],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
+    '[data-filter],[data-areafilter],[data-notes],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
     '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend],[data-circ],#pauseCirc,#finishBtn');
   if(!t) return;
@@ -3309,6 +3341,11 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.go === 'more'){ moreSheet(); return; }
   if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; rememberTab(); window.scrollTo(0,0); render(); return; }
   if(t.dataset.qsend){ await sendAnswer(t.dataset.qsend, null, 'typed'); return; }
+  if(t.dataset.notes){
+    var nid = t.dataset.notes;
+    if(OPEN_NOTES[nid]) delete OPEN_NOTES[nid]; else OPEN_NOTES[nid] = 1;
+    render(); return;
+  }
   if(t.dataset.filter){ TASK_FILTER = t.dataset.filter; rememberView(); render(); return; }
   if(t.dataset.areafilter){ AREA_FILTER = t.dataset.areafilter; rememberView(); render(); return; }
 
