@@ -693,7 +693,9 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   width:100%; min-width:0; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
   padding:10px 11px; font-size:15px; color:var(--ink); -webkit-appearance:none; appearance:none}
 .pl select{-webkit-appearance:menulist; appearance:auto}
-.pl textarea{resize:vertical; min-height:64px; line-height:1.7; display:block}
+/* Every box grows with what he writes (planGrow), so nothing scrolls inside it. */
+.pl textarea{resize:none; overflow:hidden; min-height:64px; line-height:1.7; display:block}
+.pl textarea.one{min-height:0; line-height:1.5}
 .pl input:focus, .pl select:focus, .pl textarea:focus{outline:none; border-color:var(--ink-2); background:var(--surface)}
 .pl input[type=time], .pl input[type=number], .pl input[type=date]{direction:ltr; text-align:center; font-variant-numeric:tabular-nums}
 .pl .g3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
@@ -713,7 +715,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pl-habit{display:grid; grid-template-columns:64px auto minmax(0,1fr); gap:10px; align-items:center}
 .pl-habit + .pl-habit{margin-top:10px}
 .pl-habit .nm{font-weight:600}
-@media (max-width:440px){ .pl-habit{grid-template-columns:auto 1fr} .pl-habit input[type=text]{grid-column:1 / -1} }
+@media (max-width:440px){ .pl-habit{grid-template-columns:auto 1fr} .pl-habit textarea{grid-column:1 / -1} }
 .pl-block{display:grid; grid-template-columns:96px 96px minmax(0,1fr) 40px; gap:8px; align-items:center; padding:9px; border-radius:12px;
   background:var(--surface-2); border:1px solid var(--line); border-inline-start:5px solid var(--c, var(--line))}
 .pl-block + .pl-block{margin-top:10px}
@@ -748,7 +750,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c99-2026-10-13-plan-notebook';
+var BUILD = 'c100-2026-10-13-plan-boxes-grow';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3310,7 +3312,7 @@ document.addEventListener('input', function(ev){
   var t = ev.target;
   if(t && t.matches && t.matches('textarea[data-draft]')){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
   // The date jump waits for change: iOS fires input while its wheel turns.
-  if(t && t.closest && t.closest('.pl') && t.id !== 'planJump') planInput(t);
+  if(t && t.closest && t.closest('.pl') && t.id !== 'planJump'){ planInput(t); if(t.tagName === 'TEXTAREA') planGrowOne(t); }
 });
 
 /* ── start a session ────────────────────────────────────────────────────── */
@@ -3538,12 +3540,19 @@ function plArea(f, d, label, ph, rows){
   return '<div class="fld"><label class="l" for="pf-' + f + '">' + label + '</label>' +
     '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="' + (rows || 2) + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
 }
+/* A one-line box that becomes two or three lines when the sentence is long. */
+function plLine(f, d, ph){
+  return '<textarea class="one" rows="1" id="pf-' + f + '" data-pf="' + f + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea>';
+}
+function planGrowOne(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
+function planGrow(){ document.querySelectorAll('.pl textarea').forEach(planGrowOne); }
 function plTick(f, d, label){
   return '<label class="pl-tick"><input type="checkbox" id="pf-' + f + '" data-pf="' + f + '"' + (d[f] ? ' checked' : '') + '>' + label + '</label>';
 }
 function pagePlan(v){
   if(!PLAN_DAY) PLAN_DAY = planDefaultDay();
   if(!PLAN_LOAD[PLAN_DAY]) setTimeout(function(){ planFetch(PLAN_DAY); }, 0);
+  setTimeout(planGrow, 0);   // a redraw drops the heights, so they are measured again
   var day = PLAN_DAY, d = planData(day), dt = plParse(day);
   var dates = (PL_JAL ? PL_JAL.format(dt) : day) + (PL_GREG ? '، ' + PL_GREG.format(dt) : '');
   var st = planStatusText();
@@ -3558,7 +3567,7 @@ function pagePlan(v){
       '<input type="time" id="pb-' + i + '-to" data-pb="' + i + ':to" value="' + esc(b.to || '') + '" aria-label="تا">' +
       '<select id="pb-' + i + '-area" data-pb="' + i + ':area" aria-label="کار">' + opts + '</select>' +
       '<button class="pl-x" data-plan="del:' + i + '" aria-label="پاک کردن این بلوک">×</button>' +
-      '<input type="text" class="what" id="pb-' + i + '-what" data-pb="' + i + ':what" value="' + esc(b.what || '') + '" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' +
+      '<textarea class="what one" rows="1" id="pb-' + i + '-what" data-pb="' + i + ':what" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' + esc(b.what || '') + '</textarea>' +
     '</div>';
   }).join('');
   return '<div class="pl" dir="rtl" lang="fa">' +
@@ -3600,9 +3609,9 @@ function pagePlan(v){
     '</div>' +
 
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.care + '"></span>سبک زندگی <span class="hint">کار نیست. تیک رو آخر همون روز بزن</span></h2>' +
-      '<div class="pl-habit"><span class="nm">رژیم</span>' + plTick('dietDone', d, 'رعایت شد') + plInput('dietNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
-      '<div class="pl-habit"><span class="nm">ورزش</span>' + plTick('exDone', d, 'رعایت شد') + plInput('exNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
-      '<div class="pl-habit"><span class="nm">ویپ</span>' + plTick('vapeDone', d, 'رعایت شد') + plInput('vapeNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
+      '<div class="pl-habit"><span class="nm">رژیم</span>' + plTick('dietDone', d, 'رعایت شد') + plLine('dietNote', d, 'یه جمله') + '</div>' +
+      '<div class="pl-habit"><span class="nm">ورزش</span>' + plTick('exDone', d, 'رعایت شد') + plLine('exNote', d, 'یه جمله') + '</div>' +
+      '<div class="pl-habit"><span class="nm">ویپ</span>' + plTick('vapeDone', d, 'رعایت شد') + plLine('vapeNote', d, 'یه جمله') + '</div>' +
     '</div>' +
 
     '<div class="card"><h2>بلوک‌های روز <span class="hint">اگه بخوای ساعت به ساعت بچینی</span></h2>' +
