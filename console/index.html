@@ -670,6 +670,63 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 @media (prefers-reduced-motion:reduce){
   *{animation-duration:.001s !important; transition-duration:.001s !important}
 }
+
+/* ── the plan notebook ─────────────────────────────────────────────────────
+   Persian, right to left, filled the night before or first thing in the
+   morning. One row per day in the `plans` table. Added 2026-10-13. */
+.pl{direction:rtl; text-align:right}
+.pl .card h2{letter-spacing:0; text-transform:none; font-size:15px; color:var(--ink); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
+.pl .card h2 .hint{font-size:12.5px; font-weight:400; color:var(--ink-3)}
+.pl .pdot{width:9px; height:9px; border-radius:50%; flex:0 0 auto}
+.pl-day{display:flex; align-items:center; gap:10px}
+.pl-day .grow{flex:1; min-width:0}
+.pl-rel{font-size:30px; font-weight:700; line-height:1.2; letter-spacing:-.01em}
+.pl-dates{font-size:13.5px; color:var(--ink-2)}
+.pl-arrow{width:44px; height:44px; border-radius:50%; border:1px solid var(--line); background:var(--surface); font-size:18px; flex:0 0 auto; display:grid; place-items:center}
+.pl-jump{display:flex; gap:7px; flex-wrap:wrap; align-items:center; margin-top:12px}
+.pl-jump input[type=date]{width:auto; min-height:40px; padding:6px 10px}
+.pl-status{font-size:12.5px; color:var(--ink-3); margin-top:10px}
+.pl-status.bad{color:var(--bad)}
+.pl-status.ok{color:var(--good)}
+.pl label.l{display:block; font-size:13px; font-weight:500; color:var(--ink-2); margin-bottom:5px}
+.pl input[type=text], .pl input[type=number], .pl input[type=time], .pl input[type=date], .pl select, .pl textarea{
+  width:100%; min-width:0; background:var(--surface-2); border:1px solid var(--line); border-radius:10px;
+  padding:10px 11px; font-size:15px; color:var(--ink); -webkit-appearance:none; appearance:none}
+.pl select{-webkit-appearance:menulist; appearance:auto}
+.pl textarea{resize:vertical; min-height:64px; line-height:1.7; display:block}
+.pl input:focus, .pl select:focus, .pl textarea:focus{outline:none; border-color:var(--ink-2); background:var(--surface)}
+.pl input[type=time], .pl input[type=number], .pl input[type=date]{direction:ltr; text-align:center; font-variant-numeric:tabular-nums}
+.pl .g3{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px}
+.pl .g4{display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:10px; margin-top:12px}
+@media (max-width:520px){ .pl .g4{grid-template-columns:repeat(2,minmax(0,1fr))} }
+.pl .fld + .fld{margin-top:12px}
+.pl-mixhint{font-size:12.5px; color:var(--ink-3); margin-top:8px}
+.pl-total{display:flex; justify-content:space-between; align-items:baseline; gap:10px; margin-top:12px; padding-top:10px; border-top:1px dashed var(--line); font-size:13.5px; color:var(--ink-2)}
+.pl-total b{font-size:20px; color:var(--ink); font-variant-numeric:tabular-nums}
+.pl-job + .pl-job{margin-top:14px}
+.pl-jh{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px}
+.pl-jh .nm{font-weight:600}
+.pl-jh .cad{font-size:12.5px; color:var(--ink-3); font-weight:400}
+.pl-tick{display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:4px 12px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); font-size:13px; color:var(--ink-2); cursor:pointer; user-select:none}
+.pl-tick input{width:18px; height:18px; margin:0; accent-color:var(--good)}
+.pl-tick:has(input:checked){color:var(--good); border-color:var(--good); background:var(--focus-soft)}
+.pl-habit{display:grid; grid-template-columns:64px auto minmax(0,1fr); gap:10px; align-items:center}
+.pl-habit + .pl-habit{margin-top:10px}
+.pl-habit .nm{font-weight:600}
+@media (max-width:440px){ .pl-habit{grid-template-columns:auto 1fr} .pl-habit input[type=text]{grid-column:1 / -1} }
+.pl-block{display:grid; grid-template-columns:96px 96px minmax(0,1fr) 40px; gap:8px; align-items:center; padding:9px; border-radius:12px;
+  background:var(--surface-2); border:1px solid var(--line); border-inline-start:5px solid var(--c, var(--line))}
+.pl-block + .pl-block{margin-top:10px}
+.pl-block .what{grid-column:1 / -1}
+.pl-block input[type=time]{padding:8px 4px}
+.pl-block select{padding:8px}
+.pl-x{width:40px; height:40px; border-radius:50%; border:1px solid var(--line); background:var(--surface); font-size:17px; color:var(--ink-3)}
+@media (max-width:440px){ .pl-block{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px} .pl-block select{grid-column:1 / -1; grid-row:2} }
+.pl-empty{font-size:13.5px; color:var(--ink-3); text-align:center; padding:12px; border:1px dashed var(--line); border-radius:12px}
+.pl-sum{display:flex; flex-wrap:wrap; gap:6px 14px; font-size:13px; color:var(--ink-2); margin-top:10px}
+.pl-sum i{font-style:normal; display:inline-flex; align-items:center; gap:6px}
+.pl-sum i::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--c)}
+.pl-sum .warn{flex-basis:100%; color:var(--warn)}
 </style>
 </head>
 <body>
@@ -691,14 +748,14 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c98-2026-10-02-details-arrow';
+var BUILD = 'c99-2026-10-13-plan-notebook';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
    never sent to a server and never committed, so the public repo holds no key. It must stay in the address bar:
    iOS gives a Home Screen web app its own storage, so an icon saved without the
    fragment opens to "Not linked yet" no matter what Safari has. */
-var TAB_KEYS = ['home','time','focus','goals','tasks','notes','progress'];
+var TAB_KEYS = ['home','plan','time','focus','goals','tasks','notes','progress'];
 var CFG = null;
 function loadCfg(){
   var h = location.hash.replace(/^#/,'');
@@ -1765,6 +1822,9 @@ var AREA_COLOUR = {
   personal:'#3F7D5E', care:'#C2568F', overhead:'#8C8782'
 };
 var JOINT_COLOUR = '#C08A1E';
+/* MIX on the Plan page: hours spent on several projects at once. Teal, because
+   gold already means a joint block and grey means overhead. */
+var MIX_COLOUR = '#2C7A7B';
 function areaColour(a){
   // A joint block gets gold, not the colour of either of its areas. Gold means
   // exactly one thing on this page: two areas share this box.
@@ -2928,6 +2988,7 @@ var ICONS = {
   tasks: SVG('<rect x="4" y="4" width="16" height="16" rx="3.5"/><path d="m8 12.5 2.6 2.5L16 9.5"/>'),
   more:  SVG('<circle cx="6" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="18" cy="12" r="1.4" fill="currentColor" stroke="none"/>')
 };
+ICONS.plan = SVG('<path d="M7 4h10a2 2 0 0 1 2 2v14H7a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/><path d="M9 9h6M9 13h6M9 17h3"/>');
 ICONS.notes = SVG('<path d="M6 4h9l4 4v12H6z"/><path d="M15 4v4h4M9 12h6M9 16h6"/>');
 /* The warning mark on a question, and the microphone inside it. Same stroke
    set as the tabs, so the card does not become the one place with an emoji. */
@@ -2951,17 +3012,19 @@ var EMPTY_ICONS = {
 };
 var TABS = [
   {k:'home',  label:'Triangle'},
+  {k:'plan',  label:'Plan'},
   {k:'time',  label:'Consistency'},
-  {k:'focus', label:'Focus'},
+  {k:'focus', label:'Focus', wide:true},
   {k:'goals', label:'Goals'},
   {k:'tasks', label:'Tasks'},
   {k:'notes', label:'Notes', wide:true},
   {k:'progress', label:'Progress', wide:true},
   {k:'more',  label:'More', narrow:true}
 ];
-/* Seven tabs on a phone are seven targets too small to hit, so there Notes
-   and Progress live behind More. A laptop has the width, so it shows all
-   seven and no More. */
+/* Eight tabs on a phone are eight targets too small to hit, so there Focus,
+   Notes and Progress live behind More. A laptop has the width, so it shows all
+   eight and no More. Plan took Focus's place in the phone bar on 2026-10-13,
+   because Amir fills it every night and rates his focus from the stop sheet. */
 /* Questions still waiting on Amir, answered ones excluded. Read from VIEW, so
    an answer he has just sent stops being counted at once. */
 function openQuestions(){
@@ -2971,6 +3034,8 @@ function moreSheet(){
   var qs = openQuestions().length;
   var waiting = (NOTES || []).length + qs;
   openSheet('<h3>More</h3><div class="stack" style="margin-top:14px">' +
+    '<button class="btn wide morebtn" data-go="focus"><span class="ic">' + ICONS.focus + '</span><span class="grow" style="text-align:left">Focus' +
+      '<span class="tiny muted" style="display:block;font-weight:400">Today\u2019s score and the sessions still to rate</span></span></button>' +
     '<button class="btn wide morebtn" data-go="notes"><span class="ic">' + ICONS.notes + '</span><span class="grow" style="text-align:left">Notes' +
       '<span class="tiny muted" style="display:block;font-weight:400">' +
         (qs ? qs + (qs > 1 ? ' questions for you' : ' question for you') + ((waiting - qs) ? ' · ' + (waiting - qs) + ' waiting for Claude' : '')
@@ -2980,12 +3045,13 @@ function moreSheet(){
     '</div>');
   document.querySelectorAll('.nav button').forEach(function(b){ b.classList.toggle('on', b.dataset.go === 'more'); });
 }
-var TITLES = {home:'Triangle', time:'Consistency', focus:'Focus', goals:'Goals',
+var TITLES = {home:'Triangle', plan:'Plan', time:'Consistency', focus:'Focus', goals:'Goals',
               tasks:'Tasks', notes:'Notes', progress:'Progress'};
 var AREA_NAME = {academia:'Academia', ai:'AI Business', dog:'Dog Business',
                  personal:'Personal', care:'Care', overhead:'Overhead'};
 var MIC_HINT = {
   home:'Say anything. It lands on the Notes page.',
+  plan:'Say anything about this plan.',
   time:'Say your working blocks, or a session you forgot.',
   focus:'Say how focused you were and when.',
   goals:'Say this week’s goals.',
@@ -3038,6 +3104,7 @@ function render(){
   var v = VIEW;
   try{
   var body = TAB === 'home'  ? pageHome(v)
+           : TAB === 'plan'  ? pagePlan(v)
            : TAB === 'time'  ? pageTime(v)
            : TAB === 'focus' ? pageFocus(v)
            : TAB === 'goals' ? pageGoals(v)
@@ -3049,7 +3116,7 @@ function render(){
     '<div class="topbar'+(staleWhy() ? ' stale' : '')+'" id="topbar"><h1>'+esc(TITLES[TAB])+'</h1>' +
       '<span class="date">'+esc(v.today.pretty)+'</span></div>' +
     '<nav class="nav">' + TABS.map(function(t){
-      var on = TAB === t.k || (t.k === 'more' && (TAB === 'notes' || TAB === 'progress'));
+      var on = TAB === t.k || (t.k === 'more' && (TAB === 'notes' || TAB === 'progress' || TAB === 'focus'));
       // An unanswered question counts too. It is the one thing on that page
       // that is waiting on him, so the badge must not read 0 while one is open.
       var waiting = (NOTES || []).length + openQuestions().length;
@@ -3242,6 +3309,8 @@ function growDrafts(){
 document.addEventListener('input', function(ev){
   var t = ev.target;
   if(t && t.matches && t.matches('textarea[data-draft]')){ t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
+  // The date jump waits for change: iOS fires input while its wheel turns.
+  if(t && t.closest && t.closest('.pl') && t.id !== 'planJump') planInput(t);
 });
 
 /* ── start a session ────────────────────────────────────────────────────── */
@@ -3326,12 +3395,275 @@ function askDue(id){
     'Your computer writes it into the task list within fifteen minutes.</p>');
 }
 
+
+/* ═══════════════════════════════════════════════════ the plan notebook ═══ */
+/* Set by Amir 2026-10-13. A Persian page he fills the night before or first
+   thing in the morning: the day's hours, UCW, Instant Automation, the three
+   daily habits and optional time blocks. One row per day in `plans`. This is a
+   document, not a claim: the page writes its own row and the Mac only reads
+   it. It is a plan, so the Mac never turns any of it into a task.
+   Save first, then send: every keystroke lands in localStorage
+   (`myday_plan_local`) and is removed only once the server has the row. */
+var PLAN_FIELDS = ['wake','start','stop','hAcad','hAi','hMix','hPers','ucwCourses','ucwService','ucwResearch',
+  'vidPlan','shortPlan','brainPlan','dietNote','exNote','vapeNote','note'];
+var PLAN_TICKS = ['vidDone','shortDone','brainDone','dietDone','exDone','vapeDone'];
+var PLAN_AREAS = [['academia','Academia'],['ai','Instant Automation'],['mix','MIX'],['personal','Personal'],['care','Care']];
+var PLAN_HOURS = [['academia','hAcad'],['ai','hAi'],['mix','hMix'],['personal','hPers']];
+var PLAN_DAY = null, PLAN_DB = {}, PLAN_LOAD = {}, PLAN_TIMER = null, PLAN_SAVING = false, PLAN_STATE = '';
+var PL_JAL = null, PL_GREG = null;
+try{
+  PL_JAL = new Intl.DateTimeFormat('fa-IR-u-ca-persian', {weekday:'long', day:'numeric', month:'long'});
+  PL_GREG = new Intl.DateTimeFormat('fa-IR-u-ca-gregory', {day:'numeric', month:'long'});
+}catch(e){}
+
+function plYmd(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+function plParse(s){ var p = s.split('-').map(Number); return new Date(p[0], p[1]-1, p[2]); }
+function plAdd(s, n){ var d = plParse(s); d.setDate(d.getDate()+n); return plYmd(d); }
+function plDiff(a, b){ return Math.round((plParse(a) - plParse(b)) / 86400000); }
+function plFa(n){ try{ return Number(n).toLocaleString('fa-IR'); }catch(e){ return String(n); } }
+/* After 17:00 he is planning tomorrow; before that, today. Past midnight the
+   calendar date is already the day he is about to live, so it is today. */
+function planDefaultDay(){
+  var n = new Date(), d = new Date(n);
+  if(n.getHours() >= 17) d.setDate(d.getDate()+1);
+  return plYmd(d);
+}
+function planLocal(){ try{ return JSON.parse(localStorage.getItem('myday_plan_local') || '{}') || {}; }catch(e){ return {}; } }
+function planLocalSave(o){ try{ localStorage.setItem('myday_plan_local', JSON.stringify(o)); }catch(e){} }
+function planData(day){
+  var l = planLocal();
+  if(l[day] && typeof l[day] === 'object') return l[day];
+  return (PLAN_DB[day] && PLAN_DB[day].data) || {};
+}
+function planCopy(day){ var d = planData(day), c = JSON.parse(JSON.stringify(d || {})); if(!Array.isArray(c.blocks)) c.blocks = []; return c; }
+function planWrite(day, data){ var l = planLocal(); l[day] = data; planLocalSave(l); }
+
+async function planFetch(day){
+  if(!CFG) return;
+  PLAN_LOAD[day] = 'loading';
+  try{
+    var rows = await api('/rest/v1/plans?day=eq.' + day + '&select=day,data,updated_at');
+    var before = JSON.stringify((PLAN_DB[day] || {}).data || null);
+    PLAN_DB[day] = rows && rows[0] ? {data:rows[0].data || {}, updated_at:rows[0].updated_at} : {data:{}};
+    PLAN_LOAD[day] = 'ok';
+    if(TAB === 'plan' && day === PLAN_DAY && JSON.stringify(PLAN_DB[day].data) !== before) render();
+  }catch(e){
+    PLAN_LOAD[day] = 'err';
+    if(TAB === 'plan' && day === PLAN_DAY) planShowStatus();
+  }
+}
+function planQueue(){ clearTimeout(PLAN_TIMER); PLAN_TIMER = setTimeout(planFlush, 800); }
+async function planFlush(){
+  clearTimeout(PLAN_TIMER); PLAN_TIMER = null;
+  if(!CFG) return;
+  if(PLAN_SAVING){ planQueue(); return; }
+  var days = Object.keys(planLocal());
+  if(!days.length) return;
+  PLAN_SAVING = true; PLAN_STATE = 'saving'; planShowStatus();
+  var failed = false;
+  for(var i = 0; i < days.length; i++){
+    var day = days[i], data = planLocal()[day];
+    if(!data) continue;
+    try{
+      await api('/rest/v1/plans?on_conflict=day', {method:'POST',
+        headers:{Prefer:'resolution=merge-duplicates,return=minimal'},
+        body:[{day:day, data:data, updated_at:nowISO()}]});
+      PLAN_DB[day] = {data:data};
+      // Only forget the local copy if nothing was typed while it was sending.
+      var now = planLocal();
+      if(JSON.stringify(now[day]) === JSON.stringify(data)){ delete now[day]; planLocalSave(now); }
+    }catch(e){ failed = true; console.error('plan save failed', e); break; }
+  }
+  PLAN_SAVING = false;
+  PLAN_STATE = failed ? 'err' : (Object.keys(planLocal()).length ? 'saving' : 'ok');
+  planShowStatus();
+  if(!failed && Object.keys(planLocal()).length) planQueue();
+}
+function planStatusText(){
+  if(PLAN_STATE === 'saving') return ['', 'در حال ذخیره…'];
+  if(PLAN_STATE === 'err') return ['bad', 'هنوز ذخیره نشده. روی گوشی نگهش داشتم و دوباره می‌فرستم.'];
+  if(PLAN_STATE === 'ok') return ['ok', 'ذخیره شد ✓'];
+  if(PLAN_LOAD[PLAN_DAY] === 'loading' || !PLAN_LOAD[PLAN_DAY]) return ['', 'در حال باز کردن…'];
+  if(PLAN_LOAD[PLAN_DAY] === 'err') return ['bad', 'به سرور نرسید. هر چی بنویسی روی گوشی می‌مونه.'];
+  return ['', (PLAN_DB[PLAN_DAY] && PLAN_DB[PLAN_DAY].updated_at) ? 'ذخیره شده' : 'هنوز چیزی ننوشتی. هر چی بنویسی خودش ذخیره می‌شه.'];
+}
+function planShowStatus(){
+  var el = document.getElementById('planStatus');
+  if(!el) return;
+  var s = planStatusText();
+  el.className = 'pl-status' + (s[0] ? ' ' + s[0] : '');
+  el.textContent = s[1];
+}
+function plMins(b){
+  if(!b || !/^\d\d:\d\d$/.test(b.from || '') || !/^\d\d:\d\d$/.test(b.to || '')) return 0;
+  var f = b.from.split(':').map(Number), t = b.to.split(':').map(Number);
+  var m = (t[0]*60+t[1]) - (f[0]*60+f[1]); if(m < 0) m += 1440; return m;
+}
+function plHrs(m){ var h = Math.floor(m/60), r = m % 60; return plFa(h) + ':' + (r < 10 ? '۰' : '') + plFa(r); }
+function plColour(a){ return a === 'academia' ? AREA_COLOUR.ucw : a === 'mix' ? MIX_COLOUR : (AREA_COLOUR[a] || 'var(--ink-3)'); }
+function plName(a){ for(var i = 0; i < PLAN_AREAS.length; i++) if(PLAN_AREAS[i][0] === a) return PLAN_AREAS[i][1]; return a; }
+function planTotalHTML(d){
+  var t = PLAN_HOURS.reduce(function(s, p){ var v = parseFloat(d[p[1]]); return s + (isFinite(v) && v > 0 ? v : 0); }, 0);
+  return t > 0 ? plFa(t) + ' ساعت' : 'هنوز نذاشتی';
+}
+function planSumHTML(d){
+  var by = {};
+  (d.blocks || []).forEach(function(b){ var m = plMins(b); if(m) by[b.area || 'academia'] = (by[b.area || 'academia'] || 0) + m; });
+  var keys = Object.keys(by);
+  if(!keys.length) return '';
+  var warn = [];
+  PLAN_HOURS.forEach(function(p){
+    var want = parseFloat(d[p[1]]);
+    if(isFinite(want) && want > 0 && by[p[0]] != null && Math.abs(by[p[0]] - want*60) >= 15)
+      warn.push(plName(p[0]) + ': بلوک‌ها ' + plHrs(by[p[0]]) + ' ساعته، ولی بالا ' + plFa(want) + ' ساعت نوشتی.');
+  });
+  return keys.map(function(k){ return '<i style="--c:' + plColour(k) + '">' + esc(plName(k)) + ' ' + plHrs(by[k]) + '</i>'; }).join('') +
+    (warn.length ? '<span class="warn">' + warn.map(esc).join('<br>') + '</span>' : '');
+}
+function planRefreshBits(){
+  var d = planData(PLAN_DAY);
+  var t = document.getElementById('planTotal'); if(t) t.textContent = planTotalHTML(d);
+  var s = document.getElementById('planSum'); if(s) s.innerHTML = planSumHTML(d);
+}
+function planRel(day){
+  var n = plDiff(day, plYmd(new Date()));
+  return n === 0 ? 'امروز' : n === 1 ? 'فردا' : n === -1 ? 'دیروز' : n === 2 ? 'پس‌فردا' : n === -2 ? 'پریروز'
+       : (n > 0 ? plFa(n) + ' روز بعد' : plFa(-n) + ' روز پیش');
+}
+function plInput(f, d, type, extra){
+  var v = d[f] == null ? '' : String(d[f]);
+  return '<input type="' + type + '" id="pf-' + f + '" data-pf="' + f + '" value="' + esc(v) + '"' + (extra || '') + '>';
+}
+function plArea(f, d, label, ph, rows){
+  return '<div class="fld"><label class="l" for="pf-' + f + '">' + label + '</label>' +
+    '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="' + (rows || 2) + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
+}
+function plTick(f, d, label){
+  return '<label class="pl-tick"><input type="checkbox" id="pf-' + f + '" data-pf="' + f + '"' + (d[f] ? ' checked' : '') + '>' + label + '</label>';
+}
+function pagePlan(v){
+  if(!PLAN_DAY) PLAN_DAY = planDefaultDay();
+  if(!PLAN_LOAD[PLAN_DAY]) setTimeout(function(){ planFetch(PLAN_DAY); }, 0);
+  var day = PLAN_DAY, d = planData(day), dt = plParse(day);
+  var dates = (PL_JAL ? PL_JAL.format(dt) : day) + (PL_GREG ? '، ' + PL_GREG.format(dt) : '');
+  var st = planStatusText();
+  var today = plYmd(new Date());
+  var chip = function(k, label, target){ return '<button class="chip' + (day === target ? ' on' : '') + '" data-plan="' + k + '">' + label + '</button>'; };
+  var hrs = function(f, label){ return '<div><label class="l" for="pf-' + f + '">' + label + '</label>' +
+    plInput(f, d, 'number', ' min="0" max="16" step="0.5" inputmode="decimal"') + '</div>'; };
+  var blocks = (d.blocks || []).map(function(b, i){
+    var opts = PLAN_AREAS.map(function(a){ return '<option value="' + a[0] + '"' + ((b.area || 'academia') === a[0] ? ' selected' : '') + '>' + esc(a[1]) + '</option>'; }).join('');
+    return '<div class="pl-block" id="pb-' + i + '" style="--c:' + plColour(b.area || 'academia') + '">' +
+      '<input type="time" id="pb-' + i + '-from" data-pb="' + i + ':from" value="' + esc(b.from || '') + '" aria-label="از">' +
+      '<input type="time" id="pb-' + i + '-to" data-pb="' + i + ':to" value="' + esc(b.to || '') + '" aria-label="تا">' +
+      '<select id="pb-' + i + '-area" data-pb="' + i + ':area" aria-label="کار">' + opts + '</select>' +
+      '<button class="pl-x" data-plan="del:' + i + '" aria-label="پاک کردن این بلوک">×</button>' +
+      '<input type="text" class="what" id="pb-' + i + '-what" data-pb="' + i + ':what" value="' + esc(b.what || '') + '" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' +
+    '</div>';
+  }).join('');
+  return '<div class="pl" dir="rtl" lang="fa">' +
+    '<div class="card">' +
+      '<div class="pl-day">' +
+        '<button class="pl-arrow" data-plan="prev" aria-label="روز قبل">→</button>' +
+        '<div class="grow"><div class="pl-rel">' + esc(planRel(day)) + '</div><div class="pl-dates">' + esc(dates) + '</div></div>' +
+        '<button class="pl-arrow" data-plan="next" aria-label="روز بعد">←</button>' +
+      '</div>' +
+      '<div class="pl-jump">' + chip('yesterday', 'دیروز', plAdd(today, -1)) + chip('today', 'امروز', today) + chip('tomorrow', 'فردا', plAdd(today, 1)) +
+        '<input type="date" id="planJump" value="' + day + '" aria-label="رفتن به یه روز دیگه"></div>' +
+      '<div class="pl-status' + (st[0] ? ' ' + st[0] : '') + '" id="planStatus">' + esc(st[1]) + '</div>' +
+    '</div>' +
+
+    '<div class="card"><h2>ساعت‌ها <span class="hint">عددها رو خودت می‌ذاری</span></h2>' +
+      '<div class="g3">' +
+        '<div><label class="l" for="pf-wake">بیدار می‌شم</label>' + plInput('wake', d, 'time') + '</div>' +
+        '<div><label class="l" for="pf-start">شروع کار</label>' + plInput('start', d, 'time') + '</div>' +
+        '<div><label class="l" for="pf-stop">پایان کار</label>' + plInput('stop', d, 'time') + '</div>' +
+      '</div>' +
+      '<div class="g4">' + hrs('hAcad', 'Academia') + hrs('hAi', 'Instant Automation') + hrs('hMix', 'MIX') + hrs('hPers', 'Personal') + '</div>' +
+      '<div class="pl-mixhint">MIX یعنی چند ساعت که همزمان روی چند تا پروژه کار می‌کنی، از Academia و Instant Automation.</div>' +
+      '<div class="pl-total"><span>هدف کار این روز</span><b id="planTotal">' + esc(planTotalHTML(d)) + '</b></div>' +
+    '</div>' +
+
+    '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ucw + '"></span>UCW <span class="hint">کار اصلی</span></h2>' +
+      plArea('ucwCourses', d, 'کورس‌هایی که درس می‌دم', 'برای کدوم کورس چی کار می‌کنی؟') +
+      plArea('ucwService', d, 'سرویس‌ها', 'کمیته، جلسه، ایمیل، کارگاه…') +
+      plArea('ucwResearch', d, 'Research و مقاله', 'روی کدوم مقاله کار می‌کنی و تا کجا؟') +
+    '</div>' +
+
+    '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ai + '"></span>Instant Automation <span class="hint">کار جانبی</span></h2>' +
+      '<div class="pl-job"><div class="pl-jh"><span class="nm">YouTube Video <span class="cad">هر دو روز یکی</span></span>' + plTick('vidDone', d, 'کار امروز انجام شد') + '</div>' +
+        '<textarea id="pf-vidPlan" data-pf="vidPlan" rows="2" placeholder="امروز روی کدوم ویدیو چی کار می‌کنی؟">' + esc(d.vidPlan || '') + '</textarea></div>' +
+      '<div class="pl-job"><div class="pl-jh"><span class="nm">YouTube Short <span class="cad">هر دو روز یکی</span></span>' + plTick('shortDone', d, 'کار امروز انجام شد') + '</div>' +
+        '<textarea id="pf-shortPlan" data-pf="shortPlan" rows="2" placeholder="امروز روی کدوم شورت چی کار می‌کنی؟">' + esc(d.shortPlan || '') + '</textarea></div>' +
+      '<div class="pl-job"><div class="pl-jh"><span class="nm">Brain، کورس، تبلیغ و فروش</span>' + plTick('brainDone', d, 'کار امروز انجام شد') + '</div>' +
+        '<textarea id="pf-brainPlan" data-pf="brainPlan" rows="2" placeholder="مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول">' + esc(d.brainPlan || '') + '</textarea></div>' +
+    '</div>' +
+
+    '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.care + '"></span>سبک زندگی <span class="hint">کار نیست. تیک رو آخر همون روز بزن</span></h2>' +
+      '<div class="pl-habit"><span class="nm">رژیم</span>' + plTick('dietDone', d, 'رعایت شد') + plInput('dietNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
+      '<div class="pl-habit"><span class="nm">ورزش</span>' + plTick('exDone', d, 'رعایت شد') + plInput('exNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
+      '<div class="pl-habit"><span class="nm">ویپ</span>' + plTick('vapeDone', d, 'رعایت شد') + plInput('vapeNote', d, 'text', ' placeholder="یه جمله"') + '</div>' +
+    '</div>' +
+
+    '<div class="card"><h2>بلوک‌های روز <span class="hint">اگه بخوای ساعت به ساعت بچینی</span></h2>' +
+      (blocks || '<div class="pl-empty">هنوز بلوکی نذاشتی. اگه عددهای بالا کافیه، این بخش رو خالی بذار.</div>') +
+      '<button class="btn tiny" style="margin-top:12px" data-plan="add">+ بلوک تازه</button>' +
+      '<div class="pl-sum" id="planSum">' + planSumHTML(d) + '</div>' +
+    '</div>' +
+
+    '<div class="card"><h2>یادداشت</h2>' +
+      '<textarea id="pf-note" data-pf="note" rows="3" placeholder="هر چیز دیگه‌ای که باید یادت باشه">' + esc(d.note || '') + '</textarea>' +
+    '</div>' +
+  '</div>';
+}
+function planInput(t){
+  if(t.id === 'planJump'){
+    if(/^\d{4}-\d\d-\d\d$/.test(t.value) && t.value !== PLAN_DAY){ planGo(t.value); }
+    return true;
+  }
+  var f = t.dataset.pf, b = t.dataset.pb;
+  if(!f && !b) return false;
+  var d = planCopy(PLAN_DAY);
+  if(f) d[f] = t.type === 'checkbox' ? t.checked : t.value;
+  if(b){
+    var parts = b.split(':'), i = +parts[0], k = parts[1];
+    if(!d.blocks[i]) return true;
+    d.blocks[i][k] = t.value;
+    if(k === 'area'){ var row = document.getElementById('pb-' + i); if(row) row.style.setProperty('--c', plColour(t.value)); }
+  }
+  planWrite(PLAN_DAY, d);
+  PLAN_STATE = 'saving'; planShowStatus(); planRefreshBits(); planQueue();
+  return true;
+}
+function planGo(day){
+  planFlush();
+  PLAN_DAY = day; PLAN_STATE = '';
+  delete PLAN_LOAD[day];   // always read the latest from the server on arrival
+  render(); window.scrollTo(0, 0);
+}
+function planClick(a){
+  var today = plYmd(new Date());
+  if(a === 'prev') return planGo(plAdd(PLAN_DAY, -1));
+  if(a === 'next') return planGo(plAdd(PLAN_DAY, 1));
+  if(a === 'today') return planGo(today);
+  if(a === 'tomorrow') return planGo(plAdd(today, 1));
+  if(a === 'yesterday') return planGo(plAdd(today, -1));
+  var d = planCopy(PLAN_DAY);
+  if(a === 'add'){
+    var last = d.blocks[d.blocks.length - 1];
+    d.blocks.push({from:(last && last.to) || d.start || '', to:'', area:'academia', what:''});
+  } else if(a.indexOf('del:') === 0){
+    d.blocks.splice(+a.slice(4), 1);
+  } else return;
+  planWrite(PLAN_DAY, d); PLAN_STATE = 'saving'; planQueue(); render();
+}
+
 /* ── all taps, in one place ─────────────────────────────────────────────── */
 document.addEventListener('click', async function(ev){
   var t = ev.target.closest('[data-go],[data-area],[data-focus],[data-rate],[data-tick],[data-due],[data-setdue],' +
     '[data-filter],[data-areafilter],[data-notes],[data-goaltick],[data-day],[data-hist],[data-editsess],' +
     '[data-noteact],[data-range],[data-corner],#startBtn,#stopBtn,#pauseBtn,#resumeBtn,#saveGoals,#editGoals,#reloadBtn,#addSess,' +
-    '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend],[data-circ],#pauseCirc,#finishBtn');
+    '#sessSave,#sessDelete,[data-sarea],[data-sfocus],[data-sstate],[data-act],[data-info],#switchBtn,[data-swarea],[data-qsend],[data-circ],#pauseCirc,#finishBtn,[data-plan]');
   if(!t) return;
   // A sheet keeps its buttons for 340ms while it slides out. A second tap in
   // that window used to post the same event again.
@@ -3341,11 +3673,12 @@ document.addEventListener('click', async function(ev){
   if(t.dataset.info){ var inf = INFO[t.dataset.info]; openSheet('<h3>'+esc(inf[0])+'</h3><p class="small dim prose" style="margin-top:10px">'+esc(inf[1])+'</p>'); return; }
   if(t.dataset.range){ P_RANGE = t.dataset.range; rememberView(); render(); return; }
   if(t.dataset.corner){ P_CORNER = t.dataset.corner; rememberView(); render(); return; }
+  if(t.dataset.plan){ planClick(t.dataset.plan); return; }
 
   if(t.id === 'reloadBtn'){ location.reload(); return; }
   if(t.dataset.go && SHEET && SHEET.dataset.mandatory){ toast('Give the session a score first.'); return; }
   if(t.dataset.go === 'more'){ moreSheet(); return; }
-  if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; rememberTab(); window.scrollTo(0,0); render(); return; }
+  if(t.dataset.go){ closeSheet(true); TAB = t.dataset.go; if(TAB === 'plan' && PLAN_DAY) delete PLAN_LOAD[PLAN_DAY]; rememberTab(); window.scrollTo(0,0); render(); return; }
   if(t.dataset.qsend){ await sendAnswer(t.dataset.qsend, null, 'typed'); return; }
   if(t.dataset.notes){
     var nid = t.dataset.notes;
@@ -3729,6 +4062,7 @@ document.addEventListener('keydown', function(ev){
   }
 });
 document.addEventListener('change', async function(ev){
+  if(ev.target.closest && ev.target.closest('.pl')){ planInput(ev.target); return; }
   var s = ev.target.closest('[data-goalpct]');
   if(!s || s.dataset.locked) return;
   var i = +s.dataset.goalpct, g = VIEW.week.goals[i];
@@ -4164,6 +4498,15 @@ function morphNode(f, t){
     if(f.getAttribute(a.name) !== a.value) f.setAttribute(a.name, a.value);
   });
   // A field he is typing in keeps its text; the rest follows the new HTML.
+  if(f.tagName === 'INPUT' && (f.type === 'checkbox' || f.type === 'radio')){
+    if(f.checked !== t.checked) f.checked = t.checked;
+    return;
+  }
+  if(f.tagName === 'SELECT'){
+    morphChildren(f, t);
+    if(document.activeElement !== f && f.value !== t.value) f.value = t.value;
+    return;
+  }
   if(f.tagName === 'TEXTAREA' || f.tagName === 'INPUT'){
     if(document.activeElement !== f && f.type !== 'range'){ if(f.value !== t.value) f.value = t.value; }
     if(f.type === 'range' && document.activeElement !== f && f.value !== t.value) f.value = t.value;
@@ -4308,12 +4651,21 @@ refresh();
 setTimeout(checkBuild, 4000);   // compares the build itself, so a page served from cache heals at once
 setInterval(function(){ if(!document.hidden) refresh(); }, 60000);
 setInterval(function(){ if(!document.hidden) pollRemote(); }, 20000);
+/* The plan notebook: retry anything not yet sent, and pick up an edit made on
+   the other device, every twenty seconds while the Plan page is showing. */
+setInterval(function(){
+  if(document.hidden) return;
+  if(Object.keys(planLocal()).length) planFlush();
+  else if(TAB === 'plan' && PLAN_DAY && PLAN_LOAD[PLAN_DAY] !== 'loading') planFetch(PLAN_DAY);
+}, 20000);
 setInterval(function(){ if(!document.hidden) checkBuild(); }, 300000);
 document.addEventListener('visibilitychange', function(){
   if(document.visibilityState === 'visible'){ refresh(); checkBuild(); tickClock(); }
   else clearInterval(CLOCK_T);   // nobody is looking at the live clock
 });
 window.addEventListener('online', flushPend);
+window.addEventListener('online', function(){ planFlush(); });
+window.addEventListener('pagehide', function(){ planFlush(); });
 </script>
 </body>
 </html>
