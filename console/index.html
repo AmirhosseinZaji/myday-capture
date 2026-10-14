@@ -729,21 +729,19 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pl-sum i{font-style:normal; display:inline-flex; align-items:center; gap:6px}
 .pl-sum i::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--c)}
 .pl-sum .warn{flex-basis:100%; color:var(--warn)}
-/* On the computer the Plan page reads small, so its text is larger there.
+/* On the computer the Plan page's ordinary text reads small, so it is larger
+   there. The titles stay as they are: Amir asked for the text only.
    Keyed on the mouse, not the width: the desktop Plan.app window is narrow. */
 @media (hover:hover) and (pointer:fine){
-  .pl{font-size:17px}
-  .pl .card h2{font-size:18px}
-  .pl .card h2 .hint, .pl-jh .cad, .pl-mixhint, .pl-status{font-size:14.5px}
-  .pl label.l{font-size:15px}
-  .pl input[type=text], .pl input[type=number], .pl input[type=time], .pl input[type=date], .pl select, .pl textarea{font-size:17px}
-  .pl-rel{font-size:36px}
-  .pl-dates{font-size:15.5px}
-  .pl-tick{font-size:15px}
-  .pl-total{font-size:15.5px}
-  .pl-total b{font-size:23px}
-  .pl-sum, .pl-empty{font-size:15px}
-  .pl .chip{font-size:15px}
+  .pl{font-size:18px}
+  .pl .card h2 .hint, .pl-jh .cad, .pl-mixhint, .pl-status{font-size:15px}
+  .pl label.l{font-size:16px}
+  .pl input[type=text], .pl input[type=number], .pl input[type=time], .pl input[type=date], .pl select, .pl textarea{font-size:18px}
+  .pl-dates{font-size:16px}
+  .pl-tick{font-size:15.5px}
+  .pl-total{font-size:16px}
+  .pl-sum, .pl-empty{font-size:15.5px}
+  .pl .chip{font-size:15.5px}
 }
 </style>
 </head>
@@ -766,7 +764,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c102-2026-10-13-plan-bigger-on-computer';
+var BUILD = 'c103-2026-10-13-plan-text-not-titles';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
