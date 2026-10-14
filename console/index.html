@@ -750,7 +750,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c100-2026-10-13-plan-boxes-grow';
+var BUILD = 'c101-2026-10-13-plan-opens-today';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3423,13 +3423,17 @@ function plParse(s){ var p = s.split('-').map(Number); return new Date(p[0], p[1
 function plAdd(s, n){ var d = plParse(s); d.setDate(d.getDate()+n); return plYmd(d); }
 function plDiff(a, b){ return Math.round((plParse(a) - plParse(b)) / 86400000); }
 function plFa(n){ try{ return Number(n).toLocaleString('fa-IR'); }catch(e){ return String(n); } }
-/* After 17:00 he is planning tomorrow; before that, today. Past midnight the
-   calendar date is already the day he is about to live, so it is today. */
-function planDefaultDay(){
-  var n = new Date(), d = new Date(n);
-  if(n.getHours() >= 17) d.setDate(d.getDate()+1);
+/* The page always opens on today. Amir, 2026-10-13: until 3 or 4 a.m. it is
+   still the day he is awake in, and after that it is the new day. So the Plan
+   page's day turns at 04:00, not midnight. (The rest of the site turns at
+   05:00; the hour between only matters to someone planning at 4 a.m.) */
+function planToday(){
+  var d = new Date();
+  if(d.getHours() < 4) d.setDate(d.getDate() - 1);
   return plYmd(d);
 }
+function planDefaultDay(){ return planToday(); }
+var PLAN_AUTO = true;   // true while the page shows the day it opened on by itself
 function planLocal(){ try{ return JSON.parse(localStorage.getItem('myday_plan_local') || '{}') || {}; }catch(e){ return {}; } }
 function planLocalSave(o){ try{ localStorage.setItem('myday_plan_local', JSON.stringify(o)); }catch(e){} }
 function planData(day){
@@ -3528,7 +3532,7 @@ function planRefreshBits(){
   var s = document.getElementById('planSum'); if(s) s.innerHTML = planSumHTML(d);
 }
 function planRel(day){
-  var n = plDiff(day, plYmd(new Date()));
+  var n = plDiff(day, planToday());
   return n === 0 ? 'امروز' : n === 1 ? 'فردا' : n === -1 ? 'دیروز' : n === 2 ? 'پس‌فردا' : n === -2 ? 'پریروز'
        : (n > 0 ? plFa(n) + ' روز بعد' : plFa(-n) + ' روز پیش');
 }
@@ -3556,7 +3560,7 @@ function pagePlan(v){
   var day = PLAN_DAY, d = planData(day), dt = plParse(day);
   var dates = (PL_JAL ? PL_JAL.format(dt) : day) + (PL_GREG ? '، ' + PL_GREG.format(dt) : '');
   var st = planStatusText();
-  var today = plYmd(new Date());
+  var today = planToday();
   var chip = function(k, label, target){ return '<button class="chip' + (day === target ? ' on' : '') + '" data-plan="' + k + '">' + label + '</button>'; };
   var hrs = function(f, label){ return '<div><label class="l" for="pf-' + f + '">' + label + '</label>' +
     plInput(f, d, 'number', ' min="0" max="16" step="0.5" inputmode="decimal"') + '</div>'; };
@@ -3646,12 +3650,13 @@ function planInput(t){
 }
 function planGo(day){
   planFlush();
+  PLAN_AUTO = day === planToday();
   PLAN_DAY = day; PLAN_STATE = '';
   delete PLAN_LOAD[day];   // always read the latest from the server on arrival
   render(); window.scrollTo(0, 0);
 }
 function planClick(a){
-  var today = plYmd(new Date());
+  var today = planToday();
   if(a === 'prev') return planGo(plAdd(PLAN_DAY, -1));
   if(a === 'next') return planGo(plAdd(PLAN_DAY, 1));
   if(a === 'today') return planGo(today);
@@ -4669,6 +4674,9 @@ setInterval(function(){
 }, 20000);
 setInterval(function(){ if(!document.hidden) checkBuild(); }, 300000);
 document.addEventListener('visibilitychange', function(){
+  // A Plan page left open overnight moves on to the new day by itself at 04:00,
+  // unless he had stepped to another day on purpose.
+  if(document.visibilityState === 'visible' && PLAN_DAY && PLAN_AUTO && PLAN_DAY !== planToday()){ PLAN_DAY = planToday(); if(TAB === 'plan') render(); }
   if(document.visibilityState === 'visible'){ refresh(); checkBuild(); tickClock(); }
   else clearInterval(CLOCK_T);   // nobody is looking at the live clock
 });
