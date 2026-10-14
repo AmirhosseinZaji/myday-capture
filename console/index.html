@@ -740,6 +740,39 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pl-sum i{font-style:normal; display:inline-flex; align-items:center; gap:6px}
 .pl-sum i::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--c)}
 .pl-sum .warn{flex-basis:100%; color:var(--warn)}
+/* One screen on a computer. The four groups stand side by side: the day and
+   its hours, UCW and the note, Instant Automation, then the habits and the
+   blocks. Each column is narrow, so the rows inside it take their phone shape. */
+@media (min-width:900px){
+  .pl-cols{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px; align-items:start}
+  .pl-col{min-width:0; display:flex; flex-direction:column; gap:14px}
+  .pl-col > .card{margin:0}
+  .pl-cols{margin-top:14px}
+  .pl .g3{grid-template-columns:repeat(auto-fit,minmax(118px,1fr))}
+  .pl .g4{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-habit{grid-template-columns:auto 1fr} .pl-habit textarea{grid-column:1 / -1}
+  .pl-block{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 40px} .pl-block select{grid-column:1 / -1; grid-row:2}
+  .pl textarea{min-height:48px; padding:8px 10px}
+  .pl textarea.one{min-height:0}
+  .pl .card{padding:14px 16px}
+  .pl .card h2{margin-bottom:10px}
+  .pl-job + .pl-job{margin-top:10px}
+  .pl-habit + .pl-habit{margin-top:8px}
+  /* The day card on one line of controls, and the hours in one row of four. */
+  .pl-jump{margin-top:8px}
+  .pl-jump input[type=date]{flex:1 1 130px; min-width:130px}
+  .pl .g3{grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px}
+  .pl .g3 input[type=time]{padding:8px 2px; font-size:15px}
+  .pl .g3 input[type=time]::-webkit-calendar-picker-indicator{display:none}
+  .pl .g4{grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px}
+  .pl .g4 input{padding:7px 4px}
+  .pl-mixhint{margin-top:6px}
+  .pl-total{margin-top:8px; padding-top:8px}
+  .pl-status{margin-top:6px}
+}
+@media (min-width:1250px){
+  .pl-cols{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
 /* On the computer the Plan page's ordinary text reads small, so it is larger
    there. The titles stay as they are: Amir asked for the text only.
    Keyed on the mouse, not the width: the desktop Plan.app window is narrow. */
@@ -775,7 +808,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c104-2026-10-13-plan-not-today-and-one-font';
+var BUILD = 'c105-2026-10-13-plan-one-screen';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3151,7 +3184,7 @@ function render(){
       return '<button data-go="'+t.k+'" class="'+(on?'on':'')+(t.wide?' wide-tab':'')+(t.narrow?' narrow-tab':'')+'" aria-label="'+esc(t.label)+'">' +
         '<span class="ic">'+ICONS[t.k]+badge+'</span>'+esc(t.label)+'</button>';
     }).join('') + '</nav>' +
-    '<main><div class="page on'+(TAB === 'notes' ? ' notespage' : '')+'">' + staleHTML() + body + '</div>' +
+    '<main'+(TAB === 'plan' ? ' class="planmain"' : '')+'><div class="page on'+(TAB === 'notes' ? ' notespage' : '')+'">' + staleHTML() + body + '</div>' +
       '<p class="tiny muted" style="text-align:center;margin:22px 0 0">' +
       (staleWhy() ? '<span style="color:var(--consistency);font-weight:600">Not live. '+esc(staleWhy())+'</span><br>' : '') +
       'Updated '+esc(prettyStamp(UPDATED||v.generated_at))+'</p></main>' +
@@ -3607,7 +3640,10 @@ function pagePlan(v){
       '<textarea class="what one" rows="1" id="pb-' + i + '-what" data-pb="' + i + ':what" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' + esc(b.what || '') + '</textarea>' +
     '</div>';
   }).join('');
-  return '<div class="pl" dir="rtl" lang="fa">' +
+  // Four groups: the day and its hours; UCW and the note; Instant Automation;
+  // the habits and the blocks. On a phone they stack; on a wide screen they
+  // stand side by side so the whole day is on one screen (Amir, 2026-10-13).
+  return '<div class="pl" dir="rtl" lang="fa"><div class="pl-cols"><div class="pl-col">' +
     '<div class="card">' +
       '<div class="pl-day">' +
         '<button class="pl-arrow" data-plan="prev" aria-label="روز قبل">→</button>' +
@@ -3630,18 +3666,25 @@ function pagePlan(v){
       '<div class="pl-total"><span>هدف کار این روز</span><b id="planTotal">' + esc(planTotalHTML(d)) + '</b></div>' +
     '</div>' +
 
+    '</div><div class="pl-col">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ucw + '"></span>UCW <span class="hint">کار اصلی</span></h2>' +
       plItem('ucwCourses', d, 'کورس‌هایی که درس می‌دم', 'برای کدوم کورس چی کار می‌کنی؟') +
       plItem('ucwService', d, 'سرویس‌ها', 'کمیته، جلسه، ایمیل، کارگاه…') +
       plItem('ucwResearch', d, 'Research و مقاله', 'روی کدوم مقاله کار می‌کنی و تا کجا؟') +
     '</div>' +
 
+    '<div class="card"><h2>یادداشت</h2>' +
+      '<textarea id="pf-note" data-pf="note" rows="2" placeholder="هر چیز دیگه‌ای که باید یادت باشه">' + esc(d.note || '') + '</textarea>' +
+    '</div>' +
+
+    '</div><div class="pl-col">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ai + '"></span>Instant Automation <span class="hint">کار جانبی</span></h2>' +
       plItem('vidPlan', d, 'YouTube Video', 'امروز روی کدوم ویدیو چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'vidDone'}) +
       plItem('shortPlan', d, 'YouTube Short', 'امروز روی کدوم شورت چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'shortDone'}) +
       plItem('brainPlan', d, 'Brain، کورس، تبلیغ و فروش', 'مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول', {tick:'brainDone'}) +
     '</div>' +
 
+    '</div><div class="pl-col">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.care + '"></span>سبک زندگی <span class="hint">کار نیست. تیک رو آخر همون روز بزن</span></h2>' +
       '<div class="pl-habit"><span class="nm">رژیم</span>' + plTick('dietDone', d, 'رعایت شد') + plLine('dietNote', d, 'یه جمله') + '</div>' +
       '<div class="pl-habit"><span class="nm">ورزش</span>' + plTick('exDone', d, 'رعایت شد') + plLine('exNote', d, 'یه جمله') + '</div>' +
@@ -3653,11 +3696,7 @@ function pagePlan(v){
       '<button class="btn tiny" style="margin-top:12px" data-plan="add">+ بلوک تازه</button>' +
       '<div class="pl-sum" id="planSum">' + planSumHTML(d) + '</div>' +
     '</div>' +
-
-    '<div class="card"><h2>یادداشت</h2>' +
-      '<textarea id="pf-note" data-pf="note" rows="3" placeholder="هر چیز دیگه‌ای که باید یادت باشه">' + esc(d.note || '') + '</textarea>' +
-    '</div>' +
-  '</div>';
+  '</div></div></div>';
 }
 function planInput(t){
   if(t.id === 'planJump'){
