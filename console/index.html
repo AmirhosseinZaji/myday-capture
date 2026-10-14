@@ -12,8 +12,8 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cpath d='M16 5 28 26H4z' fill='none' stroke='%23AD5B2B' stroke-width='3' stroke-linejoin='round'/%3E%3C/svg%3E">
 <link rel="preload" href="../fonts/instrument-serif.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
-<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"></noscript>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap" media="print" onload="this.media='all'">
+<noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Vazirmatn:wght@400;500;600;700&display=swap"></noscript>
 <style>
 /* The serif is ours, 15 KB, preloaded, so the numbers never repaint. Inter
    loads without blocking; the system face stands in until it lands. */
@@ -674,7 +674,12 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 /* ── the plan notebook ─────────────────────────────────────────────────────
    Persian, right to left, filled the night before or first thing in the
    morning. One row per day in the `plans` table. Added 2026-10-13. */
-.pl{direction:rtl; text-align:right}
+.pl{direction:rtl; text-align:right;
+  /* One face for the Persian and the English, so "Research" and "مقاله" have
+     the same weight. Before this the English came from Inter and the Persian
+     from the system, and the two never looked equally bold. */
+  font-family:Vazirmatn,Inter,-apple-system,BlinkMacSystemFont,"Segoe UI",Tahoma,sans-serif}
+.pl input, .pl textarea, .pl select, .pl button{font-family:inherit}
 .pl .card h2{letter-spacing:0; text-transform:none; font-size:15px; color:var(--ink); display:flex; align-items:center; gap:8px; flex-wrap:wrap}
 .pl .card h2 .hint{font-size:12.5px; font-weight:400; color:var(--ink-3)}
 .pl .pdot{width:9px; height:9px; border-radius:50%; flex:0 0 auto}
@@ -707,7 +712,13 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pl-total b{font-size:20px; color:var(--ink); font-variant-numeric:tabular-nums}
 .pl-job + .pl-job{margin-top:14px}
 .pl-jh{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:6px}
-.pl-jh .nm{font-weight:600}
+.pl-jh .nm{font-weight:600; color:var(--ink)}
+.pl-acts{display:inline-flex; align-items:center; gap:6px; flex-wrap:wrap}
+.pl-off{min-height:36px; padding:4px 12px; border:1px dashed var(--line); border-radius:999px; font-size:13px; color:var(--ink-3)}
+/* "Not today": the item fades so a glance during the day skips it. The
+   button stays solid, because it is how he brings the item back. */
+.pl-job.off .nm, .pl-job.off textarea, .pl-job.off .pl-tick, .pl-job.off .cad{opacity:.38}
+.pl-job.off .pl-off{border-style:solid; color:var(--ink-2); background:var(--surface-2)}
 .pl-jh .cad{font-size:12.5px; color:var(--ink-3); font-weight:400}
 .pl-tick{display:inline-flex; align-items:center; gap:7px; min-height:36px; padding:4px 12px; border:1px solid var(--line); border-radius:999px; background:var(--surface-2); font-size:13px; color:var(--ink-2); cursor:pointer; user-select:none}
 .pl-tick input{width:18px; height:18px; margin:0; accent-color:var(--good)}
@@ -738,7 +749,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .pl label.l{font-size:16px}
   .pl input[type=text], .pl input[type=number], .pl input[type=time], .pl input[type=date], .pl select, .pl textarea{font-size:18px}
   .pl-dates{font-size:16px}
-  .pl-tick{font-size:15.5px}
+  .pl-tick, .pl-off{font-size:15.5px}
   .pl-total{font-size:16px}
   .pl-sum, .pl-empty{font-size:15.5px}
   .pl .chip{font-size:15.5px}
@@ -764,7 +775,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c103-2026-10-13-plan-text-not-titles';
+var BUILD = 'c104-2026-10-13-plan-not-today-and-one-font';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3554,16 +3565,24 @@ function plInput(f, d, type, extra){
   var v = d[f] == null ? '' : String(d[f]);
   return '<input type="' + type + '" id="pf-' + f + '" data-pf="' + f + '" value="' + esc(v) + '"' + (extra || '') + '>';
 }
-function plArea(f, d, label, ph, rows){
-  return '<div class="fld"><label class="l" for="pf-' + f + '">' + label + '</label>' +
-    '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="' + (rows || 2) + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
-}
 /* A one-line box that becomes two or three lines when the sentence is long. */
 function plLine(f, d, ph){
   return '<textarea class="one" rows="1" id="pf-' + f + '" data-pf="' + f + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea>';
 }
 function planGrowOne(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeight + 2) + 'px'; }
 function planGrow(){ document.querySelectorAll('.pl textarea').forEach(planGrowOne); }
+/* One item: a bold name, its buttons, and the box under it. Every item on the
+   page is drawn by this, so they all look the same. */
+function plItem(f, d, name, ph, opt){
+  opt = opt || {};
+  var off = !!d['off_' + f];
+  return '<div class="pl-job' + (off ? ' off' : '') + '"><div class="pl-jh">' +
+      '<span class="nm">' + esc(name) + (opt.cad ? ' <span class="cad">' + esc(opt.cad) + '</span>' : '') + '</span>' +
+      '<span class="pl-acts">' + (opt.tick ? plTick(opt.tick, d, 'کار امروز انجام شد') : '') +
+        '<button class="pl-off" data-plan="off:' + f + '" aria-pressed="' + off + '">' + (off ? 'برگردون' : 'امروز نه') + '</button></span>' +
+    '</div>' +
+    '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="2" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
+}
 function plTick(f, d, label){
   return '<label class="pl-tick"><input type="checkbox" id="pf-' + f + '" data-pf="' + f + '"' + (d[f] ? ' checked' : '') + '>' + label + '</label>';
 }
@@ -3612,18 +3631,15 @@ function pagePlan(v){
     '</div>' +
 
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ucw + '"></span>UCW <span class="hint">کار اصلی</span></h2>' +
-      plArea('ucwCourses', d, 'کورس‌هایی که درس می‌دم', 'برای کدوم کورس چی کار می‌کنی؟') +
-      plArea('ucwService', d, 'سرویس‌ها', 'کمیته، جلسه، ایمیل، کارگاه…') +
-      plArea('ucwResearch', d, 'Research و مقاله', 'روی کدوم مقاله کار می‌کنی و تا کجا؟') +
+      plItem('ucwCourses', d, 'کورس‌هایی که درس می‌دم', 'برای کدوم کورس چی کار می‌کنی؟') +
+      plItem('ucwService', d, 'سرویس‌ها', 'کمیته، جلسه، ایمیل، کارگاه…') +
+      plItem('ucwResearch', d, 'Research و مقاله', 'روی کدوم مقاله کار می‌کنی و تا کجا؟') +
     '</div>' +
 
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ai + '"></span>Instant Automation <span class="hint">کار جانبی</span></h2>' +
-      '<div class="pl-job"><div class="pl-jh"><span class="nm">YouTube Video <span class="cad">هر دو روز یکی</span></span>' + plTick('vidDone', d, 'کار امروز انجام شد') + '</div>' +
-        '<textarea id="pf-vidPlan" data-pf="vidPlan" rows="2" placeholder="امروز روی کدوم ویدیو چی کار می‌کنی؟">' + esc(d.vidPlan || '') + '</textarea></div>' +
-      '<div class="pl-job"><div class="pl-jh"><span class="nm">YouTube Short <span class="cad">هر دو روز یکی</span></span>' + plTick('shortDone', d, 'کار امروز انجام شد') + '</div>' +
-        '<textarea id="pf-shortPlan" data-pf="shortPlan" rows="2" placeholder="امروز روی کدوم شورت چی کار می‌کنی؟">' + esc(d.shortPlan || '') + '</textarea></div>' +
-      '<div class="pl-job"><div class="pl-jh"><span class="nm">Brain، کورس، تبلیغ و فروش</span>' + plTick('brainDone', d, 'کار امروز انجام شد') + '</div>' +
-        '<textarea id="pf-brainPlan" data-pf="brainPlan" rows="2" placeholder="مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول">' + esc(d.brainPlan || '') + '</textarea></div>' +
+      plItem('vidPlan', d, 'YouTube Video', 'امروز روی کدوم ویدیو چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'vidDone'}) +
+      plItem('shortPlan', d, 'YouTube Short', 'امروز روی کدوم شورت چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'shortDone'}) +
+      plItem('brainPlan', d, 'Brain، کورس، تبلیغ و فروش', 'مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول', {tick:'brainDone'}) +
     '</div>' +
 
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.care + '"></span>سبک زندگی <span class="hint">کار نیست. تیک رو آخر همون روز بزن</span></h2>' +
@@ -3682,6 +3698,9 @@ function planClick(a){
     d.blocks.push({from:(last && last.to) || d.start || '', to:'', area:'academia', what:''});
   } else if(a.indexOf('del:') === 0){
     d.blocks.splice(+a.slice(4), 1);
+  } else if(a.indexOf('off:') === 0){
+    var k = 'off_' + a.slice(4);
+    if(d[k]) delete d[k]; else d[k] = true;
   } else return;
   planWrite(PLAN_DAY, d); PLAN_STATE = 'saving'; planQueue(); render();
 }
