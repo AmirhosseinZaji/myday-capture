@@ -740,6 +740,49 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
 .pl-sum i{font-style:normal; display:inline-flex; align-items:center; gap:6px}
 .pl-sum i::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--c)}
 .pl-sum .warn{flex-basis:100%; color:var(--warn)}
+/* ── the Plan page on a computer: the whole day on one screen ──────────────
+   Three rows across the screen instead of one long column. Row one: the day
+   (narrow) and the hours laid out in a single line. Row two: UCW and Instant
+   Automation side by side, each item a line with its name on the right and its
+   box filling the rest. Row three: the habits, the note and the blocks.
+   The talk bar is hidden here, because on the computer he types. */
+@media (min-width:1100px) and (hover:hover){
+  #app:has(main.planmain) .micwrap{display:none}
+  main.planmain{padding-bottom:28px}
+  .pl-grid{display:flex; flex-direction:column; gap:16px; margin-top:14px}
+  .pl-row{display:grid; gap:16px; align-items:stretch}
+  .pl-row > .card{margin:0; min-width:0}
+  .pl-top{grid-template-columns:minmax(260px,320px) minmax(0,1fr)}
+  .pl-mid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-bot{grid-template-columns:repeat(3,minmax(0,1fr))}
+
+  .pl-hrow{display:grid; grid-template-columns:minmax(0,4fr) minmax(0,5fr) auto; gap:22px; align-items:end}
+  .pl-hrow label.l{white-space:nowrap; font-size:14.5px}
+  .pl-hrow .g3, .pl-hrow .g4{gap:8px}
+  .pl-hrow .g4{grid-template-columns:1fr 1.7fr 0.8fr 1fr}
+  .pl-hrow input[type=time]{padding:9px 2px; font-size:16px}
+  .pl-hrow input[type=time]::-webkit-calendar-picker-indicator{display:none}
+  .pl textarea{line-height:1.55}
+  .pl-hrow .g4{margin-top:0}
+  .pl-hrow .pl-total{margin:0; padding:0 22px 6px 0; border-top:0; border-right:1px solid var(--line);
+    flex-direction:column; align-items:flex-start; gap:2px; white-space:nowrap}
+  .pl-mixhint{margin-top:10px}
+
+  /* An item is one line: name and buttons on the right, the box on the left. */
+  .pl-mid .pl-job{display:grid; grid-template-columns:250px minmax(0,1fr); gap:16px; align-items:start}
+  .pl-mid .pl-job + .pl-job{margin-top:0; padding-top:12px; border-top:1px solid var(--line-soft)}
+  .pl-mid .pl-job{padding-bottom:12px}
+  .pl-mid .pl-job:last-child{padding-bottom:0}
+  .pl-mid .pl-jh{flex-direction:column; align-items:flex-start; margin:0; gap:6px}
+  .pl-mid .pl-jh .cad{display:block; margin-top:1px}
+  .pl-mid .pl-acts{gap:10px; flex-wrap:nowrap}
+  .pl-mid .pl-tick{min-height:32px; padding:2px 10px}
+  .pl-mid textarea{min-height:0}
+  .pl-mid .pl-job .nm{line-height:1.35}
+  /* "Not today" is a quiet word, not a third button. */
+  .pl-off{border:0; background:none; padding:4px 2px; min-height:0; text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line)}
+  .pl-job.off .pl-off{background:none; color:var(--ink)}
+}
 /* On the computer the Plan page's ordinary text reads small, so it is larger
    there. The titles stay as they are: Amir asked for the text only.
    Keyed on the mouse, not the width: the desktop Plan.app window is narrow. */
@@ -775,7 +818,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c106-2026-10-13-plan-back-to-one-column';
+var BUILD = 'c107-2026-10-13-plan-one-screen-v2';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3607,9 +3650,12 @@ function pagePlan(v){
       '<textarea class="what one" rows="1" id="pb-' + i + '-what" data-pb="' + i + ':what" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' + esc(b.what || '') + '</textarea>' +
     '</div>';
   }).join('');
-  // Grouped in four, stacked in one column everywhere. A four-column layout
-  // for the computer was tried on 2026-10-13 and Amir rejected it as ugly.
-  return '<div class="pl" dir="rtl" lang="fa"><div class="pl-cols"><div class="pl-col">' +
+  // Three rows: the day and its hours; UCW beside Instant Automation; the
+  // habits, the note and the blocks. On a phone everything stacks. On a
+  // computer each row is laid out across the screen so the whole day fits
+  // without scrolling (Amir, 2026-10-13; a cramped four-column version was
+  // rejected the same evening).
+  return '<div class="pl" dir="rtl" lang="fa"><div class="pl-grid"><div class="pl-row pl-top">' +
     '<div class="card">' +
       '<div class="pl-day">' +
         '<button class="pl-arrow" data-plan="prev" aria-label="روز قبل">→</button>' +
@@ -3621,45 +3667,44 @@ function pagePlan(v){
       '<div class="pl-status' + (st[0] ? ' ' + st[0] : '') + '" id="planStatus">' + esc(st[1]) + '</div>' +
     '</div>' +
 
-    '<div class="card"><h2>ساعت‌ها <span class="hint">عددها رو خودت می‌ذاری</span></h2>' +
-      '<div class="g3">' +
+    '<div class="card pl-hours"><h2>ساعت‌ها <span class="hint">عددها رو خودت می‌ذاری</span></h2>' +
+      '<div class="pl-hrow"><div class="g3">' +
         '<div><label class="l" for="pf-wake">بیدار می‌شم</label>' + plInput('wake', d, 'time') + '</div>' +
         '<div><label class="l" for="pf-start">شروع کار</label>' + plInput('start', d, 'time') + '</div>' +
         '<div><label class="l" for="pf-stop">پایان کار</label>' + plInput('stop', d, 'time') + '</div>' +
       '</div>' +
       '<div class="g4">' + hrs('hAcad', 'Academia') + hrs('hAi', 'Instant Automation') + hrs('hMix', 'MIX') + hrs('hPers', 'Personal') + '</div>' +
+      '<div class="pl-total"><span>هدف کار این روز</span><b id="planTotal">' + esc(planTotalHTML(d)) + '</b></div></div>' +
       '<div class="pl-mixhint">MIX یعنی چند ساعت که همزمان روی چند تا پروژه کار می‌کنی، از Academia و Instant Automation.</div>' +
-      '<div class="pl-total"><span>هدف کار این روز</span><b id="planTotal">' + esc(planTotalHTML(d)) + '</b></div>' +
     '</div>' +
 
-    '</div><div class="pl-col">' +
+    '</div><div class="pl-row pl-mid">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ucw + '"></span>UCW <span class="hint">کار اصلی</span></h2>' +
       plItem('ucwCourses', d, 'کورس‌هایی که درس می‌دم', 'برای کدوم کورس چی کار می‌کنی؟') +
       plItem('ucwService', d, 'سرویس‌ها', 'کمیته، جلسه، ایمیل، کارگاه…') +
       plItem('ucwResearch', d, 'Research و مقاله', 'روی کدوم مقاله کار می‌کنی و تا کجا؟') +
     '</div>' +
 
-    '</div><div class="pl-col">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.ai + '"></span>Instant Automation <span class="hint">کار جانبی</span></h2>' +
       plItem('vidPlan', d, 'YouTube Video', 'امروز روی کدوم ویدیو چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'vidDone'}) +
       plItem('shortPlan', d, 'YouTube Short', 'امروز روی کدوم شورت چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'shortDone'}) +
       plItem('brainPlan', d, 'Brain، کورس، تبلیغ و فروش', 'مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول', {tick:'brainDone'}) +
     '</div>' +
 
-    '</div><div class="pl-col">' +
+    '</div><div class="pl-row pl-bot">' +
     '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.care + '"></span>سبک زندگی <span class="hint">کار نیست. تیک رو آخر همون روز بزن</span></h2>' +
       '<div class="pl-habit"><span class="nm">رژیم</span>' + plTick('dietDone', d, 'رعایت شد') + plLine('dietNote', d, 'یه جمله') + '</div>' +
       '<div class="pl-habit"><span class="nm">ورزش</span>' + plTick('exDone', d, 'رعایت شد') + plLine('exNote', d, 'یه جمله') + '</div>' +
       '<div class="pl-habit"><span class="nm">ویپ</span>' + plTick('vapeDone', d, 'رعایت شد') + plLine('vapeNote', d, 'یه جمله') + '</div>' +
     '</div>' +
 
+    '<div class="card"><h2>یادداشت</h2>' +
+      '<textarea id="pf-note" data-pf="note" rows="3" placeholder="هر چیز دیگه‌ای که باید یادت باشه">' + esc(d.note || '') + '</textarea>' +
+    '</div>' +
     '<div class="card"><h2>بلوک‌های روز <span class="hint">اگه بخوای ساعت به ساعت بچینی</span></h2>' +
       (blocks || '<div class="pl-empty">هنوز بلوکی نذاشتی. اگه عددهای بالا کافیه، این بخش رو خالی بذار.</div>') +
       '<button class="btn tiny" style="margin-top:12px" data-plan="add">+ بلوک تازه</button>' +
       '<div class="pl-sum" id="planSum">' + planSumHTML(d) + '</div>' +
-    '</div>' +
-    '<div class="card"><h2>یادداشت</h2>' +
-      '<textarea id="pf-note" data-pf="note" rows="3" placeholder="هر چیز دیگه‌ای که باید یادت باشه">' + esc(d.note || '') + '</textarea>' +
     '</div>' +
   '</div></div></div>';
 }
