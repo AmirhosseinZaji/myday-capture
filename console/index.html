@@ -818,7 +818,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c107-2026-10-13-plan-one-screen-v2';
+var BUILD = 'c108-2026-10-13-plan-dims-nothing-today';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3616,9 +3616,22 @@ function planGrowOne(t){ t.style.height = 'auto'; t.style.height = (t.scrollHeig
 function planGrow(){ document.querySelectorAll('.pl textarea').forEach(planGrowOne); }
 /* One item: a bold name, its buttons, and the box under it. Every item on the
    page is drawn by this, so they all look the same. */
+/* "Nothing today" written in the box fades the item by itself (Amir,
+   2026-10-13: "for the ones that I do nothing, dim that part"). Only a box
+   that says nothing else counts, so "امروز هیچی" fades and "امروز هیچی جز
+   ایمیل" does not. The button still works both ways: off_<field> true fades
+   an item, false keeps a "nothing" item bright. */
+var PL_NOTHING = ['هیچی','هیچ','هیچکار','هیچکاری','هیچکارینمیکنم','هیچینمیکنم','کارینمیکنم','کاریندارم',
+  'کاریباهاشندارم','نه','نمیرسم','تعطیل','ندارم','خالی','-','—'];
+function plNothing(t){
+  var x = String(t || '').replace(/[\u200c\u200f\u200e\s.،,!؟?:؛\-]+/g, ' ').trim();
+  x = x.replace(/^امروز\s*/, '').replace(/\s+/g, '').replace(/ي/g, 'ی');
+  return !!x && PL_NOTHING.indexOf(x) >= 0;
+}
+function plIsOff(f, d){ return d['off_' + f] === true || (d['off_' + f] !== false && plNothing(d[f])); }
 function plItem(f, d, name, ph, opt){
   opt = opt || {};
-  var off = !!d['off_' + f];
+  var off = plIsOff(f, d);
   return '<div class="pl-job' + (off ? ' off' : '') + '"><div class="pl-jh">' +
       '<span class="nm">' + esc(name) + (opt.cad ? ' <span class="cad">' + esc(opt.cad) + '</span>' : '') + '</span>' +
       '<span class="pl-acts">' + (opt.tick ? plTick(opt.tick, d, 'کار امروز انجام شد') : '') +
@@ -3717,6 +3730,12 @@ function planInput(t){
   if(!f && !b) return false;
   var d = planCopy(PLAN_DAY);
   if(f) d[f] = t.type === 'checkbox' ? t.checked : t.value;
+  // Fade or un-fade the item as he types "nothing today".
+  if(f && t.tagName === 'TEXTAREA'){
+    var job = t.closest('.pl-job');
+    if(job){ var off = plIsOff(f, d); job.classList.toggle('off', off);
+      var ob = job.querySelector('.pl-off'); if(ob){ ob.textContent = off ? 'برگردون' : 'امروز نه'; ob.setAttribute('aria-pressed', String(off)); } }
+  }
   if(b){
     var parts = b.split(':'), i = +parts[0], k = parts[1];
     if(!d.blocks[i]) return true;
@@ -3748,8 +3767,9 @@ function planClick(a){
   } else if(a.indexOf('del:') === 0){
     d.blocks.splice(+a.slice(4), 1);
   } else if(a.indexOf('off:') === 0){
-    var k = 'off_' + a.slice(4);
-    if(d[k]) delete d[k]; else d[k] = true;
+    var f = a.slice(4), k = 'off_' + f;
+    d[k] = !plIsOff(f, d);
+    if(d[k] === plNothing(d[f])) delete d[k];   // back to what the words say
   } else return;
   planWrite(PLAN_DAY, d); PLAN_STATE = 'saving'; planQueue(); render();
 }
