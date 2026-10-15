@@ -753,7 +753,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .pl-row{display:grid; gap:16px; align-items:stretch}
   .pl-row > .card{margin:0; min-width:0}
   .pl-top{grid-template-columns:minmax(260px,320px) minmax(0,1fr)}
-  .pl-mid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .pl-mid{grid-template-columns:minmax(0,1.1fr) minmax(0,1.1fr) minmax(0,0.8fr)}
   .pl-bot{grid-template-columns:repeat(3,minmax(0,1fr))}
 
   .pl-hrow{display:grid; grid-template-columns:minmax(0,4fr) minmax(0,5fr) auto; gap:22px; align-items:end}
@@ -762,23 +762,25 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
   .pl-hrow .g4{grid-template-columns:1fr 1.7fr 0.8fr 1fr}
   .pl-hrow input[type=time]{padding:9px 2px; font-size:16px}
   .pl-hrow input[type=time]::-webkit-calendar-picker-indicator{display:none}
-  .pl textarea{line-height:1.55}
+  .pl textarea{line-height:1.6}
   .pl-hrow .g4{margin-top:0}
   .pl-hrow .pl-total{margin:0; padding:0 22px 6px 0; border-top:0; border-right:1px solid var(--line);
     flex-direction:column; align-items:flex-start; gap:2px; white-space:nowrap}
   .pl-mixhint{margin-top:10px}
 
-  /* An item is one line: name and buttons on the right, the box on the left. */
-  .pl-mid .pl-job{display:grid; grid-template-columns:250px minmax(0,1fr); gap:16px; align-items:start}
-  .pl-mid .pl-job + .pl-job{margin-top:0; padding-top:12px; border-top:1px solid var(--line-soft)}
-  .pl-mid .pl-job{padding-bottom:12px}
+  /* Each item: its name and buttons on one line, its box under them. There is
+     room on his screen, so the boxes are generous rather than squeezed. */
+  .pl-mid .pl-job + .pl-job{margin-top:0; padding-top:16px; border-top:1px solid var(--line-soft)}
+  .pl-mid .pl-job{padding-bottom:16px}
   .pl-mid .pl-job:last-child{padding-bottom:0}
-  .pl-mid .pl-jh{flex-direction:column; align-items:flex-start; margin:0; gap:6px}
-  .pl-mid .pl-jh .cad{display:block; margin-top:1px}
-  .pl-mid .pl-acts{gap:10px; flex-wrap:nowrap}
+  .pl-mid .pl-jh{margin-bottom:8px}
   .pl-mid .pl-tick{min-height:32px; padding:2px 10px}
-  .pl-mid textarea{min-height:0}
-  .pl-mid .pl-job .nm{line-height:1.35}
+  .pl-mid textarea{min-height:96px}
+  .pl-mid .card:last-child textarea{min-height:240px}
+  .pl-bot textarea{min-height:120px}
+  .pl-bot textarea.one{min-height:0}
+  .pl .card{padding:20px 22px}
+  .pl-grid, .pl-row{gap:20px}
   /* "Not today" is a quiet word, not a third button. */
   .pl-off{border:0; background:none; padding:4px 2px; min-height:0; text-decoration:underline; text-underline-offset:3px; text-decoration-color:var(--line)}
   .pl-job.off .pl-off{background:none; color:var(--ink)}
@@ -818,7 +820,7 @@ button.pcell{cursor:pointer} button.pcell:hover{background:var(--surface-2)}
    and reloads itself when they differ, because a phone with the app already
    open would otherwise keep showing yesterday's build forever. Shipping correct
    code with a stale BUILD looks exactly like the deploy failing. */
-var BUILD = 'c108-2026-10-13-plan-dims-nothing-today';
+var BUILD = 'c109-2026-10-15-plan-personal-and-room';
 
 /* ── config ─────────────────────────────────────────────────────────────── */
 /* The Supabase URL and the publishable key ride in the #fragment. A fragment is
@@ -3475,8 +3477,8 @@ function askDue(id){
    Save first, then send: every keystroke lands in localStorage
    (`myday_plan_local`) and is removed only once the server has the row. */
 var PLAN_FIELDS = ['wake','start','stop','hAcad','hAi','hMix','hPers','ucwCourses','ucwService','ucwResearch',
-  'vidPlan','shortPlan','brainPlan','dietNote','exNote','vapeNote','note'];
-var PLAN_TICKS = ['vidDone','shortDone','brainDone','dietDone','exDone','vapeDone'];
+  'vidPlan','shortPlan','brainPlan','persPlan','dietNote','exNote','vapeNote','note'];
+var PLAN_TICKS = ['vidDone','shortDone','brainDone','persDone','dietDone','exDone','vapeDone'];
 var PLAN_AREAS = [['academia','Academia'],['ai','Instant Automation'],['mix','MIX'],['personal','Personal'],['care','Care']];
 var PLAN_HOURS = [['academia','hAcad'],['ai','hAi'],['mix','hMix'],['personal','hPers']];
 var PLAN_DAY = null, PLAN_DB = {}, PLAN_LOAD = {}, PLAN_TIMER = null, PLAN_SAVING = false, PLAN_STATE = '';
@@ -3637,7 +3639,7 @@ function plItem(f, d, name, ph, opt){
       '<span class="pl-acts">' + (opt.tick ? plTick(opt.tick, d, 'کار امروز انجام شد') : '') +
         '<button class="pl-off" data-plan="off:' + f + '" aria-pressed="' + off + '">' + (off ? 'برگردون' : 'امروز نه') + '</button></span>' +
     '</div>' +
-    '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="2" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
+    '<textarea id="pf-' + f + '" data-pf="' + f + '" rows="' + (opt.rows || 2) + '" placeholder="' + esc(ph) + '">' + esc(d[f] || '') + '</textarea></div>';
 }
 function plTick(f, d, label){
   return '<label class="pl-tick"><input type="checkbox" id="pf-' + f + '" data-pf="' + f + '"' + (d[f] ? ' checked' : '') + '>' + label + '</label>';
@@ -3663,8 +3665,8 @@ function pagePlan(v){
       '<textarea class="what one" rows="1" id="pb-' + i + '-what" data-pb="' + i + ':what" placeholder="چی کار می‌کنی؟ (اگه بخوای)">' + esc(b.what || '') + '</textarea>' +
     '</div>';
   }).join('');
-  // Three rows: the day and its hours; UCW beside Instant Automation; the
-  // habits, the note and the blocks. On a phone everything stacks. On a
+  // Three rows: the day and its hours; UCW, Instant Automation and Personal
+  // side by side; the habits, the note and the blocks. On a phone everything stacks. On a
   // computer each row is laid out across the screen so the whole day fits
   // without scrolling (Amir, 2026-10-13; a cramped four-column version was
   // rejected the same evening).
@@ -3702,6 +3704,10 @@ function pagePlan(v){
       plItem('vidPlan', d, 'YouTube Video', 'امروز روی کدوم ویدیو چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'vidDone'}) +
       plItem('shortPlan', d, 'YouTube Short', 'امروز روی کدوم شورت چی کار می‌کنی؟', {cad:'هر دو روز یکی', tick:'shortDone'}) +
       plItem('brainPlan', d, 'Brain، کورس، تبلیغ و فروش', 'مطالعهٔ Brain، ساختن کورس، تبلیغ یا فروش نسخهٔ اول', {tick:'brainDone'}) +
+    '</div>' +
+
+    '<div class="card"><h2><span class="pdot" style="background:' + AREA_COLOUR.personal + '"></span>Personal <span class="hint">کار حساب می‌شه</span></h2>' +
+      plItem('persPlan', d, 'کارهای شخصی', 'ویزا، دکتر، بانک، کارهای خونه…', {tick:'persDone', rows:5}) +
     '</div>' +
 
     '</div><div class="pl-row pl-bot">' +
